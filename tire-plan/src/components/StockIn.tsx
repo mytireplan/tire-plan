@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import type { StockInRecord, Store, Product, User } from '../types';
-import { Truck, Calendar, Save, AlertCircle, FileUp, Split, Filter, Tag, MapPin, Store as StoreIcon, Eye, X, Search } from 'lucide-react';
+import { Truck, Calendar, Save, AlertCircle, FileUp, Split, Filter, Tag, Store as StoreIcon, Eye, X, Search } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 
 interface StockInProps {

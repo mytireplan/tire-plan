@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Store as StoreIcon, Lock, KeyRound, AlertCircle, ChevronRight, UserCircle2, ShieldCheck } from 'lucide-react';
+import { Store as StoreIcon, Lock, AlertCircle, ChevronRight, UserCircle2, ShieldCheck } from 'lucide-react';
 
 interface LoginScreenProps {
   onLogin: (id: string, password: string) => Promise<boolean>;

@@ -43,11 +43,13 @@ export interface SalesItem {
   brand?: string;
 }
 
-export enum PaymentMethod {
-  CARD = 'CARD',
-  CASH = 'CASH',
-  TRANSFER = 'TRANSFER'
-}
+export const PaymentMethod = {
+  CARD: 'CARD',
+  CASH: 'CASH',
+  TRANSFER: 'TRANSFER'
+} as const;
+
+export type PaymentMethod = typeof PaymentMethod[keyof typeof PaymentMethod];
 
 export interface Customer {
   id: string;

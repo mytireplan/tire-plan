@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Product, Store, User } from '../types';
-import { Search, Plus, Edit2, Save, X, AlertTriangle, Filter, MapPin, Settings, ArrowRightLeft, Disc } from 'lucide-react';
+import { Search, Plus, Edit2, Save, X, AlertTriangle, MapPin, ArrowRightLeft, Disc } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 
 interface InventoryProps {

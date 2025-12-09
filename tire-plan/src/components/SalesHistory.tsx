@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem } from '../types';
 import { PaymentMethod } from '../types';
-import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, Car, Trophy, Target, TrendingUp, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, ArrowRightLeft, Tag, Trash2, Box, Check, Plus, Minus, PenTool, Truck } from 'lucide-react';
+import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -13,7 +13,6 @@ interface SalesHistoryProps {
   onBack: () => void;
   currentUser: User;
   currentStoreId: string;
-  onUpdateMemo: (saleId: string, memo: string) => void;
   stockInHistory: StockInRecord[];
   onSwapProduct: (saleId: string, originalItemId: string, newProduct: Product) => void;
   onUpdateSale: (sale: Sale) => void;
@@ -26,7 +25,7 @@ interface SalesHistoryProps {
 
 type ViewMode = 'daily' | 'weekly' | 'monthly' | 'staff';
 
-const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, onUpdateMemo, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onStockIn, categories, tireBrands, tireModels }) => {
+const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onStockIn, categories, tireBrands, tireModels }) => {
   
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -37,9 +36,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   
-  // Inline editing state for list view
-  const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
-  const [tempMemo, setTempMemo] = useState('');
+    // Inline memo editing removed (not used)
 
   // Swap/Add Item Modal State
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
@@ -70,7 +67,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       factoryPrice: 0
   });
 
-  const isAdmin = currentUser.role === 'ADMIN';
+    const isAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN';
 
   useEffect(() => {
     if (filter.type === 'DATE' && filter.value) {
@@ -197,10 +194,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     }), { revenue: 0, cost: 0, margin: 0 });
   }, [salesWithMetrics]);
 
-  const totalAmount = aggregates.revenue;
+    // const totalAmount = aggregates.revenue; (unused)
 
   const staffStats = useMemo(() => {
-    if (viewMode !== 'staff' || currentUser.role !== 'ADMIN') return [];
+    if (viewMode !== 'staff' || !(currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN')) return [];
     
     const stats: Record<string, { name: string, count: number, total: number }> = {};
     filteredSales.filter(s => !s.isCanceled).forEach(sale => {
@@ -251,10 +248,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       }
   };
 
-  const handleInlineMemoSave = (saleId: string) => {
-      onUpdateMemo(saleId, tempMemo);
-      setEditingMemoId(null);
-  };
+ 
 
   // --- Display Priority Logic ---
   const getPrimaryItem = (sale: Sale) => {
@@ -292,7 +286,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   };
 
   const handleInstantStockIn = () => {
-      const { productName, quantity, storeId } = stockInForm as any;
+    const { productName, quantity } = stockInForm as any;
       if (!productName.trim() || quantity <= 0) {
           alert('상품명과 수량을 입력해주세요.');
           return;
@@ -335,9 +329,19 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           specification: record.specification
       };
 
-      // 3. Add to Sale List
-      executeSwap(proxyProduct);
-      
+      // 3. Add to Sale List with correct quantity
+      executeSwap({ ...proxyProduct, _swapQuantity: record.quantity });
+
+      // Ensure the last-added item in the edit form has the stocked quantity (safety in case of race)
+      setEditFormData(prev => {
+          if (!prev) return prev;
+          const items = Array.isArray(prev.items) ? [...prev.items] : [];
+          if (items.length === 0) return prev;
+          const lastIdx = items.length - 1;
+          items[lastIdx] = { ...items[lastIdx], quantity: record.quantity };
+          return { ...prev, items };
+      });
+
       setIsStockInModalOpen(false);
       // Reset form
       setStockInForm({
@@ -400,7 +404,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
         return newItems;
   };
 
-  const executeSwap = (product: Product) => {
+    // Accepts optional _swapQuantity for new item
+    const executeSwap = (product: Product & { _swapQuantity?: number }) => {
       if (!swapTarget) return;
 
       if (swapTarget.isEditMode && editFormData) {
@@ -412,7 +417,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                   productName: product.name,
                   brand: product.brand,
                   specification: product.specification,
-                  quantity: 1,
+                  quantity: product._swapQuantity || 1,
                   priceAtSale: product.price
               });
           } else {
@@ -695,7 +700,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
             </div>
             <div className="flex bg-gray-100 p-1 rounded-lg w-full md:w-auto overflow-x-auto no-scrollbar">
                 {(['daily', 'weekly', 'monthly', 'staff'] as const)
-                    .filter(mode => mode !== 'staff' || currentUser.role === 'ADMIN')
+                    .filter(mode => mode !== 'staff' || (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN'))
                     .map((mode) => (
                     <button
                         key={mode}
@@ -756,7 +761,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       {/* Sales List or Staff Chart Display */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
          {viewMode === 'staff' ? (
-             currentUser.role === 'ADMIN' ? (
+                 (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN') ? (
                  <div className="p-4 md:p-6">
                     {/* Staff Stats Content */}
                     {staffStats.length === 0 ? (

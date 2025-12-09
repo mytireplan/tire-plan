@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { Customer, Sale } from '../types';
-import { Search, Users, Car, Phone, Calendar, ChevronRight, X, ShoppingBag } from 'lucide-react';
+import { Search, Users, Car, Phone, X, ShoppingBag } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
 interface CustomerListProps {

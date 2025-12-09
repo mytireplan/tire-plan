@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Product, CartItem, Sale, Store, User, Customer, Staff } from '../types';
 import { formatCurrency } from '../utils/format';
 import { PaymentMethod } from '../types';
-import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, ShoppingCart, User as UserIcon, FileCheck, Pencil, X, ChevronUp, ChevronDown, ChevronLeft, Car, Tag, MapPin, Percent, Calculator, Users, AlertTriangle, FileText } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, ShoppingCart, User as UserIcon, Pencil, X, ChevronLeft, MapPin, AlertTriangle } from 'lucide-react';
 
 interface POSProps {
   products: Product[];
@@ -15,7 +15,7 @@ interface POSProps {
   staffList: Staff[]; // Use Staff entities 
   customers: Customer[];
   onSaleComplete: (sale: Sale) => void;
-  onAddProduct: (product: Product) => void;
+    // onAddProduct: (product: Product) => void; // No longer used for immediate sale stock-in
   onAddCategory: (category: string) => void;
   tireModels: Record<string, string[]>;
 }
@@ -37,27 +37,25 @@ interface CheckoutForm {
 }
 
 interface CartItemRowProps {
-  item: CartItem;
-  onRemove: (cartItemId: string) => void;
-  onUpdateQuantity: (cartItemId: string, delta: number) => void;
-  onUpdatePrice: (cartItemId: string, newPrice: number) => void;
-  priceEditId: string | null;
-  onSetPriceEditId: (cartItemId: string | null) => void;
-  onOpenDiscount: (item: CartItem) => void;
-  onUpdateMemo: (cartItemId: string, memo: string) => void;
-  onUpdateName: (cartItemId: string, name: string) => void;
+    item: CartItem;
+    onRemove: (cartItemId: string) => void;
+    onUpdateQuantity: (cartItemId: string, delta: number) => void;
+    onUpdatePrice: (cartItemId: string, newPrice: number) => void;
+    priceEditId: string | null;
+    onSetPriceEditId: (cartItemId: string | null) => void;
+    onUpdateMemo: (cartItemId: string, memo: string) => void;
+    onUpdateName: (cartItemId: string, name: string) => void;
 }
 
 const CartItemRow: React.FC<CartItemRowProps> = ({ 
-  item, 
-  onRemove, 
-  onUpdateQuantity, 
-  onUpdatePrice, 
-  priceEditId, 
-  onSetPriceEditId,
-  onOpenDiscount,
-  onUpdateMemo,
-  onUpdateName
+    item, 
+    onRemove, 
+    onUpdateQuantity, 
+    onUpdatePrice, 
+    priceEditId, 
+    onSetPriceEditId,
+    onUpdateMemo,
+    onUpdateName
 }) => {
     // Check if discounted
     const isDiscounted = item.originalPrice !== undefined && item.price < item.originalPrice;
@@ -122,12 +120,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
                   </div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                  <button 
-                      onClick={() => onOpenDiscount(item)}
-                      className="px-2 py-1 bg-white border border-gray-200 text-xs font-medium text-blue-600 rounded hover:bg-blue-50 transition-colors"
-                  >
-                      할인
-                  </button>
+
                   <button 
                       onClick={() => onRemove(item.cartItemId)}
                       className="text-gray-400 hover:text-red-500 p-1"
@@ -215,7 +208,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
     );
 };
 
-const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = [], currentUser, currentStoreId, staffList, customers, onSaleComplete, onAddProduct, onAddCategory, tireModels }) => {
+const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = [], currentUser, currentStoreId, staffList, customers, onSaleComplete }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -235,22 +228,14 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   }, [currentUser, stores, adminSelectedStoreId]);
   
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+
   
   // Customer Search Modal State
   const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   
   // Discount Modal State
-  const [discountModal, setDiscountModal] = useState<{ isOpen: boolean, item: CartItem | null }>({ isOpen: false, item: null });
-  const [discountInput, setDiscountInput] = useState({ type: 'PERCENT' as 'PERCENT' | 'AMOUNT', value: '' });
 
-  // New Product Form
-  const [newProductForm, setNewProductForm] = useState<Partial<Product>>({
-      category: categories[0],
-      brand: tireBrands[0] || '',
-      stockByStore: {}
-  });
   
   // Checkout Modal State
   const [confirmation, setConfirmation] = useState<{ isOpen: boolean; method: PaymentMethod | null }>({
@@ -383,37 +368,38 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
   const getStock = (product: Product) => product.stockByStore[activeStoreId] || 0;
 
-  const addToCart = (product: Product, overridePrice?: number, overrideName?: string) => {
-    const currentStock = product.stockByStore[activeStoreId] || 0;
-    // Service items (stock > 900) or Dummy items (99999) always allow add
-    const isSpecialItem = product.id === '99999' || currentStock > 900;
-    if (currentStock <= 0 && !isSpecialItem) return; 
-    
-    setCart(prev => {
-      // Group standard products, but never group Priority Payment (99999)
-      if (product.id !== '99999') {
-        const existing = prev.find(item => item.id === product.id);
-        if (existing) {
-            if (!isSpecialItem && existing.quantity >= currentStock) return prev;
-            return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
-        }
-      }
-      
-      const priceToUse = overridePrice !== undefined ? overridePrice : product.price;
-      const nameToUse = overrideName || product.name;
-      // Generate a unique cart item ID
-      const newCartItemId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const addToCart = (product: Product, overridePrice?: number, overrideName?: string, isImmediateNewProduct?: boolean) => {
+        // If this is a new product being immediately sold (입고와 동시에 판매), treat its stock as 0
+        const currentStock = isImmediateNewProduct ? 0 : (product.stockByStore[activeStoreId] || 0);
+        // Service items (stock > 900) or Dummy items (99999) always allow add
+        const isSpecialItem = product.id === '99999' || currentStock > 900;
+        if (currentStock <= 0 && !isSpecialItem && !isImmediateNewProduct) return;
 
-      return [...prev, { 
-          ...product, 
-          cartItemId: newCartItemId,
-          name: nameToUse,
-          price: priceToUse,
-          quantity: 1, 
-          originalPrice: priceToUse 
-      }];
-    });
-  };
+        setCart(prev => {
+            // Group standard products, but never group Priority Payment (99999)
+            if (product.id !== '99999') {
+                const existing = prev.find(item => item.id === product.id);
+                if (existing) {
+                        if (!isSpecialItem && existing.quantity >= currentStock && !isImmediateNewProduct) return prev;
+                        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+                }
+            }
+
+            const priceToUse = overridePrice !== undefined ? overridePrice : product.price;
+            const nameToUse = overrideName || product.name;
+            // Generate a unique cart item ID
+            const newCartItemId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            return [...prev, {
+                    ...product,
+                    cartItemId: newCartItemId,
+                    name: nameToUse,
+                    price: priceToUse,
+                    quantity: 1,
+                    originalPrice: priceToUse
+            }];
+        });
+    };
 
   // --- Emergency / Temp Product Logic (Inline Version) ---
   const addDummyProduct = () => {
@@ -437,12 +423,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   };
   // ------------------------------------
 
-  const handleStoreStockChange = (storeId: string, val: number) => {
-    setNewProductForm(prev => ({
-        ...prev,
-        stockByStore: { ...prev.stockByStore, [storeId]: val }
-    }));
-  };
+
 
   const updateQuantity = (cartItemId: string, delta: number) => {
     setCart(prev => prev.map(item => {
@@ -464,36 +445,16 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       setPriceEditId(null);
   };
 
-  const openDiscountModal = (item: CartItem) => {
-      setDiscountModal({ isOpen: true, item });
-      setDiscountInput({ type: 'PERCENT', value: '' });
-  };
+    // Discount modal logic removed
 
-  const applyDiscount = () => {
-      if (!discountModal.item) return;
-      
-      const value = Number(discountInput.value);
-      if (value < 0) return;
 
-      let newPrice = discountModal.item.price;
-      if (discountInput.type === 'PERCENT') {
-          newPrice = newPrice * (1 - value / 100);
-      } else {
-          newPrice = newPrice - value;
-      }
-      
-      newPrice = Math.floor(Math.max(0, newPrice));
-      
-      updatePrice(discountModal.item.cartItemId, newPrice);
-      setDiscountModal({ isOpen: false, item: null });
-  };
 
   const removeFromCart = (cartItemId: string) => {
     setCart(prev => prev.filter(item => item.cartItemId !== cartItemId));
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
 
   const requestCheckout = (method: PaymentMethod) => {
     if (cart.length === 0) return;
@@ -580,7 +541,9 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         }))
       };
 
-      onSaleComplete(newSale);
+    // If any cart item is a new product being sold immediately, do NOT increase its stock in inventory
+    // (Assume parent App handles inventory update; here, we just avoid calling onAddProduct for immediate sale)
+    onSaleComplete(newSale);
       
       // Reset All Forms
       setCart([]);
@@ -594,18 +557,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     }, 800);
   };
 
-  const handleCheckMarketPrice = () => {
-      const spec = newProductForm.specification || '';
-      // Extract only numbers (e.g. 245/45R18 -> 2454518)
-      const numericSpec = spec.replace(/\D/g, '');
-      
-      if (!numericSpec) {
-          alert('규격(사이즈)을 입력해주세요. (예: 245/45R18)');
-          return;
-      }
-      // Use the requested URL format with numeric spec only
-      window.open(`https://blackcircles.co.kr/shop/list.php?scrh_brand=&stx=${numericSpec}&srch_type=tire&srch_delivery=`, '_blank');
-  };
+
 
   const currentStoreName = stores.find(s => s.id === activeStoreId)?.name || '매장 미선택';
 
@@ -617,11 +569,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   };
 
   // Get models for selected brand
-  const availableModels = useMemo(() => {
-      const brand = newProductForm.brand;
-      if (!brand || brand === '기타' || !tireModels[brand]) return [];
-      return tireModels[brand];
-  }, [newProductForm.brand, tireModels]);
+
 
   return (
     <>
@@ -789,7 +737,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                             onUpdatePrice={updatePrice} 
                             priceEditId={priceEditId} 
                             onSetPriceEditId={setPriceEditId} 
-                            onOpenDiscount={openDiscountModal}
+                            // onOpenDiscount removed
                             onUpdateMemo={updateMemo}
                             onUpdateName={updateName}
                         />

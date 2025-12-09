@@ -2,9 +2,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Sale, StockInRecord, ExpenseRecord, FixedCostConfig, SalesFilter, User, Store } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
-import { Calendar, DollarSign, TrendingUp, TrendingDown, Plus, Trash2, Printer, Image as ImageIcon, Settings as SettingsIcon, Save, X, UploadCloud, Loader2, FileText, CheckCircle2, Filter, ArrowUpDown, ChevronDown, AlertTriangle, Calculator, Table, CreditCard, PieChart as PieChartIcon, ChevronLeft, ChevronRight, Store as StoreIcon } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Trash2, Image as ImageIcon, X, CheckCircle2, AlertTriangle, Calculator, Table, CreditCard, PieChart as PieChartIcon, ChevronLeft, ChevronRight, Store as StoreIcon, Settings as SettingsIcon } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
-import { GoogleGenAI, Type } from "@google/genai";
 
 interface FinancialsProps {
   sales: Sale[];
@@ -28,7 +27,7 @@ const EXPENSE_CATEGORIES = [
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#64748b'];
 
 const Financials: React.FC<FinancialsProps> = ({ 
-    sales, stockInHistory, onUpdateStockInRecord, expenses, onAddExpense, onUpdateExpense, onRemoveExpense, fixedCosts, onUpdateFixedCosts, onNavigateToHistory, currentUser, stores
+    sales, stockInHistory, onUpdateStockInRecord, expenses, onAddExpense, onRemoveExpense, fixedCosts, onUpdateFixedCosts, onNavigateToHistory, currentUser, stores
 }) => {
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
     const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL'); // Store Filter
@@ -41,7 +40,7 @@ const Financials: React.FC<FinancialsProps> = ({
 
     // Table Filter & Sort State
     const [tableCategoryFilter, setTableCategoryFilter] = useState<string>('ALL');
-    const [tableSortOrder, setTableSortOrder] = useState<'desc' | 'asc'>('desc');
+    const [tableSortOrder] = useState<'desc' | 'asc'>('desc');
 
     // Expense Form State
     const [expenseForm, setExpenseForm] = useState({
@@ -423,10 +422,10 @@ const Financials: React.FC<FinancialsProps> = ({
                                         innerRadius={60}
                                         outerRadius={100}
                                         paddingAngle={2}
-                                        dataKey="value"
-                                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                            dataKey="value"
+                                            label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                                     >
-                                        {expenseChartData.map((entry, index) => (
+                                        {expenseChartData.map((_, index) => (
                                             <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                         ))}
                                     </Pie>
@@ -485,7 +484,7 @@ const Financials: React.FC<FinancialsProps> = ({
                              {unifiedFinancialRecords.length === 0 ? (
                                  <tr><td colSpan={5} className="text-center py-10 text-gray-400">데이터가 없습니다.</td></tr>
                              ) : (
-                                 unifiedFinancialRecords.map((record, idx) => (
+                                 unifiedFinancialRecords.map((record, _idx) => (
                                      <tr key={`${record.type}-${record.id}`} className={`hover:bg-gray-50 transition-colors ${record.isUnsettled ? 'bg-orange-50/60' : ''}`}>
                                          <td className="px-4 py-3 text-gray-500 font-mono whitespace-nowrap">{record.date.slice(5)}</td>
                                          <td className="px-4 py-3 whitespace-nowrap">

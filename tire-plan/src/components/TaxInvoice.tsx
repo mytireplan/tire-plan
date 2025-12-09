@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Sale } from '../types';
-import { FileText, Send, CheckCircle, Loader2, Building, Filter, AlertCircle, Edit2, Save, X, Check } from 'lucide-react';
+import { Send, CheckCircle, Loader2, Building, Filter, AlertCircle, Edit2, Save, X } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
 interface TaxInvoiceProps {

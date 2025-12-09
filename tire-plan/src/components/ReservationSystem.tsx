@@ -1,6 +1,5 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import type { Reservation, Product, User, Store, StockStatus, ReservationStatus } from '../types';
 import type { Reservation, Product, User, Store } from '../types';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, CheckCircle2, Trash2, Plus, StickyNote, Pencil } from 'lucide-react';
 
@@ -25,7 +24,7 @@ interface AutocompleteProps {
     suggestions: string[];
     className?: string;
     onSelect?: (val: string) => void;
-    inputRef?: React.RefObject<HTMLInputElement>;
+    inputRef?: React.RefObject<HTMLInputElement | null>;
     onKeyDown?: (e: React.KeyboardEvent) => void;
 }
 
@@ -138,7 +137,7 @@ const AutocompleteInput: React.FC<AutocompleteProps> = ({ value, onChange, place
 
 const ReservationSystem: React.FC<ReservationSystemProps> = ({ 
     reservations, onAddReservation, onUpdateReservation, onRemoveReservation, 
-    products, currentStoreId, currentUser, stores, tireBrands, tireModels
+    products, currentStoreId, currentUser, stores, tireModels
 }) => {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [adminSelectedStoreId, setAdminSelectedStoreId] = useState<string>(

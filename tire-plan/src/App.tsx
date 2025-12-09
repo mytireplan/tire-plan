@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, KeyRound, Settings as SettingsIcon, Users, Truck, ChevronRight, PieChart, Calendar, PhoneCall, ShieldCheck, Unlock } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
 
@@ -318,8 +318,8 @@ type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax'
 type ViewState = 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
 
 const App: React.FC = () => {
-  // App Config State
-  const [appTitle, setAppTitle] = useState('TirePlan');
+    // App Config State
+    const appTitle = 'TirePlan';
   const [viewState, setViewState] = useState<ViewState>('LOGIN');
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -596,7 +596,7 @@ const App: React.FC = () => {
   };
 
   // --- Data Management Handlers --- 
-  const handleAddStore = (name: string) => { };
+    const handleAddStore = () => { };
   const handleUpdateStore = (id: string, name: string) => { setStores(stores.map(s => s.id === id ? { ...s, name } : s)); };
   const handleRemoveStore = (id: string) => { setStores(stores.filter(s => s.id !== id)); };
   
@@ -674,7 +674,37 @@ const App: React.FC = () => {
     });
   };
 
-  const handleUpdateSale = (updatedSale: Sale) => { setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s)); };
+  const handleUpdateSale = (updatedSale: Sale) => {
+      // Find previous sale to compute stock deltas
+      const prevSale = sales.find(s => s.id === updatedSale.id);
+
+      // Update sale record
+      setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
+
+      // If we have a previous sale, reconcile inventory differences
+      if (prevSale) {
+          const storeId = updatedSale.storeId;
+          const prevQtyMap: Record<string, number> = {};
+          prevSale.items.forEach(it => { prevQtyMap[it.productId] = (prevQtyMap[it.productId] || 0) + it.quantity; });
+          const newQtyMap: Record<string, number> = {};
+          updatedSale.items.forEach(it => { newQtyMap[it.productId] = (newQtyMap[it.productId] || 0) + it.quantity; });
+
+          const allProductIds = new Set<string>([...Object.keys(prevQtyMap), ...Object.keys(newQtyMap)]);
+
+          setProducts(prevProducts => prevProducts.map(prod => {
+              if (!allProductIds.has(prod.id) || prod.id === '99999') return prod;
+              const oldQty = prevQtyMap[prod.id] || 0;
+              const newQty = newQtyMap[prod.id] || 0;
+              const delta = newQty - oldQty; // positive => more sold now -> reduce stock
+
+              const currentStoreStock = prod.stockByStore[storeId] || 0;
+              const updatedStoreStock = Math.max(0, currentStoreStock - delta);
+              const newStockByStore = { ...prod.stockByStore, [storeId]: updatedStoreStock };
+              const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+              return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+          }));
+      }
+  };
   const handleCancelSale = (saleId: string) => { 
       const targetSale = sales.find(s => s.id === saleId);
       if (!targetSale || targetSale.isCanceled) return;
@@ -871,7 +901,7 @@ const App: React.FC = () => {
                             <Icon size={22} className={`${isSidebarOpen ? 'mr-4' : ''}`} />
                             {isSidebarOpen && (
                                 <div className="flex-1 flex justify-between items-center">
-                                    <span className="font-medium text-sm">{item.label}</span>
+                                    <span className="font-medium text-sm tracking-tight sidebar-menu-label">{item.label}</span>
                                 </div>
                             )}
                         </button>
@@ -927,7 +957,7 @@ const App: React.FC = () => {
             <header className="h-16 bg-white border-b border-gray-200 flex items-center px-4 md:px-8 justify-between relative md:sticky md:top-0 z-10 shadow-sm flex-shrink-0 print:hidden">
             <div className="flex items-center gap-3">
                 <button className="md:hidden p-2 -ml-2 hover:bg-gray-100 rounded-lg text-gray-600" onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
-                <h2 className="text-xl md:text-2xl font-bold text-gray-800 truncate">{activeTab === 'history' ? '판매 내역' : navItems.find(i => i.id === activeTab)?.label}</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800 truncate tracking-tight">{activeTab === 'history' ? '판매 내역' : navItems.find(i => i.id === activeTab)?.label}</h2>
             </div>
             <div className="flex items-center gap-4 text-xs md:text-sm text-gray-500 text-right">
                 <div className="hidden sm:flex items-center gap-2">
@@ -948,7 +978,7 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 max-w-7xl mx-auto w-full print:p-0 print:overflow-visible">
             {activeTab === 'dashboard' && (
                 <Dashboard 
-                sales={visibleSales} products={products} stores={visibleStores} 
+                sales={visibleSales} stores={visibleStores} 
                 onNavigateToHistory={(f) => { setHistoryFilter(f); setActiveTab('history'); }}
                 currentUser={effectiveUser} currentStoreId={currentStoreId}
                 stockInHistory={visibleStockHistory} transferHistory={transferHistory} expenses={visibleExpenses}
@@ -961,7 +991,7 @@ const App: React.FC = () => {
                 currentUser={effectiveUser} currentStoreId={currentStoreId}
                 staffList={staffList.filter(s => s.storeId === currentStoreId || currentStoreId === 'ALL')} 
                 customers={visibleCustomers} tireModels={TIRE_MODELS}
-                onSaleComplete={handleSaleComplete} onAddProduct={(p) => setProducts([...products, p])} onAddCategory={(c) => setCategories([...categories, c])}
+                onSaleComplete={handleSaleComplete} onAddCategory={(c) => setCategories([...categories, c])}
                 />
             )}
             {activeTab === 'reservation' && (
@@ -998,8 +1028,7 @@ const App: React.FC = () => {
                 <SalesHistory 
                 sales={visibleSales} stores={visibleStores} products={products} filter={historyFilter} 
                 onBack={() => setActiveTab('dashboard')} currentUser={effectiveUser} currentStoreId={currentStoreId}
-                onUpdateMemo={(id, memo) => setSales(sales.map(s => s.id === id ? { ...s, memo } : s))}
-                stockInHistory={visibleStockHistory} onSwapProduct={(sid, iid, p) => {/* swap logic */}}
+                stockInHistory={visibleStockHistory} onSwapProduct={() => {/* swap logic */}}
                 onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onStockIn={handleStockIn}
                 categories={categories} tireBrands={tireBrands} tireModels={TIRE_MODELS}
                 />

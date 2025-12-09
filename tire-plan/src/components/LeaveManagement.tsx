@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { User, LeaveRequest, LeaveType, Staff } from '../types';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, User as UserIcon, Check, X, Clock, AlertCircle, Plus } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, AlertCircle, Plus } from 'lucide-react';
 
 interface LeaveManagementProps {
     staffList: Staff[];

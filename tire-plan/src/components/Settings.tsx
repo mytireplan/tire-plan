@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { Store, StaffPermissions, Staff } from '../types';
-import { Settings as SettingsIcon, Plus, Trash2, Save, Lock, Users, MapPin, ShieldCheck, AlertCircle, Type, Edit2, X, AlertTriangle, KeyRound, Check } from 'lucide-react';
+import { Settings as SettingsIcon, Plus, Trash2, Save, Lock, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, KeyRound, Check } from 'lucide-react';
 
 interface SettingsProps {
   stores: Store[];
@@ -22,7 +22,7 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
-  stores, onAddStore, onUpdateStore, onRemoveStore, 
+    stores, onUpdateStore, onRemoveStore, 
   staffPermissions, onUpdatePermissions,
   currentAdminPassword, onUpdatePassword,
   staffList, onAddStaff, onRemoveStaff, currentStoreId

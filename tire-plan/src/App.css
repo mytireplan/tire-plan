@@ -40,3 +40,8 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Sidebar/menu label slight tightening while preserving paragraph spacing */
+.sidebar-menu-label {
+  letter-spacing: -0.02em;
+}

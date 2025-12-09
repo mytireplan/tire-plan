@@ -1,17 +1,17 @@
 
 import React, { useState } from 'react';
-import type { StoreAccount, User, UserRole } from '../types';
+import type { StoreAccount, UserRole, User } from '../types';
 import { Store, LogOut, MapPin, ChevronRight, Building2, ShieldCheck, Lock, X } from 'lucide-react';
 
 interface StoreSelectionScreenProps {
-  stores: StoreAccount[];
-  onSelectStore: (storeId: string, role: UserRole) => void;
-  currentUser: User;
-  onLogout: () => void;
-  validatePassword: (password: string) => boolean;
+    stores: StoreAccount[];
+    onSelectStore: (storeId: string, role: UserRole) => void;
+    currentUser: User;
+    onLogout: () => void;
+    validatePassword: (password: string) => boolean;
 }
 
-const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onSelectStore, currentUser, onLogout, validatePassword }) => {
+const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onSelectStore, onLogout, validatePassword }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [error, setError] = useState('');

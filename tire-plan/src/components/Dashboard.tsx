@@ -1,15 +1,14 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { PaymentMethod } from '../types';
-import type { Sale, Product, Store, SalesFilter, User, StockInRecord, StockTransferRecord, ExpenseRecord, LeaveRequest } from '../types';
+import type { Sale, Store, SalesFilter, User, StockInRecord, StockTransferRecord, ExpenseRecord, LeaveRequest } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, DollarSign, ShoppingBag, AlertCircle, Calendar, ChevronLeft, ChevronRight, Store as StoreIcon, Bell, Package, ArrowRightLeft, Truck, LayoutDashboard, CreditCard, Banknote, Smartphone, ArrowUpRight, ArrowDownRight, Receipt, Palmtree, Plus } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, Calendar, ChevronLeft, ChevronRight, Store as StoreIcon, Bell, ArrowRightLeft, Truck, CreditCard, Banknote, Smartphone, ArrowUpRight, ArrowDownRight, Receipt, Palmtree, Plus } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 
 interface DashboardProps {
-  sales: Sale[];
-  products: Product[];
-  stores: Store[];
+    sales: Sale[];
+    stores: Store[];
   onNavigateToHistory: (filter: SalesFilter) => void;
   currentUser: User;
   currentStoreId: string;
@@ -48,7 +47,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ sales, products, stores, onNavigateToHistory, currentUser, currentStoreId, stockInHistory = [], transferHistory = [], expenses = [], isSidebarOpen = true, leaveRequests = [] }) => {
+const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistory, currentUser, currentStoreId, stockInHistory = [], transferHistory = [], expenses = [], isSidebarOpen = true, leaveRequests = [] }) => {
   // Admin Chart Date State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [chartStartDate, setChartStartDate] = useState(() => {
@@ -785,9 +784,9 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, products, stores, onNaviga
                                 outerRadius={80}
                                 paddingAngle={5}
                                 dataKey="value"
-                                label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`} 
+                                label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
                             >
-                            {storeShareData.map((entry, index) => (
+                            {storeShareData.map((_entry, index) => (
                                 <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                             ))}
                             </Pie>

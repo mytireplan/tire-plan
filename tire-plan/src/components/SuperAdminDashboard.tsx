@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import type { StoreAccount, User } from '../types';
-import { ShieldCheck, Plus, Search, MapPin, RefreshCw, Trash2, LogOut, Store as StoreIcon, Save, X, User as UserIcon, Building, ChevronRight, ChevronDown, Phone, AlertTriangle, KeyRound, Edit2, PauseCircle, PlayCircle } from 'lucide-react';
+import type { StoreAccount } from '../types';
+import { ShieldCheck, Plus, Search, RefreshCw, Trash2, LogOut, User as UserIcon, Building, ChevronRight, AlertTriangle, KeyRound, Edit2, PauseCircle, PlayCircle, X } from 'lucide-react';
 
 interface SuperAdminDashboardProps {
     stores: StoreAccount[];
