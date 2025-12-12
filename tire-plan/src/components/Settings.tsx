@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import type { Store, Staff } from '../types';
+import type { Store, Staff, StaffPermissions } from '../types';
 import { Settings as SettingsIcon, Plus, Trash2, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, Eye, EyeOff, Check } from 'lucide-react';
 
 interface SettingsProps {
@@ -19,14 +19,20 @@ interface SettingsProps {
   onAddStaff: (name: string) => void;
   onRemoveStaff: (id: string) => void;
   currentStoreId: string;
+    staffPermissions: StaffPermissions;
+    onUpdatePermissions: (next: StaffPermissions) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
     stores, onUpdateStore, onRemoveStore, 
     currentAdminPassword, onUpdatePassword,
     currentManagerPin, onUpdateManagerPin,
-    staffList, onAddStaff, onRemoveStaff, currentStoreId
+        staffList, onAddStaff, onRemoveStaff, currentStoreId,
+        staffPermissions, onUpdatePermissions
 }) => {
+    // Permissions props reserved for future UI; referenced to satisfy lint
+    void staffPermissions;
+    void onUpdatePermissions;
   // Store Editing State
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [editStoreNameInput, setEditStoreNameInput] = useState('');
