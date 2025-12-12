@@ -1,10 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
 
 // 2. 설계도(Type)인 친구들은 type을 붙여서 가져옵니다.
-import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter } from './types'; 
+import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter } from './types';
+
+// Firebase imports
+import { saveBulkToFirestore, getAllFromFirestore, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToCollection } from './utils/firestore'; 
 // (뒤에 더 있는 것들도 여기에 다 넣어주세요)
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -23,12 +26,13 @@ import StoreSelectionScreen from './components/StoreSelectionScreen';
 
 // Mock Password Hash Utility (Simple Simulation)
 const mockHash = (pwd: string) => btoa(pwd); // Base64 encoding for demo purposes
+const DEFAULT_MANAGER_PIN = '4567';
 
 // Initial Stores linked to Owner IDs (Updated IDs to 25xxxx format)
 const INITIAL_STORE_ACCOUNTS: StoreAccount[] = [
-  { id: 'ST-1', code: '250001', name: '서울 강남 본점', region: '01', regionName: '서울', passwordHash: mockHash('1234'), isActive: true, ownerId: '250001' },
-  { id: 'ST-2', code: '250001', name: '경기 수원점', region: '02', regionName: '경기', passwordHash: mockHash('1234'), isActive: true, ownerId: '250001' },
-  { id: 'ST-3', code: '250001', name: '인천 송도점', region: '03', regionName: '인천', passwordHash: mockHash('1234'), isActive: true, ownerId: '250001' },
+    { id: 'ST-1', code: '250001', name: '서울 강남 본점', region: '01', regionName: '서울', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
+    { id: 'ST-2', code: '250001', name: '경기 수원점', region: '02', regionName: '경기', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
+    { id: 'ST-3', code: '250001', name: '인천 송도점', region: '03', regionName: '인천', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
 ];
 
 // Auth Database (Mock) - Owners and Master ONLY
@@ -110,6 +114,10 @@ const TIRE_SPECS = [
   '145R13', '195/70R15', '195R15', '205/70R15', '215/70R16', '215/70R15'
 ];
 
+// Normalize legacy categories (merge '부품/수리' into '기타')
+const normalizeCategory = (category: string) => category === '부품/수리' ? '기타' : category;
+const normalizeProducts = (list: Product[]) => list.map(p => ({ ...p, category: normalizeCategory(p.category) }));
+
 const generateInitialProducts = (): Product[] => {
     const products: Product[] = [];
     let idCounter = 1;
@@ -138,15 +146,15 @@ const generateInitialProducts = (): Product[] => {
         });
     });
     products.push(
-        { id: '101', brand: '기타', name: '엔진오일 교환 (합성유)', price: 80000, stock: 100, category: '부품/수리', stockByStore: { 'ST-1': 50, 'ST-2': 50, 'ST-3': 0 } }, 
-        { id: '102', brand: '기타', name: '브레이크 패드 교체 (전륜)', price: 120000, stock: 15, category: '부품/수리', stockByStore: { 'ST-1': 10, 'ST-2': 5, 'ST-3': 0 } },
+        { id: '101', brand: '기타', name: '엔진오일 교환 (합성유)', price: 80000, stock: 100, category: '기타', stockByStore: { 'ST-1': 50, 'ST-2': 50, 'ST-3': 0 } }, 
+        { id: '102', brand: '기타', name: '브레이크 패드 교체 (전륜)', price: 120000, stock: 15, category: '기타', stockByStore: { 'ST-1': 10, 'ST-2': 5, 'ST-3': 0 } },
         { id: '103', brand: '기타', name: '와이퍼 세트 (Premium)', price: 35000, stock: 50, category: '기타', stockByStore: { 'ST-1': 25, 'ST-2': 25, 'ST-3': 0 } },
-        { id: '104', brand: '기타', name: '휠 밸런스 조정', price: 20000, stock: 999, category: '부품/수리', stockByStore: { 'ST-1': 999, 'ST-2': 999, 'ST-3': 999 } }
+        { id: '104', brand: '기타', name: '휠 밸런스 조정', price: 20000, stock: 999, category: '기타', stockByStore: { 'ST-1': 999, 'ST-2': 999, 'ST-3': 999 } }
     );
     return products;
 };
 
-const INITIAL_PRODUCTS: Product[] = generateInitialProducts();
+const INITIAL_PRODUCTS: Product[] = normalizeProducts(generateInitialProducts());
 
 const generateMockStockHistory = (products: Product[]): StockInRecord[] => {
   const records: StockInRecord[] = [];
@@ -259,14 +267,38 @@ const generateMockExpenses = (): ExpenseRecord[] => {
 };
 
 const generateMockLeaveRequests = (): LeaveRequest[] => {
+    const today = new Date();
+    const toDate = (offset: number) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() + offset);
+        return d.toISOString().split('T')[0];
+    };
     return [
         {
             id: 'L-1',
-            date: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString().split('T')[0],
+            date: toDate(2),
             staffId: 'staff_1',
             staffName: '이정비',
             type: 'FULL',
             reason: '개인 사정',
+            createdAt: new Date().toISOString()
+        },
+        {
+            id: 'L-2',
+            date: toDate(5),
+            staffId: 'staff_2',
+            staffName: '박매니저',
+            type: 'HALF_AM',
+            reason: '병원 검진',
+            createdAt: new Date().toISOString()
+        },
+        {
+            id: 'L-3',
+            date: toDate(7),
+            staffId: 'staff_3',
+            staffName: '최신입',
+            type: 'FULL',
+            reason: '가족 행사',
             createdAt: new Date().toISOString()
         }
     ];
@@ -293,6 +325,40 @@ const generateMockReservations = (): Reservation[] => {
             status: 'CONFIRMED',
             stockStatus: 'IN_STOCK',
             createdAt: new Date().toISOString()
+        },
+        {
+            id: 'R-2',
+            storeId: 'ST-2',
+            date: tomorrow.toISOString().split('T')[0],
+            time: '10:30',
+            customerName: '김미리',
+            phoneNumber: '010-3333-4444',
+            vehicleNumber: '45고6789',
+            carModel: '카니발 KA4',
+            productName: '마제스티 9 솔루스',
+            specification: '235/55R19',
+            brand: '금호',
+            quantity: 4,
+            status: 'PENDING',
+            stockStatus: 'IN_STOCK',
+            createdAt: new Date().toISOString()
+        },
+        {
+            id: 'R-3',
+            storeId: 'ST-3',
+            date: tomorrow.toISOString().split('T')[0],
+            time: '16:20',
+            customerName: '장도윤',
+            phoneNumber: '010-7777-8888',
+            vehicleNumber: '12사3456',
+            carModel: '투싼 NX4',
+            productName: '엔페라 AU7',
+            specification: '225/55R18',
+            brand: '넥센',
+            quantity: 2,
+            status: 'CONFIRMED',
+            stockStatus: 'IN_STOCK',
+            createdAt: new Date().toISOString()
         }
     ];
 };
@@ -303,24 +369,85 @@ const INITIAL_STOCK_HISTORY: StockInRecord[] = generateMockStockHistory(INITIAL_
 const INITIAL_CUSTOMERS: Customer[] = [
     { id: 'C1', name: '홍길동', phoneNumber: '010-1234-5678', carModel: '쏘나타 DN8', vehicleNumber: '12가3456', totalSpent: 350000, lastVisitDate: '2023-10-15', visitCount: 2, ownerId: '250001' },
     { id: 'C2', name: '김철수', phoneNumber: '010-9876-5432', carModel: '아반떼 CN7', vehicleNumber: '56다7890', totalSpent: 120000, lastVisitDate: '2023-10-20', visitCount: 1, ownerId: '250001' },
+    { id: 'C3', name: '박영희', phoneNumber: '010-2222-3333', carModel: '카니발 KA4', vehicleNumber: '33모1234', totalSpent: 450000, lastVisitDate: '2023-11-05', visitCount: 3, ownerId: '250001' },
+    { id: 'C4', name: '이민수', phoneNumber: '010-4444-5555', carModel: 'GV80', vehicleNumber: '77가7777', totalSpent: 780000, lastVisitDate: '2023-11-18', visitCount: 4, ownerId: '250001' },
+    { id: 'C5', name: '정하늘', phoneNumber: '010-6666-7777', carModel: '투싼 NX4', vehicleNumber: '18루2025', totalSpent: 260000, lastVisitDate: '2023-12-02', visitCount: 2, ownerId: '250001' },
 ];
 const INITIAL_EXPENSES: ExpenseRecord[] = generateMockExpenses();
 const INITIAL_FIXED_COSTS: FixedCostConfig[] = [
     { id: 'FC1', title: '월세(본점)', amount: 2500000, day: 1, category: '고정지출' },
     { id: 'FC2', title: '인터넷/통신', amount: 55000, day: 25, category: '공과금' },
+    { id: 'FC3', title: '전기/가스 요금', amount: 180000, day: 20, category: '공과금' },
+    { id: 'FC4', title: '보험료(화재/배상)', amount: 90000, day: 10, category: '고정지출' },
+    { id: 'FC5', title: '보안/경비 서비스', amount: 65000, day: 15, category: '기타' },
 ];
-const INITIAL_CATEGORIES = ['타이어', '부품/수리', '기타'];
+const INITIAL_CATEGORIES = ['타이어', '기타'];
 const INITIAL_LEAVE_REQUESTS = generateMockLeaveRequests();
 const INITIAL_RESERVATIONS = generateMockReservations();
+const INITIAL_TRANSFER_HISTORY: StockTransferRecord[] = [
+    {
+        id: 'TR-SEED-1',
+        date: '2024-01-05T09:30:00Z',
+        productId: '1',
+        productName: '벤투스 S1 에보3 (K127)',
+        fromStoreId: 'ST-1',
+        toStoreId: 'ST-2',
+        quantity: 4,
+        staffName: '이정비',
+        fromStoreName: '서울 강남 본점',
+        toStoreName: '경기 수원점'
+    },
+    {
+        id: 'TR-SEED-2',
+        date: '2024-01-06T10:10:00Z',
+        productId: '2',
+        productName: '벤투스 S2 AS (H462)',
+        fromStoreId: 'ST-2',
+        toStoreId: 'ST-3',
+        quantity: 2,
+        staffName: '박매니저',
+        fromStoreName: '경기 수원점',
+        toStoreName: '인천 송도점'
+    },
+    {
+        id: 'TR-SEED-3',
+        date: '2024-01-07T11:40:00Z',
+        productId: '3',
+        productName: '키너지 EX (H308)',
+        fromStoreId: 'ST-3',
+        toStoreId: 'ST-1',
+        quantity: 3,
+        staffName: '최신입',
+        fromStoreName: '인천 송도점',
+        toStoreName: '서울 강남 본점'
+    }
+];
 
 type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin';
 
-type ViewState = 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
+type ViewState = 'BINDING' | 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
+
+type DeviceBinding = {
+    ownerId: string;
+    storeId: string;
+    deviceId: string;
+};
 
 const App: React.FC = () => {
     // App Config State
     const appTitle = 'TirePlan';
-  const [viewState, setViewState] = useState<ViewState>('LOGIN');
+    const [viewState, setViewState] = useState<ViewState>('BINDING');
+
+    const [deviceBinding, setDeviceBinding] = useState<DeviceBinding | null>(null);
+    const [bindingOwnerId, setBindingOwnerId] = useState('');
+    const [bindingPassword, setBindingPassword] = useState('');
+    const [bindingError, setBindingError] = useState('');
+    const [bindingVerified, setBindingVerified] = useState(false);
+    const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+    const [pinInput, setPinInput] = useState('');
+    const [pinError, setPinError] = useState('');
+    const [managerSession, setManagerSession] = useState(false);
+    const adminTimerRef = useRef<number | null>(null);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sessionRole, setSessionRole] = useState<UserRole>('STAFF'); // Role for the current app session
@@ -358,11 +485,231 @@ const App: React.FC = () => {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
   const [reservations, setReservations] = useState<Reservation[]>(INITIAL_RESERVATIONS);
 
+  // Admin auto-timeout (5 minutes of inactivity)
+  useEffect(() => {
+      const resetTimer = () => {
+          if (sessionRole === 'STAFF') return;
+          if (adminTimerRef.current) window.clearTimeout(adminTimerRef.current);
+          adminTimerRef.current = window.setTimeout(() => {
+              setSessionRole('STAFF');
+              setManagerSession(false);
+              setActiveTab('pos');
+          }, 5 * 60 * 1000);
+      };
+
+      if (sessionRole !== 'STAFF') {
+          resetTimer();
+          const events = ['mousemove', 'keydown', 'click', 'touchstart'];
+          events.forEach(evt => window.addEventListener(evt, resetTimer));
+          return () => {
+              if (adminTimerRef.current) window.clearTimeout(adminTimerRef.current);
+              events.forEach(evt => window.removeEventListener(evt, resetTimer));
+          };
+      }
+
+      if (adminTimerRef.current) window.clearTimeout(adminTimerRef.current);
+  }, [sessionRole]);
+
+  // Device binding bootstrap
+  useEffect(() => {
+      if (deviceBinding || currentUser) return;
+      const saved = localStorage.getItem('device-binding');
+      if (saved) {
+          try {
+              const parsed = JSON.parse(saved) as DeviceBinding;
+              setDeviceBinding(parsed);
+              const ownerUser = users.find(u => u.id === parsed.ownerId);
+              if (ownerUser) {
+                  setCurrentUser({ id: ownerUser.id, name: ownerUser.name, role: ownerUser.role, storeId: parsed.storeId });
+                  setCurrentStoreId(parsed.storeId);
+                  setSessionRole('STAFF');
+                  setActiveTab('pos');
+                  setViewState('APP');
+              } else {
+                  setViewState('BINDING');
+              }
+          } catch (err) {
+              console.error('❌ Failed to parse device binding', err);
+              setViewState('BINDING');
+          }
+      } else {
+          setViewState('BINDING');
+      }
+  }, [deviceBinding, currentUser, users]);
+
+    // Firebase 데이터 로드 및 마이그레이션 + 더미 데이터 복구(컬렉션 비어있을 때만)
+    useEffect(() => {
+        const seedIfEmpty = async <T extends { id: string },>(
+            label: string,
+            collectionName: string,
+            fetched: T[],
+            seed: T[],
+            setter: (data: T[]) => void
+        ) => {
+            if (fetched.length > 0) {
+                setter(fetched);
+                console.log(`↪️ ${label} already exist in Firestore:`, fetched.length);
+                return;
+            }
+            if (!seed || seed.length === 0) {
+                console.log(`⚪ No seed data provided for ${label}`);
+                return;
+            }
+            await saveBulkToFirestore(collectionName, seed);
+            setter(seed);
+            console.log(`🌱 Seeded ${seed.length} ${label} into Firestore`);
+        };
+
+        const initializeData = async () => {
+            try {
+                // localStorage에서 Firestore로 마이그레이션 (최초 1회만)
+                const migrated = localStorage.getItem('firestore-migrated');
+                if (!migrated) {
+                    await migrateLocalStorageToFirestore();
+                    localStorage.setItem('firestore-migrated', 'true');
+                }
+
+                // Firestore에서 데이터 로드
+                const [
+                    firestoreStores,
+                    firestoreProducts,
+                    firestoreSales,
+                    firestoreCustomers,
+                    firestoreStockIn,
+                    firestoreExpenses,
+                    firestoreFixedCosts,
+                    firestoreLeaveRequests,
+                    firestoreReservations,
+                    firestoreTransfers,
+                    firestoreStaff
+                ] = await Promise.all([
+                    getAllFromFirestore<StoreAccount>(COLLECTIONS.STORES),
+                    getAllFromFirestore<Product>(COLLECTIONS.PRODUCTS),
+                    getAllFromFirestore<Sale>(COLLECTIONS.SALES),
+                    getAllFromFirestore<Customer>(COLLECTIONS.CUSTOMERS),
+                    getAllFromFirestore<StockInRecord>(COLLECTIONS.STOCK_IN),
+                    getAllFromFirestore<ExpenseRecord>(COLLECTIONS.EXPENSES),
+                    getAllFromFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS),
+                    getAllFromFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS),
+                    getAllFromFirestore<Reservation>(COLLECTIONS.RESERVATIONS),
+                    getAllFromFirestore<StockTransferRecord>(COLLECTIONS.TRANSFERS),
+                    getAllFromFirestore<Staff>(COLLECTIONS.STAFF)
+                ]);
+
+                const normalizedFetchedProducts = normalizeProducts(firestoreProducts);
+
+                // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
+                await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores, INITIAL_STORE_ACCOUNTS, setStores);
+                await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
+                await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSales, INITIAL_SALES, setSales);
+                await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomers, INITIAL_CUSTOMERS, setCustomers);
+                await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockIn, INITIAL_STOCK_HISTORY, setStockInHistory);
+                await seedIfEmpty<ExpenseRecord>('expenses', COLLECTIONS.EXPENSES, firestoreExpenses, INITIAL_EXPENSES, setExpenses);
+                await seedIfEmpty<FixedCostConfig>('fixed costs', COLLECTIONS.FIXED_COSTS, firestoreFixedCosts, INITIAL_FIXED_COSTS, setFixedCosts);
+                await seedIfEmpty<LeaveRequest>('leave requests', COLLECTIONS.LEAVE_REQUESTS, firestoreLeaveRequests, INITIAL_LEAVE_REQUESTS, setLeaveRequests);
+                await seedIfEmpty<Reservation>('reservations', COLLECTIONS.RESERVATIONS, firestoreReservations, INITIAL_RESERVATIONS, setReservations);
+                await seedIfEmpty<StockTransferRecord>('stock transfers', COLLECTIONS.TRANSFERS, firestoreTransfers, INITIAL_TRANSFER_HISTORY || [], setTransferHistory);
+                await seedIfEmpty<Staff>('staff', COLLECTIONS.STAFF, firestoreStaff, INITIAL_STAFF, setStaffList);
+
+                console.log('✅ Initial data loaded (with seeding for empty collections)');
+            } catch (error) {
+                console.error('❌ Error loading/seeding data from Firestore:', error);
+            }
+        };
+
+        initializeData();
+    }, []);
+
+    // 실시간 구독: 주요 엔티티 변경 시 자동 갱신
+    useEffect(() => {
+        console.log('🔔 Subscribing to Firestore collections...');
+        const unsubStores = subscribeToCollection<StoreAccount>(COLLECTIONS.STORES, (data) => {
+            console.log('📥 Stores updated from Firestore:', data.length);
+            setStores(data);
+        });
+        const unsubProducts = subscribeToCollection<Product>(COLLECTIONS.PRODUCTS, (data) => {
+            console.log('📥 Products updated from Firestore:', data.length);
+            setProducts(data);
+        });
+        const unsubSales = subscribeToCollection<Sale>(COLLECTIONS.SALES, (data) => {
+            console.log('📥 Sales updated from Firestore:', data.length);
+            setSales(data);
+        });
+        const unsubCustomers = subscribeToCollection<Customer>(COLLECTIONS.CUSTOMERS, (data) => {
+            console.log('📥 Customers updated from Firestore:', data.length);
+            setCustomers(data);
+        });
+        const unsubStockIn = subscribeToCollection<StockInRecord>(COLLECTIONS.STOCK_IN, (data) => {
+            console.log('📥 Stock-in history updated from Firestore:', data.length);
+            setStockInHistory(data);
+        });
+        const unsubExpenses = subscribeToCollection<ExpenseRecord>(COLLECTIONS.EXPENSES, (data) => {
+            console.log('📥 Expenses updated from Firestore:', data.length);
+            setExpenses(data);
+        });
+        const unsubFixedCosts = subscribeToCollection<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, (data) => {
+            console.log('📥 Fixed costs updated from Firestore:', data.length);
+            setFixedCosts(data);
+        });
+        const unsubLeaveRequests = subscribeToCollection<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, (data) => {
+            console.log('📥 Leave requests updated from Firestore:', data.length);
+            setLeaveRequests(data);
+        });
+        const unsubReservations = subscribeToCollection<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
+            console.log('📥 Reservations updated from Firestore:', data.length);
+            setReservations(data);
+        });
+        const unsubTransfers = subscribeToCollection<StockTransferRecord>(COLLECTIONS.TRANSFERS, (data) => {
+            console.log('📥 Transfers updated from Firestore:', data.length);
+            setTransferHistory(data);
+        });
+        const unsubStaff = subscribeToCollection<Staff>(COLLECTIONS.STAFF, (data) => {
+            console.log('📥 Staff updated from Firestore:', data.length);
+            setStaffList(data);
+        });
+
+        return () => {
+            console.log('🔕 Unsubscribing Firestore collections');
+            unsubStores?.();
+            unsubProducts?.();
+            unsubSales?.();
+            unsubCustomers?.();
+            unsubStockIn?.();
+            unsubExpenses?.();
+            unsubFixedCosts?.();
+            unsubLeaveRequests?.();
+            unsubReservations?.();
+            unsubTransfers?.();
+            unsubStaff?.();
+        };
+    }, []);
+
+  // 데이터 변경 시 Firestore 자동 저장
+    // Removed bulk auto-save effects to avoid duplicate writes with real-time subscriptions.
+
   // Compute effective user to pass down
   const effectiveUser = useMemo(() => {
     if (!currentUser) return null;
     return { ...currentUser, role: sessionRole };
   }, [currentUser, sessionRole]);
+
+  const ownerPin = useMemo(() => {
+      if (!currentUser) return '';
+      const ownerUser = users.find(u => u.id === currentUser.id);
+      return ownerUser?.password || '';
+  }, [currentUser, users]);
+
+  // Manager PIN: decode per-store hash with safe fallback
+  const storePin = useMemo(() => {
+      const store = stores.find(s => s.id === currentStoreId);
+      if (!store) return DEFAULT_MANAGER_PIN;
+      try {
+          return store.passwordHash ? atob(store.passwordHash) : DEFAULT_MANAGER_PIN;
+      } catch (err) {
+          console.error('❌ Failed to decode store PIN', err);
+          return DEFAULT_MANAGER_PIN;
+      }
+  }, [stores, currentStoreId]);
 
   // Filter stores for the current logged in user
   const visibleStores = useMemo(() => {
@@ -427,6 +774,33 @@ const App: React.FC = () => {
       return false;
   };
 
+  const handleBindingLogin = (): boolean => {
+      const user = users.find(u => u.id === bindingOwnerId.trim());
+      if (!user || user.password !== bindingPassword.trim()) {
+          setBindingError('아이디 또는 비밀번호가 올바르지 않습니다.');
+          return false;
+      }
+      setBindingError('');
+      return true;
+  };
+
+  const finalizeBinding = (storeId: string) => {
+      const ownerUser = users.find(u => u.id === bindingOwnerId.trim());
+      if (!ownerUser) return;
+      const newBinding: DeviceBinding = {
+          ownerId: ownerUser.id,
+          storeId,
+          deviceId: `POS-${Date.now()}`,
+      };
+      localStorage.setItem('device-binding', JSON.stringify(newBinding));
+      setDeviceBinding(newBinding);
+      setCurrentUser({ id: ownerUser.id, name: ownerUser.name, role: ownerUser.role, storeId });
+      setCurrentStoreId(storeId);
+      setSessionRole('STAFF');
+      setActiveTab('pos');
+      setViewState('APP');
+  };
+
   const handleUpdatePassword = (newPass: string) => {
       if(!currentUser) return;
       setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, password: newPass } : u));
@@ -435,6 +809,36 @@ const App: React.FC = () => {
   const handleValidatePassword = (password: string): boolean => {
       const userAccount = users.find(u => u.id === currentUser?.id);
       return userAccount ? userAccount.password === password : false;
+  };
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      const trimmed = pinInput.trim();
+      if (!trimmed) {
+          setPinError('PIN을 입력하세요.');
+          return;
+      }
+    const isOwner = ownerPin && trimmed === ownerPin;
+    const isManager = storePin && trimmed === storePin;
+      if (isOwner) {
+          setSessionRole('STORE_ADMIN');
+          setManagerSession(false);
+          setIsAdminModalOpen(false);
+          setPinInput('');
+          setPinError('');
+          setActiveTab('dashboard');
+          return;
+      }
+      if (isManager) {
+          setSessionRole('STORE_ADMIN');
+          setManagerSession(true);
+          setIsAdminModalOpen(false);
+          setPinInput('');
+          setPinError('');
+          setActiveTab('dashboard');
+          return;
+      }
+      setPinError('관리자 권한이 없습니다.');
   };
 
   const handleSelectStore = (storeId: string, role: UserRole) => {
@@ -468,9 +872,34 @@ const App: React.FC = () => {
       setViewState('LOGIN');
   };
 
+  // Ensure staff mode never stays on ALL; snap back to bound store
+  useEffect(() => {
+      if (sessionRole === 'STAFF' && currentStoreId === 'ALL') {
+          const fallbackStoreId = deviceBinding?.storeId || currentUser?.storeId || '';
+          if (fallbackStoreId) setCurrentStoreId(fallbackStoreId);
+      }
+  }, [sessionRole, currentStoreId, deviceBinding, currentUser]);
+
   const handleLockAdmin = () => {
+      const fallbackStoreId = deviceBinding?.storeId || currentUser?.storeId || currentStoreId || '';
+      if (currentStoreId === 'ALL' || !currentStoreId) {
+          setCurrentStoreId(fallbackStoreId);
+      }
       setSessionRole('STAFF');
-      setActiveTab('dashboard');
+      setManagerSession(false);
+      setActiveTab('pos');
+  };
+
+  const handleUpdateManagerPin = (storeId: string, newPin: string) => {
+      const hashed = mockHash(newPin);
+      setStores(prev => prev.map(s => s.id === storeId ? { ...s, passwordHash: hashed } : s));
+      const storeDoc = stores.find(s => s.id === storeId);
+      if (storeDoc) {
+          const updated = { ...storeDoc, passwordHash: hashed } as StoreAccount;
+          saveToFirestore<StoreAccount>(COLLECTIONS.STORES, updated)
+              .then(() => console.log('✅ Manager PIN updated for store:', storeId))
+              .catch((err) => console.error('❌ Failed to update manager PIN:', err));
+      }
   };
 
   // --- Super Admin Actions ---
@@ -508,12 +937,15 @@ const App: React.FC = () => {
           code: newOwnerId, 
           region,
           regionName: regionNames[region] || '기타',
-          passwordHash: mockHash('1234'), 
+          passwordHash: mockHash('4567'), 
           isActive: true,
           ownerId: newOwnerId 
       };
 
-      setStores([...stores, newStore]);
+            setStores([...stores, newStore]);
+            saveToFirestore<StoreAccount>(COLLECTIONS.STORES, newStore)
+                .then(() => console.log('✅ Store created in Firestore:', newStore.id))
+                .catch((err) => console.error('❌ Failed to create store in Firestore:', err));
       
       // Create User with joinDate
       setUsers(prev => [...prev, {
@@ -555,6 +987,12 @@ const App: React.FC = () => {
               }
               return s;
           }));
+          const affected = stores.filter(s => s.ownerId === id).map(s => ({ ...s, isActive: updates.status! }));
+          affected.forEach(s => {
+            saveToFirestore<StoreAccount>(COLLECTIONS.STORES, s)
+              .then(() => console.log('✅ Store status updated in Firestore:', s.id))
+              .catch((err) => console.error('❌ Failed to update store status in Firestore:', err));
+          });
       }
   };
 
@@ -567,12 +1005,15 @@ const App: React.FC = () => {
           code: ownerId, 
           region,
           regionName: regionNames[region] || '기타',
-          passwordHash: mockHash('1234'),
+          passwordHash: mockHash('4567'),
           isActive: true,
           ownerId: ownerId
       };
 
-      setStores(prev => [...prev, newStore]);
+            setStores(prev => [...prev, newStore]);
+            saveToFirestore<StoreAccount>(COLLECTIONS.STORES, newStore)
+                .then(() => console.log('✅ Branch added in Firestore:', newStore.id))
+                .catch((err) => console.error('❌ Failed to add branch in Firestore:', err));
       
       // Init Stock
       setProducts(prev => prev.map(p => ({
@@ -586,19 +1027,42 @@ const App: React.FC = () => {
       alert('비밀번호가 1234로 초기화되었습니다.');
   };
 
-  const handleDeleteStore = (storeId: string) => {
-      setStores(prev => prev.filter(s => s.id !== storeId));
-  };
+    const handleDeleteStore = (storeId: string) => {
+            setStores(prev => prev.filter(s => s.id !== storeId));
+            deleteFromFirestore(COLLECTIONS.STORES, storeId)
+                .then(() => console.log('✅ Store deleted in Firestore:', storeId))
+                .catch((err) => console.error('❌ Failed to delete store in Firestore:', err));
+    };
 
-  const handleDeleteOwner = (ownerId: string) => {
-      setStores(prev => prev.filter(s => s.ownerId !== ownerId));
-      setUsers(prev => prev.filter(u => u.id !== ownerId));
-  };
+    const handleDeleteOwner = (ownerId: string) => {
+            const toDelete = stores.filter(s => s.ownerId === ownerId);
+            setStores(prev => prev.filter(s => s.ownerId !== ownerId));
+            setUsers(prev => prev.filter(u => u.id !== ownerId));
+            if (toDelete.length > 0) {
+                Promise.all(toDelete.map(s => deleteFromFirestore(COLLECTIONS.STORES, s.id)))
+                    .then(() => console.log('✅ Owner stores deleted in Firestore:', toDelete.length))
+                    .catch((err) => console.error('❌ Failed deleting owner stores in Firestore:', err));
+            }
+    };
 
   // --- Data Management Handlers --- 
-    const handleAddStore = () => { };
-  const handleUpdateStore = (id: string, name: string) => { setStores(stores.map(s => s.id === id ? { ...s, name } : s)); };
-  const handleRemoveStore = (id: string) => { setStores(stores.filter(s => s.id !== id)); };
+        const handleAddStore = () => { };
+    const handleUpdateStore = (id: string, name: string) => {
+            const updated = stores.map(s => s.id === id ? { ...s, name } : s);
+            setStores(updated);
+            const target = updated.find(s => s.id === id);
+            if (target) {
+                saveToFirestore<StoreAccount>(COLLECTIONS.STORES, target)
+                    .then(() => console.log('✅ Store updated in Firestore:', target.id))
+                    .catch((err) => console.error('❌ Failed to update store in Firestore:', err));
+            }
+    };
+    const handleRemoveStore = (id: string) => {
+            setStores(stores.filter(s => s.id !== id));
+            deleteFromFirestore(COLLECTIONS.STORES, id)
+                .then(() => console.log('✅ Store deleted in Firestore:', id))
+                .catch((err) => console.error('❌ Failed to delete store in Firestore:', err));
+    };
   
   const handleAddStaff = (name: string) => { 
       const newStaff: Staff = {
@@ -608,17 +1072,53 @@ const App: React.FC = () => {
           isActive: true
       };
       setStaffList([...staffList, newStaff]);
+      saveToFirestore<Staff>(COLLECTIONS.STAFF, newStaff)
+        .then(() => console.log('✅ Staff saved to Firestore:', newStaff.id))
+        .catch((err) => console.error('❌ Failed to save staff to Firestore:', err));
   };
-  const handleRemoveStaff = (id: string) => { setStaffList(staffList.filter(s => s.id !== id)); };
+  const handleRemoveStaff = (id: string) => { 
+      setStaffList(staffList.filter(s => s.id !== id));
+      deleteFromFirestore(COLLECTIONS.STAFF, id)
+        .then(() => console.log('✅ Staff deleted in Firestore:', id))
+        .catch((err) => console.error('❌ Failed to delete staff in Firestore:', err));
+  };
 
-  const handleAddLeaveRequest = (req: LeaveRequest) => setLeaveRequests(prev => [...prev, req]);
-  const handleRemoveLeaveRequest = (id: string) => setLeaveRequests(prev => prev.filter(r => r.id !== id));
-  const handleAddReservation = (r: Reservation) => setReservations(prev => [...prev, r]);
-  const handleUpdateReservation = (u: Reservation) => setReservations(prev => prev.map(r => r.id === u.id ? u : r));
-  const handleRemoveReservation = (id: string) => setReservations(prev => prev.filter(r => r.id !== id));
+    const handleAddLeaveRequest = (req: LeaveRequest) => {
+            setLeaveRequests(prev => [...prev, req]);
+            saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, req)
+                .then(() => console.log('✅ Leave request saved to Firestore:', req.id))
+                .catch((err) => console.error('❌ Failed to save leave request to Firestore:', err));
+    };
+    const handleRemoveLeaveRequest = (id: string) => {
+            setLeaveRequests(prev => prev.filter(r => r.id !== id));
+            deleteFromFirestore(COLLECTIONS.LEAVE_REQUESTS, id)
+                .then(() => console.log('✅ Leave request deleted in Firestore:', id))
+                .catch((err) => console.error('❌ Failed to delete leave request in Firestore:', err));
+    };
+    const handleAddReservation = (r: Reservation) => {
+            setReservations(prev => [...prev, r]);
+            saveToFirestore<Reservation>(COLLECTIONS.RESERVATIONS, r)
+                .then(() => console.log('✅ Reservation saved to Firestore:', r.id))
+                .catch((err) => console.error('❌ Failed to save reservation to Firestore:', err));
+    };
+    const handleUpdateReservation = (u: Reservation) => {
+            setReservations(prev => prev.map(r => r.id === u.id ? u : r));
+            saveToFirestore<Reservation>(COLLECTIONS.RESERVATIONS, u)
+                .then(() => console.log('✅ Reservation updated in Firestore:', u.id))
+                .catch((err) => console.error('❌ Failed to update reservation in Firestore:', err));
+    };
+    const handleRemoveReservation = (id: string) => {
+            setReservations(prev => prev.filter(r => r.id !== id));
+            deleteFromFirestore(COLLECTIONS.RESERVATIONS, id)
+                .then(() => console.log('✅ Reservation deleted in Firestore:', id))
+                .catch((err) => console.error('❌ Failed to delete reservation in Firestore:', err));
+    };
   
   const handleSaleComplete = (newSale: Sale) => {
     setSales(prev => [newSale, ...prev]);
+        saveToFirestore<Sale>(COLLECTIONS.SALES, newSale)
+            .then(() => console.log('✅ Sale saved to Firestore:', newSale.id))
+            .catch((err) => console.error('❌ Failed to save sale to Firestore:', err));
     
     // Add New Customer if not exists (with Owner Scope)
     if (newSale.customer && currentUser) {
@@ -641,19 +1141,30 @@ const App: React.FC = () => {
                 ownerId: currentUser.id // Link to current Owner
             };
             setCustomers(prev => [...prev, newCustomer]);
+            saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, newCustomer)
+              .then(() => console.log('✅ Customer saved to Firestore:', newCustomer.id))
+              .catch((err) => console.error('❌ Failed to save customer to Firestore:', err));
         } else {
             // Update existing customer stats
+            let updatedCustomer: Customer | null = null;
             setCustomers(prev => prev.map(c => {
                 if (c.phoneNumber === custPhone && c.ownerId === currentUser.id) {
-                    return {
+                    const updated = {
                         ...c,
                         totalSpent: c.totalSpent + newSale.totalAmount,
                         visitCount: c.visitCount + 1,
                         lastVisitDate: newSale.date
-                    };
+                    } as Customer;
+                    updatedCustomer = updated;
+                    return updated;
                 }
                 return c;
             }));
+            if (updatedCustomer) {
+              saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, updatedCustomer)
+                .then(() => console.log('✅ Customer updated in Firestore:', updatedCustomer?.id))
+                .catch((err) => console.error('❌ Failed to update customer in Firestore:', err));
+            }
         }
     }
 
@@ -680,6 +1191,9 @@ const App: React.FC = () => {
 
       // Update sale record
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
+    saveToFirestore<Sale>(COLLECTIONS.SALES, updatedSale)
+      .then(() => console.log('✅ Sale updated in Firestore:', updatedSale.id))
+      .catch((err) => console.error('❌ Failed to update sale in Firestore:', err));
 
       // If we have a previous sale, reconcile inventory differences
       if (prevSale) {
@@ -710,9 +1224,15 @@ const App: React.FC = () => {
       if (!targetSale || targetSale.isCanceled) return;
       const canceledSale = { ...targetSale, isCanceled: true, cancelDate: new Date().toISOString() };
       setSales(prev => prev.map(s => s.id === canceledSale.id ? canceledSale : s));
+            saveToFirestore<Sale>(COLLECTIONS.SALES, canceledSale)
+                .then(() => console.log('✅ Sale canceled in Firestore:', canceledSale.id))
+                .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
   };
   const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
       setStockInHistory(prev => [record, ...prev]);
+    saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, record)
+      .then(() => console.log('✅ Stock-in saved to Firestore:', record.id))
+      .catch((err) => console.error('❌ Failed to save stock-in to Firestore:', err));
       // Ensure brand is added to global tireBrands list so other views (Inventory/POS) see it
       if (record.brand && record.brand.trim() !== '') {
           setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
@@ -730,7 +1250,11 @@ const App: React.FC = () => {
             const newStockByStore = { ...product.stockByStore, [record.storeId]: currentStoreStock + record.quantity };
             const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
             updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock };
-            return updatedProducts;
+                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+                        saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
+                            .then(() => console.log('✅ Product stock updated in Firestore:', updatedProduct.id))
+                            .catch((err) => console.error('❌ Failed to update product stock in Firestore:', err));
+                        return updatedProducts;
         } else {
             const newStockByStore: Record<string, number> = {};
             stores.forEach(s => newStockByStore[s.id] = 0);
@@ -745,12 +1269,20 @@ const App: React.FC = () => {
                 brand: record.brand,
                 specification: record.specification
             };
-            return [...prev, newProduct];
+                        saveToFirestore<Product>(COLLECTIONS.PRODUCTS, newProduct)
+                            .then(() => console.log('✅ New product saved in Firestore:', newProduct.id))
+                            .catch((err) => console.error('❌ Failed to save new product in Firestore:', err));
+                        return [...prev, newProduct];
         }
     });
   };
 
-  const handleUpdateStockInRecord = (r: StockInRecord) => setStockInHistory(prev => prev.map(old => old.id === r.id ? r : old));
+    const handleUpdateStockInRecord = (r: StockInRecord) => {
+            setStockInHistory(prev => prev.map(old => old.id === r.id ? r : old));
+            saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, r)
+                .then(() => console.log('✅ Stock-in record updated in Firestore:', r.id))
+                .catch((err) => console.error('❌ Failed to update stock-in record in Firestore:', err));
+    };
   const handleStockTransfer = (pid: string, from: string, to: string, qty: number) => {
       if (!pid || !from || !to) return;
       if (from === to) return;
@@ -771,7 +1303,11 @@ const App: React.FC = () => {
           newStockByStore[from] = Math.max(0, fromQty - qty);
           newStockByStore[to] = (newStockByStore[to] || 0) + qty;
           const newTotal = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-          updated[idx] = { ...prod, stockByStore: newStockByStore, stock: newTotal };
+          const updatedProduct: Product = { ...prod, stockByStore: newStockByStore, stock: newTotal };
+          updated[idx] = updatedProduct;
+          saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
+            .then(() => console.log('✅ Product transfer saved in Firestore:', updatedProduct.id))
+            .catch((err) => console.error('❌ Failed to save product transfer in Firestore:', err));
           return updated;
       });
 
@@ -792,11 +1328,34 @@ const App: React.FC = () => {
           toStoreName
       };
       setTransferHistory(prev => [tr, ...prev]);
+            saveToFirestore<StockTransferRecord>(COLLECTIONS.TRANSFERS, tr)
+                .then(() => console.log('✅ Transfer saved to Firestore:', tr.id))
+                .catch((err) => console.error('❌ Failed to save transfer to Firestore:', err));
   };
-  const handleAddExpense = (e: ExpenseRecord) => setExpenses(prev => [e, ...prev]);
-  const handleUpdateExpense = (e: ExpenseRecord) => setExpenses(prev => prev.map(old => old.id === e.id ? e : old));
-  const handleRemoveExpense = (id: string) => setExpenses(prev => prev.filter(e => e.id !== id));
-  const handleUpdateFixedCosts = (c: FixedCostConfig[]) => setFixedCosts(c);
+    const handleAddExpense = (e: ExpenseRecord) => {
+            setExpenses(prev => [e, ...prev]);
+            saveToFirestore<ExpenseRecord>(COLLECTIONS.EXPENSES, e)
+                .then(() => console.log('✅ Expense saved to Firestore:', e.id))
+                .catch((err) => console.error('❌ Failed to save expense in Firestore:', err));
+    };
+    const handleUpdateExpense = (e: ExpenseRecord) => {
+            setExpenses(prev => prev.map(old => old.id === e.id ? e : old));
+            saveToFirestore<ExpenseRecord>(COLLECTIONS.EXPENSES, e)
+                .then(() => console.log('✅ Expense updated in Firestore:', e.id))
+                .catch((err) => console.error('❌ Failed to update expense in Firestore:', err));
+    };
+    const handleRemoveExpense = (id: string) => {
+            setExpenses(prev => prev.filter(e => e.id !== id));
+            deleteFromFirestore(COLLECTIONS.EXPENSES, id)
+                .then(() => console.log('✅ Expense deleted in Firestore:', id))
+                .catch((err) => console.error('❌ Failed to delete expense in Firestore:', err));
+    };
+    const handleUpdateFixedCosts = (c: FixedCostConfig[]) => {
+            setFixedCosts(c);
+            saveBulkToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, c)
+                .then(() => console.log('✅ Fixed costs saved to Firestore:', c.length))
+                .catch((err) => console.error('❌ Failed to save fixed costs in Firestore:', err));
+    };
   
   // Navigation & Permissions Logic
   const navItems = useMemo(() => {
@@ -810,7 +1369,7 @@ const App: React.FC = () => {
       { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: true, type: 'CORE' },
       { id: 'history', label: '판매 내역', icon: List, show: true, type: 'CORE' }, 
       { id: 'tax', label: '세금계산서', icon: FileText, show: true, type: 'CORE' }, 
-      { id: 'customers', label: '고객 관리', icon: Users, show: isAdmin, type: 'ADMIN' }, // Admin Only
+    { id: 'customers', label: '고객 관리', icon: Users, show: isAdmin && !managerSession, type: 'ADMIN' }, // Admin Only (숨김: 점장 세션)
       { id: 'DIVIDER_1', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
       { id: 'inventory', label: '재고 관리', icon: Package, show: true, type: 'CORE' }, 
       { id: 'stockIn', label: '입고 관리', icon: Truck, show: true, type: 'CORE' }, 
@@ -818,7 +1377,7 @@ const App: React.FC = () => {
       { id: 'DIVIDER_2', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
       { id: 'leave', label: '휴무 신청', icon: Calendar, show: true, type: 'CORE' },
       // Settings: Show only if isAdmin
-      { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin, type: 'ADMIN' } 
+            { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin && !managerSession, type: 'ADMIN' } 
     ];
     return items.filter(item => item.show);
   }, [effectiveUser, staffPermissions]);
@@ -826,6 +1385,80 @@ const App: React.FC = () => {
   const currentUserPassword = users.find(u => u.id === currentUser?.id)?.password || '';
 
   // Main Render Logic
+  if (viewState === 'BINDING') {
+      const ownerStores = stores.filter(s => s.ownerId === bindingOwnerId.trim());
+      return (
+          <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-xl bg-white rounded-2xl shadow-lg border border-slate-100 p-6 space-y-6">
+                  <div>
+                      <h1 className="text-2xl font-bold text-slate-900">기기 최초 등록</h1>
+                      <p className="text-sm text-slate-500 mt-1">부여된 시리얼(사장님 ID)로 로그인 후 지점을 선택하면 이 기기가 해당 지점에 고정됩니다.</p>
+                  </div>
+
+                  <form
+                      onSubmit={(e) => {
+                          e.preventDefault();
+                          const ok = handleBindingLogin();
+                          if (ok) setBindingVerified(true);
+                      }}
+                      className="space-y-4"
+                  >
+                      <div>
+                          <label className="block text-sm font-bold text-slate-800 mb-1">사장님 ID</label>
+                          <input
+                              value={bindingOwnerId}
+                              onChange={(e) => { setBindingOwnerId(e.target.value); setBindingError(''); setBindingVerified(false); }}
+                              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                              placeholder="예: 250001"
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-bold text-slate-800 mb-1">비밀번호</label>
+                          <input
+                              type="password"
+                              value={bindingPassword}
+                              onChange={(e) => { setBindingPassword(e.target.value); setBindingError(''); setBindingVerified(false); }}
+                              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                              placeholder="사장님 비밀번호"
+                          />
+                      </div>
+                      {bindingError && <p className="text-sm text-red-600">{bindingError}</p>}
+                      <button
+                          type="submit"
+                          className="w-full py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 disabled:opacity-50"
+                          disabled={!bindingOwnerId.trim() || !bindingPassword.trim()}
+                      >
+                          지점 목록 보기
+                      </button>
+                  </form>
+
+                  {bindingVerified && (
+                      <div className="space-y-3">
+                          <p className="text-sm font-bold text-slate-800">지점 선택</p>
+                          {ownerStores.length === 0 ? (
+                              <p className="text-sm text-slate-500">해당 사장님 계정에 등록된 지점이 없습니다.</p>
+                          ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {ownerStores.map(store => (
+                                      <button
+                                          key={store.id}
+                                          onClick={() => finalizeBinding(store.id)}
+                                          className="border border-slate-200 rounded-lg p-4 text-left hover:border-blue-400 hover:shadow-sm transition"
+                                      >
+                                          <p className="font-bold text-slate-900">{store.name}</p>
+                                          <p className="text-xs text-slate-500 mt-1">코드: {store.code}</p>
+                                      </button>
+                                  ))}
+                              </div>
+                          )}
+                          <p className="text-xs text-slate-500">선택 후 이 기기는 해당 지점으로 고정되며, 스태프 화면으로 바로 진입합니다.</p>
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  }
+
   if (viewState === 'LOGIN') {
       return <LoginScreen onLogin={handleLoginWithState} />;
   }
@@ -928,7 +1561,7 @@ const App: React.FC = () => {
                         </div>
                         <div className="min-w-0">
                             <p className={`text-sm font-bold truncate ${effectiveUser.role === 'STORE_ADMIN' ? 'text-blue-400' : 'text-slate-300'}`}>
-                                {effectiveUser.role === 'STORE_ADMIN' ? '사장님(Owner)' : '직원 모드'}
+                                {effectiveUser.role === 'STORE_ADMIN' ? (managerSession ? '점장 모드' : '사장님(Owner)') : '직원 모드'}
                             </p>
                             <p className="text-xs text-slate-500 truncate">{effectiveUser.name}</p>
                         </div>
@@ -961,16 +1594,43 @@ const App: React.FC = () => {
             </div>
             <div className="flex items-center gap-4 text-xs md:text-sm text-gray-500 text-right">
                 <div className="hidden sm:flex items-center gap-2">
-                    <button 
-                        onClick={() => setViewState('STORE_SELECT')}
-                        className="flex items-center gap-1 font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
-                        title="지점 변경"
-                    >
-                        <StoreIcon size={14} />
-                        {currentStoreId === 'ALL' ? '전체 지점 통합' : stores.find(s => s.id === currentStoreId)?.name}
-                    </button>
-                    {effectiveUser.role === 'STORE_ADMIN' && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">사장님 모드</span>}
+                    {(sessionRole === 'STORE_ADMIN' && !managerSession) ? (
+                        <button 
+                            onClick={() => setViewState('STORE_SELECT')}
+                            className="flex items-center gap-1 font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                            title="지점 변경"
+                        >
+                            <StoreIcon size={14} />
+                            {currentStoreId === 'ALL' ? '전체 지점 통합' : stores.find(s => s.id === currentStoreId)?.name}
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-1 font-bold text-slate-500 px-2 py-1 rounded">
+                            <StoreIcon size={14} />
+                            {currentStoreId === 'ALL' ? '전체 지점 통합' : stores.find(s => s.id === currentStoreId)?.name || '지점 선택됨'}
+                        </div>
+                    )}
+                    {sessionRole === 'STORE_ADMIN' && !managerSession && (
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">사장님 모드</span>
+                    )}
+                    {managerSession && (
+                        <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-bold">점장 모드</span>
+                    )}
                 </div>
+                {sessionRole === 'STAFF' ? (
+                    <button
+                        onClick={() => { setIsAdminModalOpen(true); setPinInput(''); setPinError(''); }}
+                        className="bg-slate-900 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-slate-800"
+                    >
+                        관리자 모드
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => { setSessionRole('STAFF'); setManagerSession(false); setActiveTab('pos'); }}
+                        className="border border-slate-300 text-slate-700 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-100"
+                    >
+                        관리자 종료
+                    </button>
+                )}
                 <span>{new Date().toLocaleDateString('ko-KR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
             </header>
@@ -1051,12 +1711,36 @@ const App: React.FC = () => {
                 stores={visibleStores} onAddStore={handleAddStore} onUpdateStore={handleUpdateStore} onRemoveStore={handleRemoveStore}
                 staffPermissions={staffPermissions} onUpdatePermissions={setStaffPermissions}
                 currentAdminPassword={currentUserPassword} onUpdatePassword={handleUpdatePassword}
+                currentManagerPin={storePin} onUpdateManagerPin={handleUpdateManagerPin}
                 staffList={staffList} onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff}
                 currentStoreId={currentStoreId}
                 />
             )}
             </div>
         </main>
+        {isAdminModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 p-6">
+                    <h3 className="text-lg font-bold text-slate-900 mb-2">관리자 PIN 입력</h3>
+                    <p className="text-sm text-slate-600 mb-4">사장님 PIN이면 전체 지점, 점장 PIN이면 현재 지점 권한으로 전환됩니다.</p>
+                    <form onSubmit={handlePinSubmit} className="space-y-4">
+                        <input
+                            autoFocus
+                            type="password"
+                            value={pinInput}
+                            onChange={(e) => { setPinInput(e.target.value); setPinError(''); }}
+                            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                            placeholder="숫자 PIN 입력"
+                        />
+                        {pinError && <p className="text-sm text-red-600">{pinError}</p>}
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => { setIsAdminModalOpen(false); setPinInput(''); setPinError(''); }} className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-bold hover:bg-slate-50">닫기</button>
+                            <button type="submit" className="flex-1 py-2.5 rounded-lg bg-slate-900 text-white font-bold hover:bg-slate-800">확인</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
         </div>
     );
   }

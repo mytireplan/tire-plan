@@ -248,13 +248,15 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       }
   };
 
+  const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
+
  
 
   // --- Display Priority Logic ---
   const getPrimaryItem = (sale: Sale) => {
     const itemsWithCat = sale.items.map(item => {
         const product = products.find(p => p.id === item.productId);
-        let category = product?.category || '기타';
+        let category = normalizeCategory(product?.category);
         if (category === '기타' && item.specification && /\d{3}\/\d{2}/.test(item.specification)) {
             category = '타이어';
         }
@@ -264,8 +266,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     const tires = itemsWithCat.filter(i => i.category === '타이어');
     if (tires.length > 0) return tires[0];
 
-    const parts = itemsWithCat.filter(i => i.category === '부품/수리');
-    if (parts.length > 0) return parts[0];
+    const nonTires = itemsWithCat.filter(i => i.category !== '타이어');
+    if (nonTires.length > 0) return nonTires[0];
 
     return itemsWithCat[0] || sale.items[0];
   };

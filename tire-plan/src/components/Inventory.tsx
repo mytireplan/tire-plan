@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import type { Product, Store, User } from '../types';
 import { Search, Plus, Edit2, Save, X, AlertTriangle, MapPin, ArrowRightLeft, Disc } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
+import { saveToFirestore, COLLECTIONS } from '../utils/firestore';
 
 interface InventoryProps {
   products: Product[];
@@ -20,10 +21,12 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({});
+    const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '');
   
   // Low Stock Logic
   const [filterLowStock, setFilterLowStock] = useState(false);
   const [lowStockThreshold, setLowStockThreshold] = useState(5);
+    const [hideZeroStock, setHideZeroStock] = useState(false);
   
   // Category Management State
   const [showCategoryInput, setShowCategoryInput] = useState(false);
@@ -55,7 +58,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
     return stores.find(s => s.id === currentStoreId)?.name || '해당 지점';
   }, [currentStoreId, stores]);
 
-  const filteredProducts = products.filter(p => {
+    const filteredProducts = products.map(p => ({ ...p, category: normalizeCategory(p.category) })).filter(p => {
     const lowerTerm = searchTerm.toLowerCase();
     // Create a version of the search term with only numbers for flexible spec matching (e.g. "2454518")
     const numericSearchTerm = lowerTerm.replace(/\D/g, '');
@@ -79,46 +82,59 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
         }
     }
 
-    const matchesSearch = matchesNameOrCategory || matchesSpec;
+        const matchesSearch = matchesNameOrCategory || matchesSpec;
 
-    // Logic: Service items (>900) are never "low stock"
-    const isServiceItem = (p.stock || 0) > 900;
-    const isLowStock = !isServiceItem && (p.stock || 0) <= lowStockThreshold;
+        const totalStock = p.stock ?? 0;
+
+    // Logic: Service items (category '기타' or high sentinel stock) are never "low stock"
+        const isServiceItem = p.category === '기타' || totalStock > 900;
+        const isLowStock = !isServiceItem && totalStock <= lowStockThreshold;
     
+        if (hideZeroStock && totalStock === 0) return false;
     if (filterLowStock && !isLowStock) return false;
     
     return matchesSearch;
   });
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProduct.name || editingProduct.price === undefined) return;
+const handleSave = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingProduct.name || editingProduct.price === undefined) return;
 
-    // Calculate total stock from store inputs
-    const stockByStore: Record<string, number> = editingProduct.stockByStore || {};
-    stores.forEach(s => {
-        if (stockByStore[s.id] === undefined) stockByStore[s.id] = 0;
-    });
-    const totalStock = (Object.values(stockByStore) as number[]).reduce((a, b) => a + b, 0);
+  // Calculate total stock from store inputs
+  const stockByStore: Record<string, number> = editingProduct.stockByStore || {};
+  stores.forEach(s => {
+    if (stockByStore[s.id] === undefined) stockByStore[s.id] = 0;
+  });
+  const totalStock = (Object.values(stockByStore) as number[]).reduce((a, b) => a + b, 0);
 
-    const productToSave: Product = {
-        id: editingProduct.id || Date.now().toString(),
-        name: editingProduct.name,
-        price: Number(editingProduct.price),
-        stock: totalStock,
-        stockByStore: stockByStore,
-        category: editingProduct.category || categories[0],
-        specification: editingProduct.specification
-    };
-
-    if (editingProduct.id) {
-        onUpdate(productToSave);
-    } else {
-        onAdd(productToSave);
-    }
-    setIsModalOpen(false);
-    setEditingProduct({});
+  const productToSave: Product = {
+    id: editingProduct.id || Date.now().toString(),
+    name: editingProduct.name,
+    price: Number(editingProduct.price),
+    stock: totalStock,
+    stockByStore: stockByStore,
+    category: editingProduct.category || categories[0],
+    specification: editingProduct.specification
   };
+
+  try {
+    // 🔥 Firestore에 저장 (products 컬렉션)
+    await saveToFirestore<Product>(COLLECTIONS.PRODUCTS, productToSave);
+    console.log('✅ Firestore 저장 완료:', productToSave.id);
+  } catch (error) {
+    console.error('❌ Firestore 저장 중 오류:', error);
+    alert('Firebase 저장 중 오류가 발생했어요. 콘솔을 확인해주세요.');
+  }
+
+  // 기존 로컬 상태 업데이트는 그대로 유지
+  if (editingProduct.id) {
+    onUpdate(productToSave);
+  } else {
+    onAdd(productToSave);
+  }
+  setIsModalOpen(false);
+  setEditingProduct({});
+};
 
   const handleAddCategorySubmit = () => {
     if (newCategoryName.trim()) {
@@ -209,16 +225,17 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
 
             {/* Low Stock Config & Filter */}
             <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
-                <div className="flex items-center pl-2 pr-1 gap-2 border-r border-gray-300 mr-1">
-                     <span className="text-xs text-gray-500 whitespace-nowrap font-medium">기준:</span>
-                     <input 
-                        type="number" 
-                        min="1" 
-                        max="100"
-                        value={lowStockThreshold}
-                        onChange={(e) => setLowStockThreshold(Math.max(1, Number(e.target.value)))}
-                        className="w-12 bg-white border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:border-blue-500 text-center"
-                     />
+                     <div className="flex items-center pl-2 pr-2 gap-2 border-r border-gray-300 mr-1">
+                            <span className="text-xs text-gray-500 whitespace-nowrap font-medium">기준:</span>
+                            <input 
+                                type="number" 
+                                min="1" 
+                                max="100"
+                                value={lowStockThreshold}
+                                onChange={(e) => setLowStockThreshold(Math.max(1, Number(e.target.value)))}
+                                className="w-12 bg-white border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:border-blue-500 text-center"
+                            />
+                            <span className="text-xs text-gray-500 whitespace-nowrap">개 이하시 부족</span>
                 </div>
                 <button
                     onClick={() => setFilterLowStock(!filterLowStock)}
@@ -230,6 +247,16 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
                 >
                     <AlertTriangle size={14} />
                     <span className="hidden sm:inline">부족 알림</span>
+                </button>
+                <button
+                    onClick={() => setHideZeroStock(!hideZeroStock)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        hideZeroStock 
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                        : 'text-gray-600 hover:bg-gray-200'
+                    }`}
+                >
+                    <span className="hidden sm:inline">재고 0 숨기기</span>
                 </button>
             </div>
         </div>
@@ -261,8 +288,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
             </div>
         ) : (
             filteredProducts.map(product => {
-                const isService = product.stock > 900;
-                const isLowStock = !isService && product.stock <= lowStockThreshold;
+                const category = normalizeCategory(product.category);
+                const isService = category === '기타' || (product.stock || 0) > 900;
+                const isLowStock = !isService && (product.stock || 0) <= lowStockThreshold;
 
                 return (
                     <div 
@@ -296,7 +324,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
                         {/* Category */}
                         <div className="md:col-span-2 text-sm text-gray-600 flex items-center gap-2 md:block">
                             <span className="md:hidden text-xs text-gray-400">카테고리:</span>
-                            <span className="bg-gray-100 px-2 py-1 rounded-full text-xs">{product.category}</span>
+                            <span className="bg-gray-100 px-2 py-1 rounded-full text-xs">{category}</span>
                         </div>
 
                         {/* Price */}
@@ -318,7 +346,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
                                     }`}>
                                         <MapPin size={10} className={isStoreLow ? 'text-rose-500' : 'text-gray-400'} />
                                         <span>{store.name.split(' ')[1] || store.name}:</span>
-                                        <span className="font-bold">{isService ? '∞' : stock}</span>
+                                        <span className="font-bold">{isService ? '-' : stock}</span>
                                     </div>
                                 );
                             })}

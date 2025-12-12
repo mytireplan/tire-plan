@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { subscribeToCollection, COLLECTIONS } from '../utils/firestore';
 import type { Product, CartItem, Sale, Store, User, Customer, Staff } from '../types';
 import { formatCurrency } from '../utils/format';
 import { PaymentMethod } from '../types';
@@ -47,6 +48,9 @@ interface CartItemRowProps {
     onUpdateName: (cartItemId: string, name: string) => void;
 }
 
+const normalizeCategory = (category: string) => category === '부품/수리' ? '기타' : category;
+const normalizeProductCategory = (product: Product): Product => ({ ...product, category: normalizeCategory(product.category) });
+
 const CartItemRow: React.FC<CartItemRowProps> = ({ 
     item, 
     onRemove, 
@@ -60,6 +64,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
     // Check if discounted
     const isDiscounted = item.originalPrice !== undefined && item.price < item.originalPrice;
     const isTempProduct = item.id === '99999';
+    const isService = item.category === '기타' || (item.stock || 0) > 900;
 
     // Local state for formatted price input
     const [localPrice, setLocalPrice] = useState('');
@@ -94,9 +99,9 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
                       <div className="flex items-center gap-2 mb-1">
                            {/* Move stock display above price */}
                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                               isTempProduct ? 'bg-orange-100 text-orange-700' : (item.stock || 0) <= 0 && (item.stock || 0) < 900 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
+                               isTempProduct ? 'bg-orange-100 text-orange-700' : (item.stock || 0) <= 0 && !isService ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
                            }`}>
-                               {isTempProduct ? '우선결제(가매출)' : (item.stock || 0) > 900 ? '서비스' : `재고 ${(item.stock || 0)}개`}
+                               {isTempProduct ? '우선결제(가매출)' : isService ? '재고 - 개' : `재고 ${(item.stock || 0)}개`}
                            </span>
                            {/* Category placed above product name */}
                            <span className="text-xs font-semibold text-gray-400 block text-left">{item.category}</span>
@@ -214,9 +219,30 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedBrand, setSelectedBrand] = useState<string>('All');
   const [forceShowBrandTabs, setForceShowBrandTabs] = useState(false);
+    const normalizedCategories = useMemo(() => Array.from(new Set(categories.map(normalizeCategory))), [categories]);
+
+  useEffect(() => {
+      if (selectedCategory !== 'All' && !normalizedCategories.includes(selectedCategory)) {
+          setSelectedCategory('All');
+      }
+  }, [selectedCategory, normalizedCategories]);
   
   // Admin Selection State
   const [adminSelectedStoreId, setAdminSelectedStoreId] = useState<string>(stores[0]?.id || '');
+
+  // 🔥 Firestore에서 상품 목록 구독
+    const [fireProducts, setFireProducts] = useState<Product[]>(products.map(normalizeProductCategory));
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCollection<Product>(
+      COLLECTIONS.PRODUCTS,
+      (data) => {
+        // null 방지용 기본값
+                setFireProducts((data || []).map(normalizeProductCategory));
+      }
+    );
+    return () => unsubscribe();
+  }, []);
 
   // Logic: If Admin, use selected store. If Staff, strictly use currentStoreId.
   const activeStoreId = currentUser.role === 'STAFF' ? currentStoreId : adminSelectedStoreId;
@@ -311,12 +337,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       return (forceShowBrandTabs || searchTerm.length > 0 || selectedCategory === '타이어');
   }, [forceShowBrandTabs, searchTerm, selectedCategory]);
 
-  const filteredProducts = useMemo(() => {
+    const filteredProducts = useMemo(() => {
       const lowerSearch = searchTerm.toLowerCase().trim();
       // Create numeric only version for spec search (e.g. '2355519')
       const numericSearch = lowerSearch.replace(/\D/g, '');
 
-      let result = products.filter(p => {
+      let result = fireProducts.filter(p => {
         if (p.id === '99999') return false; // Hide dummy product from list
 
         const nameMatch = p.name.toLowerCase().includes(lowerSearch);
@@ -325,11 +351,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         let specMatch = false;
         if (p.specification) {
             const lowerSpec = p.specification.toLowerCase();
-            // Standard text match
             if (lowerSpec.includes(lowerSearch)) specMatch = true;
             
-            // Enhanced Numeric Match: if user types "2355519", match against "2355519" (stripped from 235/55R19)
-            // Only trigger if user input has reasonable length to avoid false positives with short numbers
             if (!specMatch && numericSearch.length >= 3) {
                 const numericSpec = lowerSpec.replace(/\D/g, '');
                 if (numericSpec.includes(numericSearch)) specMatch = true;
@@ -364,15 +387,16 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
           return a.name.localeCompare(b.name);
       });
       return result;
-  }, [products, searchTerm, selectedCategory, selectedBrand, tireBrands]);
+  }, [fireProducts, searchTerm, selectedCategory, selectedBrand, tireBrands]);
 
   const getStock = (product: Product) => product.stockByStore[activeStoreId] || 0;
 
     const addToCart = (product: Product, overridePrice?: number, overrideName?: string, isImmediateNewProduct?: boolean) => {
         // If this is a new product being immediately sold (입고와 동시에 판매), treat its stock as 0
         const currentStock = isImmediateNewProduct ? 0 : (product.stockByStore[activeStoreId] || 0);
-        // Service items (stock > 900) or Dummy items (99999) always allow add
-        const isSpecialItem = product.id === '99999' || currentStock > 900;
+        const isServiceItem = product.category === '기타' || currentStock > 900;
+        // Service items or Dummy items (99999) always allow add
+        const isSpecialItem = product.id === '99999' || isServiceItem;
         if (currentStock <= 0 && !isSpecialItem && !isImmediateNewProduct) return;
 
         setCart(prev => {
@@ -403,7 +427,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
   // --- Emergency / Temp Product Logic (Inline Version) ---
   const addDummyProduct = () => {
-      const dummyProduct = products.find(p => p.id === '99999');
+      const dummyProduct = fireProducts.find(p => p.id === '99999');
       if (dummyProduct) {
           // Add to cart with price 0 (forcing user to input)
           addToCart(dummyProduct, 0);
@@ -430,9 +454,10 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       if (item.cartItemId === cartItemId) {
         const newQty = item.quantity + delta;
         if (newQty <= 0) return null; 
-        if (!item.isManual && item.stock < 900 && item.id !== '99999') {
-            const product = products.find(p => p.id === item.id);
-            if (product && newQty > getStock(product)) return item;
+                const product = fireProducts.find(p => p.id === item.id);
+                const isServiceItem = product ? (product.category === '기타' || (product.stock || 0) >= 900) : false;
+                if (!item.isManual && !isServiceItem && item.id !== '99999') {
+                        if (product && newQty > getStock(product)) return item;
         }
         return { ...item, quantity: newQty };
       }
@@ -639,7 +664,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 ) : (
                     <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                         <button onClick={() => setSelectedCategory('All')} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === 'All' ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>전체</button>
-                        {categories.map(cat => (
+                        {normalizedCategories.map(cat => (
                             <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{cat}</button>
                         ))}
                     </div>
@@ -658,15 +683,15 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
                     {filteredProducts.map(product => {
                         const stock = getStock(product);
-                        const isService = stock > 900;
+                        const isService = product.category === '기타' || stock > 900;
                         const isLowStock = !isService && stock < 10;
                         return (
                             <button
                                 key={product.id}
                                 onClick={() => addToCart(product)}
-                                disabled={stock <= 0 && !isService}
+                                disabled={false}
                                 className={`group flex flex-col justify-between items-start p-4 rounded-xl border bg-white transition-all shadow-sm h-full min-h-[11rem] relative text-left
-                                    ${stock <= 0 && !isService ? 'opacity-50 cursor-not-allowed border-gray-200' : 'hover:border-blue-500 hover:shadow-md cursor-pointer border-gray-100'}`}
+                                    hover:border-blue-500 hover:shadow-md cursor-pointer border-gray-100`}
                             >
                                 {product.brand && product.brand !== '기타' && (
                                     <span className="absolute top-3 right-3 text-[10px] font-bold px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 z-10">
@@ -684,12 +709,14 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                     )}
                                 </div>
                                 
-                                <div className="w-full mt-4 pt-3 border-t border-gray-50 flex flex-col items-end gap-0.5">
-                                                <span className={`text-[10px] md:text-xs font-medium px-2 py-0.5 rounded-full ${isLowStock ? 'bg-[#EF4444] text-white' : 'bg-green-100 text-green-700'}`}>
-                                                    {isService ? '서비스' : `재고 ${stock}개`}
-                                                </span>
-                                                <span className="text-lg md:text-xl font-bold text-gray-900">{formatCurrency(product.price)}</span>
-                                </div>
+                                                                <div className="w-full mt-4 pt-3 border-t border-gray-50 flex flex-col items-end gap-0.5">
+                                                                        {!isService && (
+                                                                            <span className={`text-[10px] md:text-xs font-medium px-2 py-0.5 rounded-full ${isLowStock ? 'bg-[#EF4444] text-white' : 'bg-green-100 text-green-700'}`}>
+                                                                                재고 {stock}개
+                                                                            </span>
+                                                                        )}
+                                                                        <span className="text-lg md:text-xl font-bold text-gray-900">{formatCurrency(product.price)}</span>
+                                                                </div>
                             </button>
                         );
                     })}

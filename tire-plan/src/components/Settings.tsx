@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
-import type { Store, StaffPermissions, Staff } from '../types';
-import { Settings as SettingsIcon, Plus, Trash2, Save, Lock, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, KeyRound, Check } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import type { Store, Staff } from '../types';
+import { Settings as SettingsIcon, Plus, Trash2, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, Eye, EyeOff, Check } from 'lucide-react';
 
 interface SettingsProps {
   stores: Store[];
@@ -9,11 +9,11 @@ interface SettingsProps {
   onUpdateStore: (id: string, name: string) => void;
   onRemoveStore: (id: string) => void;
   
-  staffPermissions: StaffPermissions;
-  onUpdatePermissions: (perms: StaffPermissions) => void;
-  
   currentAdminPassword: string;
   onUpdatePassword: (newPass: string) => void;
+
+    currentManagerPin: string;
+    onUpdateManagerPin: (storeId: string, pin: string) => void;
 
   staffList: Staff[];
   onAddStaff: (name: string) => void;
@@ -23,9 +23,9 @@ interface SettingsProps {
 
 const Settings: React.FC<SettingsProps> = ({ 
     stores, onUpdateStore, onRemoveStore, 
-  staffPermissions, onUpdatePermissions,
-  currentAdminPassword, onUpdatePassword,
-  staffList, onAddStaff, onRemoveStaff, currentStoreId
+    currentAdminPassword, onUpdatePassword,
+    currentManagerPin, onUpdateManagerPin,
+    staffList, onAddStaff, onRemoveStaff, currentStoreId
 }) => {
   // Store Editing State
   const [editingStore, setEditingStore] = useState<Store | null>(null);
@@ -36,12 +36,36 @@ const Settings: React.FC<SettingsProps> = ({
   const [deletePasswordInput, setDeletePasswordInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
-  // Password Change State
-  const [pwdForm, setPwdForm] = useState({ current: '', new: '', confirm: '' });
-  const [pwdMessage, setPwdMessage] = useState({ text: '', isError: false });
+    // Password Change State
+    const [loginForm, setLoginForm] = useState({ current: '', new: '', confirm: '' });
+    const [ownerForm, setOwnerForm] = useState({ current: '', new: '', confirm: '' });
+    const [loginErrors, setLoginErrors] = useState<{ current?: string; new?: string; confirm?: string }>({});
+    const [ownerErrors, setOwnerErrors] = useState<{ current?: string; new?: string; confirm?: string }>({});
+    const [passwordVisibility, setPasswordVisibility] = useState<Record<string, boolean>>({
+        loginCurrent: false,
+        loginNew: false,
+        loginConfirm: false,
+        ownerCurrent: false,
+        ownerNew: false,
+        ownerConfirm: false,
+    });
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [managerPinForm, setManagerPinForm] = useState({ current: '', next: '', confirm: '' });
+    const [managerPinError, setManagerPinError] = useState('');
+    const passwordGuidelines: string[] = [
+            '6자리 이상, 숫자와 영문을 조합해 주세요.',
+            '최근 사용한 비밀번호는 피해주세요.',
+            '공용 기기에서는 입력 후 화면을 가려주세요.'
+    ];
 
   // Staff Management State
   const [newStaffName, setNewStaffName] = useState('');
+
+  useEffect(() => {
+      if (!toast) return;
+      const timer = setTimeout(() => setToast(null), 2600);
+      return () => clearTimeout(timer);
+  }, [toast]);
 
   const openEditModal = (store: Store) => {
       setEditingStore(store);
@@ -76,24 +100,77 @@ const Settings: React.FC<SettingsProps> = ({
       }
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pwdForm.current !== currentAdminPassword) {
-        setPwdMessage({ text: '현재 비밀번호가 일치하지 않습니다.', isError: true });
-        return;
-    }
-    if (pwdForm.new.length < 4) {
-        setPwdMessage({ text: '새 비밀번호는 4자리 이상이어야 합니다.', isError: true });
-        return;
-    }
-    if (pwdForm.new !== pwdForm.confirm) {
-        setPwdMessage({ text: '새 비밀번호가 일치하지 않습니다.', isError: true });
-        return;
-    }
+  const handleInputChange = (kind: 'login' | 'owner', field: 'current' | 'new' | 'confirm', value: string) => {
+      const setForm = kind === 'login' ? setLoginForm : setOwnerForm;
+      const setErrors = kind === 'login' ? setLoginErrors : setOwnerErrors;
+      setForm(prev => ({ ...prev, [field]: value }));
+      setErrors(prev => ({ ...prev, [field]: undefined }));
+  };
 
-    onUpdatePassword(pwdForm.new);
-    setPwdMessage({ text: '비밀번호가 성공적으로 변경되었습니다.', isError: false });
-    setPwdForm({ current: '', new: '', confirm: '' });
+  const toggleVisibility = (key: keyof typeof passwordVisibility) => {
+      setPasswordVisibility(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const validatePasswordForm = (form: { current: string; new: string; confirm: string }) => {
+      const errors: { current?: string; new?: string; confirm?: string } = {};
+
+      if (!form.current) errors.current = '현재 비밀번호를 입력하세요.';
+      else if (form.current !== currentAdminPassword) errors.current = '현재 비밀번호가 일치하지 않습니다.';
+
+      if (!form.new) errors.new = '새 비밀번호를 입력하세요.';
+      else {
+          if (form.new.length < 6) errors.new = '6자리 이상으로 설정해 주세요.';
+          else if (!/[0-9]/.test(form.new) || !/[A-Za-z]/.test(form.new)) errors.new = '숫자와 영문을 조합해 주세요.';
+          else if (form.new === form.current) errors.new = '기존 비밀번호와 달라야 합니다.';
+      }
+
+      if (!form.confirm) errors.confirm = '비밀번호를 다시 입력하세요.';
+      else if (form.confirm !== form.new) errors.confirm = '새 비밀번호가 일치하지 않습니다.';
+
+      return errors;
+  };
+
+  const handlePasswordSubmit = (kind: 'login' | 'owner') => (e: React.FormEvent) => {
+      e.preventDefault();
+      const form = kind === 'login' ? loginForm : ownerForm;
+      const setErrors = kind === 'login' ? setLoginErrors : setOwnerErrors;
+      const setForm = kind === 'login' ? setLoginForm : setOwnerForm;
+
+      const errors = validatePasswordForm(form);
+      setErrors(errors);
+      if (Object.keys(errors).length > 0) {
+          setToast({ type: 'error', message: '입력 값을 다시 확인해주세요.' });
+          return;
+      }
+
+      onUpdatePassword(form.new);
+      setToast({ type: 'success', message: kind === 'login' ? '로그인 비밀번호를 변경했어요.' : '사장 전용 비밀번호를 변경했어요.' });
+      setForm({ current: '', new: '', confirm: '' });
+  };
+
+  const handleManagerPinSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      setManagerPinError('');
+      const { current, next, confirm } = managerPinForm;
+      if (!current || current !== currentManagerPin) {
+          setManagerPinError('현재 점장 PIN이 일치하지 않습니다.');
+          return;
+      }
+      if (!/^[0-9]{4,8}$/.test(next)) {
+          setManagerPinError('숫자 4~8자리로 설정해 주세요.');
+          return;
+      }
+      if (next === currentManagerPin) {
+          setManagerPinError('기존 PIN과 다르게 설정해 주세요.');
+          return;
+      }
+      if (next !== confirm) {
+          setManagerPinError('새 PIN이 일치하지 않습니다.');
+          return;
+      }
+      onUpdateManagerPin(currentStoreId, next);
+      setToast({ type: 'success', message: '점장 PIN이 변경되었습니다.' });
+      setManagerPinForm({ current: '', next: '', confirm: '' });
   };
 
   const handleAddStaffSubmit = (e: React.FormEvent) => {
@@ -108,6 +185,14 @@ const Settings: React.FC<SettingsProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto pb-10 relative">
+        {toast && (
+            <div className={`fixed top-6 right-6 z-40 px-4 py-3 rounded-lg shadow-lg border ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                    {toast.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
+                    <span>{toast.message}</span>
+                </div>
+            </div>
+        )}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <SettingsIcon className="text-gray-600" />
@@ -215,113 +300,280 @@ const Settings: React.FC<SettingsProps> = ({
                     </button>
                 </form>
 
-                <div className="border-t border-gray-100 pt-4 mt-auto">
-                    <h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-1"><Lock size={14}/> 직원 모드 접근 권한 설정</h4>
-                    <div className="space-y-2">
-                        <PermissionToggle 
-                            label="재고 관리" 
-                            checked={staffPermissions.viewInventory}
-                            onChange={(checked) => onUpdatePermissions({...staffPermissions, viewInventory: checked})}
-                        />
-                        <PermissionToggle 
-                            label="매출 상세 내역" 
-                            checked={staffPermissions.viewSalesHistory}
-                            onChange={(checked) => onUpdatePermissions({...staffPermissions, viewSalesHistory: checked})}
-                        />
-                        <PermissionToggle 
-                            label="세금계산서 발행" 
-                            checked={staffPermissions.viewTaxInvoice}
-                            onChange={(checked) => onUpdatePermissions({...staffPermissions, viewTaxInvoice: checked})}
-                        />
-                    </div>
-                </div>
             </div>
         </div>
 
         {/* 3. Admin Security */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-6 bg-slate-50 border-b border-gray-200 flex items-center gap-3">
-                <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
-                     <ShieldCheck className="text-slate-800" size={24} />
+            <div className="p-6 bg-slate-50 border-b border-gray-200 flex items-center gap-3 flex-wrap justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
+                         <ShieldCheck className="text-slate-800" size={24} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-lg text-slate-800">계정 보안 설정</h3>
+                        <p className="text-xs text-slate-500">로그인 비밀번호와 사장 전용 비밀번호를 분리 관리하세요.</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 className="font-bold text-lg text-slate-800">계정 보안 설정</h3>
-                    <p className="text-xs text-slate-500">계정 비밀번호를 주기적으로 변경하여 보안을 강화하세요.</p>
-                </div>
+                <div className="text-[11px] text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">모바일에서는 한 컬럼으로 표시됩니다</div>
             </div>
             
             <div className="p-6 lg:p-8">
-                <form onSubmit={handlePasswordChange} className="max-w-2xl mx-auto">
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">현재 비밀번호</label>
-                            <div className="relative">
-                                <Lock size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input 
-                                    type="password" 
-                                    value={pwdForm.current}
-                                    onChange={e => setPwdForm({...pwdForm, current: e.target.value})}
-                                    className="w-full pl-10 p-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-slate-200 focus:border-slate-400 outline-none transition-all"
-                                    placeholder="현재 사용 중인 비밀번호를 입력하세요"
-                                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Login Password */}
+                    <form onSubmit={handlePasswordSubmit('login')} className="rounded-xl border border-slate-100 bg-slate-50/60 p-5 shadow-sm flex flex-col gap-4">
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-gray-800">로그인 비밀번호</h4>
+                                <span className="text-[11px] text-gray-500">POS/포털 로그인</span>
                             </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">새 비밀번호</label>
-                                <div className="relative">
-                                    <KeyRound size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
-                                    <input 
-                                        type="password" 
-                                        value={pwdForm.new}
-                                        onChange={e => setPwdForm({...pwdForm, new: e.target.value})}
-                                        className="w-full pl-10 p-3 bg-blue-50/30 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
-                                        placeholder="변경할 비밀번호"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">새 비밀번호 확인</label>
-                                <div className="relative">
-                                    <KeyRound size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
-                                    <input 
-                                        type="password" 
-                                        value={pwdForm.confirm}
-                                        onChange={e => setPwdForm({...pwdForm, confirm: e.target.value})}
-                                        className="w-full pl-10 p-3 bg-blue-50/30 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
-                                        placeholder="비밀번호 재입력"
-                                    />
-                                </div>
-                            </div>
+                            <p className="text-xs text-gray-500">아이디 로그인에 사용하는 비밀번호입니다. 직원 공유를 피하고 주기적으로 변경하세요.</p>
                         </div>
 
-                        {/* Status Message Area */}
-                        <div className={`flex items-center justify-between p-4 rounded-xl transition-all ${
-                            pwdMessage.text 
-                                ? (pwdMessage.isError ? 'bg-red-50 border border-red-100' : 'bg-green-50 border border-green-100') 
-                                : 'bg-gray-50 border border-gray-100'
-                        }`}>
-                            <div className="flex items-center gap-2 text-sm font-medium">
-                                {pwdMessage.text ? (
-                                    <>
-                                        {pwdMessage.isError ? <AlertCircle className="text-red-500" size={18}/> : <Check className="text-green-500" size={18}/>}
-                                        <span className={pwdMessage.isError ? 'text-red-600' : 'text-green-700'}>{pwdMessage.text}</span>
-                                    </>
-                                ) : (
-                                    <span className="text-gray-400 flex items-center gap-2"><AlertCircle size={16}/> 안전한 비밀번호 사용을 권장합니다.</span>
-                                )}
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold text-gray-700">현재 비밀번호</label>
+                            <div className="relative">
+                                <input 
+                                    type={passwordVisibility.loginCurrent ? 'text' : 'password'}
+                                    value={loginForm.current}
+                                    onChange={(e) => handleInputChange('login', 'current', e.target.value)}
+                                    className={`w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-slate-200 focus:border-slate-400 outline-none transition-all ${loginErrors.current ? 'border-red-400 ring-red-100' : 'border-gray-300 bg-white'}`}
+                                    placeholder="현재 비밀번호"
+                                    autoComplete="current-password"
+                                    aria-invalid={!!loginErrors.current}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => toggleVisibility('loginCurrent')}
+                                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                                    aria-label="현재 비밀번호 보기 토글"
+                                >
+                                    {passwordVisibility.loginCurrent ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
                             </div>
+                            {loginErrors.current && <p className="text-xs text-red-600">{loginErrors.current}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold text-gray-700">새 비밀번호</label>
+                            <div className="relative">
+                                <input 
+                                    type={passwordVisibility.loginNew ? 'text' : 'password'}
+                                    value={loginForm.new}
+                                    onChange={(e) => handleInputChange('login', 'new', e.target.value)}
+                                    className={`w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-slate-200 focus:border-slate-400 outline-none transition-all ${loginErrors.new ? 'border-red-400 ring-red-100' : 'border-gray-300 bg-white'}`}
+                                    placeholder="6자리 이상, 숫자+영문 조합"
+                                    autoComplete="new-password"
+                                    aria-invalid={!!loginErrors.new}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => toggleVisibility('loginNew')}
+                                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                                    aria-label="새 비밀번호 보기 토글"
+                                >
+                                    {passwordVisibility.loginNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+                            {loginErrors.new && <p className="text-xs text-red-600">{loginErrors.new}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold text-gray-700">새 비밀번호 확인</label>
+                            <div className="relative">
+                                <input 
+                                    type={passwordVisibility.loginConfirm ? 'text' : 'password'}
+                                    value={loginForm.confirm}
+                                    onChange={(e) => handleInputChange('login', 'confirm', e.target.value)}
+                                    className={`w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-slate-200 focus:border-slate-400 outline-none transition-all ${loginErrors.confirm ? 'border-red-400 ring-red-100' : 'border-gray-300 bg-white'}`}
+                                    placeholder="한 번 더 입력"
+                                    autoComplete="new-password"
+                                    aria-invalid={!!loginErrors.confirm}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => toggleVisibility('loginConfirm')}
+                                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                                    aria-label="새 비밀번호 확인 보기 토글"
+                                >
+                                    {passwordVisibility.loginConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+                            {loginErrors.confirm && <p className="text-xs text-red-600">{loginErrors.confirm}</p>}
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
+                            {passwordGuidelines.map((item: string) => (
+                                <div key={item} className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
+                                    {item}
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex justify-end pt-2">
                             <button 
                                 type="submit"
-                                className="bg-slate-900 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-lg shadow-slate-200"
+                                className="px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors"
                             >
-                                <Save size={18} />
-                                변경 내용 저장
+                                로그인 비밀번호 변경
                             </button>
                         </div>
+                    </form>
+
+                    {/* Owner/Admin Password */}
+                    <form onSubmit={handlePasswordSubmit('owner')} className="rounded-xl border border-amber-100 bg-amber-50/60 p-5 shadow-sm flex flex-col gap-4">
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-amber-900">사장 전용 비밀번호</h4>
+                                <span className="text-[11px] text-amber-700">민감 작업 잠금</span>
+                            </div>
+                            <p className="text-xs text-amber-800">매장 삭제, 직원 권한 수정 등 사장만 접근해야 하는 작업에 사용하세요.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold text-amber-900">현재 비밀번호</label>
+                            <div className="relative">
+                                <input 
+                                    type={passwordVisibility.ownerCurrent ? 'text' : 'password'}
+                                    value={ownerForm.current}
+                                    onChange={(e) => handleInputChange('owner', 'current', e.target.value)}
+                                    className={`w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none transition-all ${ownerErrors.current ? 'border-red-400 ring-red-100' : 'border-amber-200 bg-white'}`}
+                                    placeholder="현재 비밀번호"
+                                    autoComplete="current-password"
+                                    aria-invalid={!!ownerErrors.current}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => toggleVisibility('ownerCurrent')}
+                                    className="absolute inset-y-0 right-3 flex items-center text-amber-700"
+                                    aria-label="현재 비밀번호 보기 토글"
+                                >
+                                    {passwordVisibility.ownerCurrent ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+                            {ownerErrors.current && <p className="text-xs text-red-600">{ownerErrors.current}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold text-amber-900">새 비밀번호</label>
+                            <div className="relative">
+                                <input 
+                                    type={passwordVisibility.ownerNew ? 'text' : 'password'}
+                                    value={ownerForm.new}
+                                    onChange={(e) => handleInputChange('owner', 'new', e.target.value)}
+                                    className={`w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none transition-all ${ownerErrors.new ? 'border-red-400 ring-red-100' : 'border-amber-200 bg-white'}`}
+                                    placeholder="6자리 이상, 숫자+영문 조합"
+                                    autoComplete="new-password"
+                                    aria-invalid={!!ownerErrors.new}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => toggleVisibility('ownerNew')}
+                                    className="absolute inset-y-0 right-3 flex items-center text-amber-700"
+                                    aria-label="새 비밀번호 보기 토글"
+                                >
+                                    {passwordVisibility.ownerNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+                            {ownerErrors.new && <p className="text-xs text-red-600">{ownerErrors.new}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold text-amber-900">새 비밀번호 확인</label>
+                            <div className="relative">
+                                <input 
+                                    type={passwordVisibility.ownerConfirm ? 'text' : 'password'}
+                                    value={ownerForm.confirm}
+                                    onChange={(e) => handleInputChange('owner', 'confirm', e.target.value)}
+                                    className={`w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none transition-all ${ownerErrors.confirm ? 'border-red-400 ring-red-100' : 'border-amber-200 bg-white'}`}
+                                    placeholder="한 번 더 입력"
+                                    autoComplete="new-password"
+                                    aria-invalid={!!ownerErrors.confirm}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => toggleVisibility('ownerConfirm')}
+                                    className="absolute inset-y-0 right-3 flex items-center text-amber-700"
+                                    aria-label="새 비밀번호 확인 보기 토글"
+                                >
+                                    {passwordVisibility.ownerConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+                            {ownerErrors.confirm && <p className="text-xs text-red-600">{ownerErrors.confirm}</p>}
+                        </div>
+
+                        <div className="bg-white border border-amber-200 rounded-lg p-3 text-xs text-amber-900 space-y-1">
+                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />사장님 본인만 알고 있는 번호로 설정하세요.</div>
+                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />민감 작업 시 추가 확인용으로 활용됩니다.</div>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                            <button 
+                                type="submit"
+                                className="px-4 py-2.5 rounded-lg bg-amber-700 text-white text-sm font-bold hover:bg-amber-800 transition-colors"
+                            >
+                                사장 전용 비밀번호 변경
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                {/* Manager PIN Change (Owner only) */}
+                <div className="mt-6">
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm max-w-xl">
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900">점장 PIN 변경</h4>
+                                <p className="text-xs text-slate-500">현재 지점 점장 PIN을 변경합니다. 숫자 4~8자리 권장.</p>
+                            </div>
+                            <span className="text-[11px] text-slate-500">현재 지점: {stores.find(s => s.id === currentStoreId)?.name || '알 수 없음'}</span>
+                        </div>
+                        <form onSubmit={handleManagerPinSubmit} className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-bold text-slate-700">현재 PIN</label>
+                                    <input
+                                        type="password"
+                                        value={managerPinForm.current}
+                                        onChange={(e) => setManagerPinForm(prev => ({ ...prev, current: e.target.value }))}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-200 focus:border-slate-400"
+                                        placeholder="현재 PIN"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-bold text-slate-700">새 PIN</label>
+                                    <input
+                                        type="password"
+                                        value={managerPinForm.next}
+                                        onChange={(e) => setManagerPinForm(prev => ({ ...prev, next: e.target.value }))}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-200 focus:border-slate-400"
+                                        placeholder="숫자 4~8자리"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-bold text-slate-700">새 PIN 확인</label>
+                                    <input
+                                        type="password"
+                                        value={managerPinForm.confirm}
+                                        onChange={(e) => setManagerPinForm(prev => ({ ...prev, confirm: e.target.value }))}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-200 focus:border-slate-400"
+                                        placeholder="다시 입력"
+                                    />
+                                </div>
+                            </div>
+                            {managerPinError && <p className="text-xs text-red-600">{managerPinError}</p>}
+                            <div className="flex justify-end">
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800"
+                                >
+                                    점장 PIN 변경
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
 
@@ -383,7 +635,7 @@ const Settings: React.FC<SettingsProps> = ({
                          <div className="mb-4">
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">비밀번호 입력 (본인 확인)</label>
                             <div className="relative">
-                                <Lock size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                <AlertCircle size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                                 <input 
                                     autoFocus
                                     type="password" 
@@ -421,17 +673,5 @@ const Settings: React.FC<SettingsProps> = ({
     </div>
   );
 };
-
-const PermissionToggle = ({ label, checked, onChange }: { label: string, checked: boolean, onChange: (v: boolean) => void }) => (
-    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
-        <div className="font-medium text-gray-700 text-sm">{label}</div>
-        <button 
-            onClick={() => onChange(!checked)}
-            className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-200 ease-in-out relative ${checked ? 'bg-green-500' : 'bg-gray-300'}`}
-        >
-            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ease-in-out ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
-        </button>
-    </div>
-);
 
 export default Settings;
