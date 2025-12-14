@@ -289,6 +289,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   });
 
   const [priceEditId, setPriceEditId] = useState<string | null>(null);
+    const [mobilePriceEditId, setMobilePriceEditId] = useState<string | null>(null);
+    const [mobilePriceValue, setMobilePriceValue] = useState('');
 
   // Set default staff if list has items and only one option
   useEffect(() => {
@@ -474,6 +476,18 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   const updatePrice = (cartItemId: string, newPrice: number) => {
       setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, price: newPrice } : item));
       setPriceEditId(null);
+      setMobilePriceEditId(null);
+      setMobilePriceValue('');
+  };
+
+  const handleMobilePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value.replace(/[^0-9]/g, '');
+      setMobilePriceValue(raw === '' ? '' : Number(raw).toLocaleString());
+  };
+
+  const commitMobilePrice = (cartItemId: string) => {
+      const finalPrice = mobilePriceValue === '' ? 0 : Number(mobilePriceValue.replace(/[^0-9]/g, ''));
+      updatePrice(cartItemId, finalPrice);
   };
 
     // Discount modal logic removed
@@ -848,19 +862,43 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         <div className="text-sm font-semibold text-gray-900 truncate" title={item.name}>{item.name}</div>
                                         <div className="text-[11px] text-gray-500 truncate">{item.specification || item.category}</div>
                                     </div>
-                                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-2 py-1">
-                                        <button onClick={() => updateQuantity(item.cartItemId, -1)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-800">
-                                            <Minus size={14} />
-                                        </button>
-                                        <span className="text-sm font-bold w-5 text-center">{item.quantity}</span>
-                                        <button onClick={() => updateQuantity(item.cartItemId, 1)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-800">
-                                            <Plus size={14} />
+                                    <div className="flex items-center gap-3 flex-shrink-0">
+                                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-2 h-10 w-28 justify-between">
+                                            <button onClick={() => updateQuantity(item.cartItemId, -1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 rounded-full">
+                                                <Minus size={14} />
+                                            </button>
+                                            <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
+                                            <button onClick={() => updateQuantity(item.cartItemId, 1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 rounded-full">
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="w-28 text-right flex-shrink-0">
+                                            {mobilePriceEditId === item.cartItemId ? (
+                                                <input
+                                                    autoFocus
+                                                    className="w-full text-sm p-1 border border-blue-500 rounded text-right font-bold"
+                                                    value={mobilePriceValue}
+                                                    onChange={handleMobilePriceChange}
+                                                    onBlur={() => commitMobilePrice(item.cartItemId)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') { commitMobilePrice(item.cartItemId); e.currentTarget.blur(); }
+                                                        if (e.key === 'Escape') { setMobilePriceEditId(null); setMobilePriceValue(''); }
+                                                    }}
+                                                    placeholder="0"
+                                                />
+                                            ) : (
+                                                <button
+                                                    onClick={() => { setMobilePriceEditId(item.cartItemId); setMobilePriceValue(item.price.toLocaleString()); }}
+                                                    className="w-full text-sm font-bold text-gray-900 whitespace-nowrap px-2 py-1 rounded hover:bg-gray-100 text-right"
+                                                >
+                                                    {formatCurrency(item.price * item.quantity)}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <button onClick={() => removeFromCart(item.cartItemId)} className="text-gray-300 hover:text-red-500 p-1 flex-shrink-0">
+                                            <Trash2 size={16} />
                                         </button>
                                     </div>
-                                    <div className="text-sm font-bold text-gray-900 whitespace-nowrap">{formatCurrency(item.price * item.quantity)}</div>
-                                    <button onClick={() => removeFromCart(item.cartItemId)} className="text-gray-300 hover:text-red-500 p-1">
-                                        <Trash2 size={16} />
-                                    </button>
                                 </div>
                             ))
                         )}
