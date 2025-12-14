@@ -857,48 +857,46 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                             <div className="p-4 text-center text-gray-400 text-sm">상품을 추가하면 여기에서 확인할 수 있습니다.</div>
                         ) : (
                             cart.map(item => (
-                                <div key={item.cartItemId} className="p-3 flex items-center gap-3">
-                                    <div className="flex-1 min-w-0">
+                                <div key={item.cartItemId} className="p-3 grid grid-cols-[1fr_auto_auto_auto] items-center gap-2">
+                                    <div className="min-w-0 pr-1">
                                         <div className="text-sm font-semibold text-gray-900 truncate" title={item.name}>{item.name}</div>
                                         <div className="text-[11px] text-gray-500 truncate">{item.specification || item.category}</div>
                                     </div>
-                                    <div className="flex items-center gap-3 flex-shrink-0">
-                                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-2 h-10 w-28 justify-between">
-                                            <button onClick={() => updateQuantity(item.cartItemId, -1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 rounded-full">
-                                                <Minus size={14} />
-                                            </button>
-                                            <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
-                                            <button onClick={() => updateQuantity(item.cartItemId, 1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 rounded-full">
-                                                <Plus size={14} />
-                                            </button>
-                                        </div>
-                                        <div className="w-28 text-right flex-shrink-0">
-                                            {mobilePriceEditId === item.cartItemId ? (
-                                                <input
-                                                    autoFocus
-                                                    className="w-full text-sm p-1 border border-blue-500 rounded text-right font-bold"
-                                                    value={mobilePriceValue}
-                                                    onChange={handleMobilePriceChange}
-                                                    onBlur={() => commitMobilePrice(item.cartItemId)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') { commitMobilePrice(item.cartItemId); e.currentTarget.blur(); }
-                                                        if (e.key === 'Escape') { setMobilePriceEditId(null); setMobilePriceValue(''); }
-                                                    }}
-                                                    placeholder="0"
-                                                />
-                                            ) : (
-                                                <button
-                                                    onClick={() => { setMobilePriceEditId(item.cartItemId); setMobilePriceValue(item.price.toLocaleString()); }}
-                                                    className="w-full text-sm font-bold text-gray-900 whitespace-nowrap px-2 py-1 rounded hover:bg-gray-100 text-right"
-                                                >
-                                                    {formatCurrency(item.price * item.quantity)}
-                                                </button>
-                                            )}
-                                        </div>
-                                        <button onClick={() => removeFromCart(item.cartItemId)} className="text-gray-300 hover:text-red-500 p-1 flex-shrink-0">
-                                            <Trash2 size={16} />
+                                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-2 h-10 w-28 justify-between flex-shrink-0">
+                                        <button onClick={() => updateQuantity(item.cartItemId, -1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 rounded-full">
+                                            <Minus size={14} />
+                                        </button>
+                                        <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
+                                        <button onClick={() => updateQuantity(item.cartItemId, 1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 rounded-full">
+                                            <Plus size={14} />
                                         </button>
                                     </div>
+                                    <div className="min-w-[96px] text-right flex-shrink-0">
+                                        {mobilePriceEditId === item.cartItemId ? (
+                                            <input
+                                                autoFocus
+                                                className="w-full text-sm p-1 border border-blue-500 rounded text-right font-bold"
+                                                value={mobilePriceValue}
+                                                onChange={handleMobilePriceChange}
+                                                onBlur={() => commitMobilePrice(item.cartItemId)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') { commitMobilePrice(item.cartItemId); e.currentTarget.blur(); }
+                                                    if (e.key === 'Escape') { setMobilePriceEditId(null); setMobilePriceValue(''); }
+                                                }}
+                                                placeholder="0"
+                                            />
+                                        ) : (
+                                            <button
+                                                onClick={() => { setMobilePriceEditId(item.cartItemId); setMobilePriceValue(item.price.toLocaleString()); }}
+                                                className="min-w-[96px] text-sm font-bold text-gray-900 whitespace-nowrap px-2 py-1 rounded hover:bg-gray-100 text-right"
+                                            >
+                                                {formatCurrency(item.price * item.quantity)}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button onClick={() => removeFromCart(item.cartItemId)} className="text-gray-300 hover:text-red-500 p-1 flex-shrink-0 justify-self-end">
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             ))
                         )}

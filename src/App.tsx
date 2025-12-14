@@ -462,10 +462,25 @@ const App: React.FC = () => {
         return localStorage.getItem('force-mobile-mode') === 'true';
     });
 
+    const [isMobileViewport, setIsMobileViewport] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return forceMobileMode || window.innerWidth < 768;
+    });
+
     useEffect(() => {
         if (typeof window === 'undefined') return;
         localStorage.setItem('force-mobile-mode', forceMobileMode ? 'true' : 'false');
         if (!forceMobileMode) setIsMobileMenuOpen(false);
+    }, [forceMobileMode]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (typeof window === 'undefined') return;
+            setIsMobileViewport(forceMobileMode || window.innerWidth < 768);
+        };
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, [forceMobileMode]);
   
   const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>({
@@ -1394,6 +1409,16 @@ const App: React.FC = () => {
 
   const currentUserPassword = users.find(u => u.id === currentUser?.id)?.password || '';
 
+    const compactDate = useMemo(() => {
+            const now = new Date();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            return `${month}/${day} (${weekdays[now.getDay()]})`;
+    }, []);
+
+    const isMobilePOS = isMobileViewport && activeTab === 'pos';
+
   // Main Render Logic
   if (viewState === 'BINDING') {
       const ownerStores = stores.filter(s => s.ownerId === bindingOwnerId.trim());
@@ -1738,22 +1763,24 @@ const App: React.FC = () => {
                         <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-bold">점장 모드</span>
                     )}
                 </div>
-                {sessionRole === 'STAFF' ? (
-                    <button
-                        onClick={() => { setIsAdminModalOpen(true); setPinInput(''); setPinError(''); }}
-                        className="bg-slate-900 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-slate-800"
-                    >
-                        관리자 모드
-                    </button>
-                ) : (
-                    <button
-                        onClick={() => { setSessionRole('STAFF'); setManagerSession(false); setActiveTab('pos'); }}
-                        className="border border-slate-300 text-slate-700 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-100"
-                    >
-                        관리자 종료
-                    </button>
+                {!isMobilePOS && (
+                    sessionRole === 'STAFF' ? (
+                        <button
+                            onClick={() => { setIsAdminModalOpen(true); setPinInput(''); setPinError(''); }}
+                            className="bg-slate-900 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-slate-800"
+                        >
+                            관리자 모드
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => { setSessionRole('STAFF'); setManagerSession(false); setActiveTab('pos'); }}
+                            className="border border-slate-300 text-slate-700 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-100"
+                        >
+                            관리자 종료
+                        </button>
+                    )
                 )}
-                <span>{new Date().toLocaleDateString('ko-KR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                <span className="text-[11px] leading-tight text-gray-400 font-medium">{compactDate}</span>
             </div>
             </header>
 
