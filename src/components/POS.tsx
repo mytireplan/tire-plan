@@ -4,7 +4,7 @@ import { subscribeToCollection, COLLECTIONS } from '../utils/firestore';
 import type { Product, CartItem, Sale, Store, User, Customer, Staff } from '../types';
 import { formatCurrency } from '../utils/format';
 import { PaymentMethod } from '../types';
-import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, ShoppingCart, User as UserIcon, Pencil, X, ChevronLeft, MapPin, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, ShoppingCart, User as UserIcon, Pencil, X, ChevronLeft, MapPin, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface POSProps {
   products: Product[];
@@ -218,8 +218,10 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedBrand, setSelectedBrand] = useState<string>('All');
-  const [forceShowBrandTabs, setForceShowBrandTabs] = useState(false);
+    const [forceShowBrandTabs, setForceShowBrandTabs] = useState(false);
+    const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
     const normalizedCategories = useMemo(() => Array.from(new Set(categories.map(normalizeCategory))), [categories]);
+
 
   useEffect(() => {
       if (selectedCategory !== 'All' && !normalizedCategories.includes(selectedCategory)) {
@@ -391,12 +393,13 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
   const getStock = (product: Product) => product.stockByStore[activeStoreId] || 0;
 
-    const addToCart = (product: Product, overridePrice?: number, overrideName?: string, isImmediateNewProduct?: boolean) => {
+    const addToCart = (product: Product, overridePrice?: number, overrideName?: string, isImmediateNewProduct?: boolean, quantity: number = 1) => {
         // If this is a new product being immediately sold (입고와 동시에 판매), treat its stock as 0
         const currentStock = isImmediateNewProduct ? 0 : (product.stockByStore[activeStoreId] || 0);
         const isServiceItem = product.category === '기타' || currentStock > 900;
         // Service items or Dummy items (99999) always allow add
         const isSpecialItem = product.id === '99999' || isServiceItem;
+        const qtyToAdd = Math.max(1, quantity);
         if (currentStock <= 0 && !isSpecialItem && !isImmediateNewProduct) return;
 
         setCart(prev => {
@@ -404,8 +407,9 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
             if (product.id !== '99999') {
                 const existing = prev.find(item => item.id === product.id);
                 if (existing) {
-                        if (!isSpecialItem && existing.quantity >= currentStock && !isImmediateNewProduct) return prev;
-                        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+                        const desiredQty = existing.quantity + qtyToAdd;
+                        if (!isSpecialItem && !isImmediateNewProduct && desiredQty > currentStock) return prev;
+                        return prev.map(item => item.id === product.id ? { ...item, quantity: desiredQty } : item);
                 }
             }
 
@@ -413,13 +417,15 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
             const nameToUse = overrideName || product.name;
             // Generate a unique cart item ID
             const newCartItemId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const initialQty = isSpecialItem || isImmediateNewProduct ? qtyToAdd : Math.min(qtyToAdd, currentStock);
+            if (initialQty <= 0) return prev;
 
             return [...prev, {
                     ...product,
                     cartItemId: newCartItemId,
                     name: nameToUse,
                     price: priceToUse,
-                    quantity: 1,
+                    quantity: initialQty,
                     originalPrice: priceToUse
             }];
         });
@@ -592,6 +598,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       if (method === PaymentMethod.TRANSFER) return '계좌이체';
       return '';
   };
+
+    const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   // Get models for selected brand
 
@@ -780,6 +788,75 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                     <PaymentButton icon={CreditCard} label="카드" onClick={() => requestCheckout(PaymentMethod.CARD)} disabled={cart.length === 0 || isProcessing} color="bg-blue-600 hover:bg-blue-700" />
                     <PaymentButton icon={Banknote} label="현금" onClick={() => requestCheckout(PaymentMethod.CASH)} disabled={cart.length === 0 || isProcessing} color="bg-emerald-600 hover:bg-emerald-700" />
                     <PaymentButton icon={Smartphone} label="이체" onClick={() => requestCheckout(PaymentMethod.TRANSFER)} disabled={cart.length === 0 || isProcessing} color="bg-violet-600 hover:bg-violet-700" />
+                </div>
+            </div>
+        </div>
+
+        {/* Mobile sticky bottom bar & expandable sheet (non-modal) */}
+        <div
+            className="lg:hidden fixed inset-x-0 bottom-0 z-30 px-3 pointer-events-none"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
+        >
+            <div className={`bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto transition-transform duration-300 ${isBottomSheetOpen ? 'translate-y-0' : 'translate-y-[40%]'}`}>
+                <button
+                    className="w-full flex items-center justify-between p-3 bg-white"
+                    onClick={() => setIsBottomSheetOpen(prev => !prev)}
+                >
+                    <div className="flex items-center gap-2 text-left">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <ShoppingCart size={18} />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-sm font-extrabold text-gray-900 truncate">선택 {cartCount}개</div>
+                            <div className="text-xs text-gray-500">총 {formatCurrency(cartTotal)}</div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">주문 확인</span>
+                        {isBottomSheetOpen ? <ChevronDown size={18} className="text-gray-500" /> : <ChevronUp size={18} className="text-gray-500" />}
+                    </div>
+                </button>
+                <div className={`transition-[max-height] duration-300 ease-out ${isBottomSheetOpen ? 'max-h-[70vh]' : 'max-h-0'}`}>
+                    <div className="border-t border-gray-100 divide-y max-h-[52vh] overflow-y-auto">
+                        {cart.length === 0 ? (
+                            <div className="p-4 text-center text-gray-400 text-sm">상품을 추가하면 여기에서 확인할 수 있습니다.</div>
+                        ) : (
+                            cart.map(item => (
+                                <div key={item.cartItemId} className="p-3 flex items-center gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-semibold text-gray-900 truncate" title={item.name}>{item.name}</div>
+                                        <div className="text-[11px] text-gray-500 truncate">{item.specification || item.category}</div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-2 py-1">
+                                        <button onClick={() => updateQuantity(item.cartItemId, -1)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-800">
+                                            <Minus size={14} />
+                                        </button>
+                                        <span className="text-sm font-bold w-5 text-center">{item.quantity}</span>
+                                        <button onClick={() => updateQuantity(item.cartItemId, 1)} className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-800">
+                                            <Plus size={14} />
+                                        </button>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900 whitespace-nowrap">{formatCurrency(item.price * item.quantity)}</div>
+                                    <button onClick={() => removeFromCart(item.cartItemId)} className="text-gray-300 hover:text-red-500 p-1">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                    {cart.length > 0 && (
+                        <div className="p-3 bg-gray-50 border-t border-gray-100 space-y-3">
+                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                <span>총 금액</span>
+                                <span className="text-2xl font-extrabold text-blue-600">{formatCurrency(cartTotal)}</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <PaymentButton icon={CreditCard} label="카드" onClick={() => requestCheckout(PaymentMethod.CARD)} disabled={cart.length === 0 || isProcessing} color="bg-blue-600 hover:bg-blue-700" />
+                                <PaymentButton icon={Banknote} label="현금" onClick={() => requestCheckout(PaymentMethod.CASH)} disabled={cart.length === 0 || isProcessing} color="bg-emerald-600 hover:bg-emerald-700" />
+                                <PaymentButton icon={Smartphone} label="이체" onClick={() => requestCheckout(PaymentMethod.TRANSFER)} disabled={cart.length === 0 || isProcessing} color="bg-violet-600 hover:bg-violet-700" />
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

@@ -457,6 +457,16 @@ const App: React.FC = () => {
   // Sidebar & Menu State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
+    const [forceMobileMode, setForceMobileMode] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return localStorage.getItem('force-mobile-mode') === 'true';
+    });
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        localStorage.setItem('force-mobile-mode', forceMobileMode ? 'true' : 'false');
+        if (!forceMobileMode) setIsMobileMenuOpen(false);
+    }, [forceMobileMode]);
   
   const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>({
     viewInventory: true,
@@ -1495,7 +1505,7 @@ const App: React.FC = () => {
     return (
         <div className="flex h-screen bg-gray-100 overflow-hidden">
         {/* Mobile Menu */}
-        <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className={`fixed inset-0 z-50 ${forceMobileMode ? '' : 'md:hidden'} transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
             <div
                 className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -1551,35 +1561,51 @@ const App: React.FC = () => {
                         </ul>
                     </nav>
 
-                    <div className="border-t border-gray-200 px-4 py-3 flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${effectiveUser.role === 'STORE_ADMIN' ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                            {effectiveUser.role === 'STORE_ADMIN' ? <ShieldCheck size={18}/> : <UserCircle size={18}/>}
+                    <div className="border-t border-gray-200 px-4 py-3 space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${effectiveUser.role === 'STORE_ADMIN' ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                                {effectiveUser.role === 'STORE_ADMIN' ? <ShieldCheck size={18}/> : <UserCircle size={18}/>}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate">{effectiveUser.name}</p>
+                                <p className="text-xs text-gray-500 truncate">{effectiveUser.role === 'STORE_ADMIN' ? (managerSession ? '점장 모드' : '사장님 모드') : '직원 모드'}</p>
+                            </div>
+                            {effectiveUser.role === 'STORE_ADMIN' ? (
+                                <button
+                                    onClick={() => { handleLockAdmin(); setIsMobileMenuOpen(false); }}
+                                    className="px-3 py-2 text-sm font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
+                                >
+                                    직원 모드
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
+                                    className="px-3 py-2 text-sm font-semibold text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+                                >
+                                    로그아웃
+                                </button>
+                            )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">{effectiveUser.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{effectiveUser.role === 'STORE_ADMIN' ? (managerSession ? '점장 모드' : '사장님 모드') : '직원 모드'}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                onClick={() => { setForceMobileMode(true); setIsMobileMenuOpen(false); }}
+                                className={`px-3 py-2 rounded-lg text-sm font-semibold border ${forceMobileMode ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                            >
+                                모바일 모드
+                            </button>
+                            <button
+                                onClick={() => { setForceMobileMode(false); setIsMobileMenuOpen(false); }}
+                                className={`px-3 py-2 rounded-lg text-sm font-semibold border ${!forceMobileMode ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                            >
+                                PC 모드
+                            </button>
                         </div>
-                        {effectiveUser.role === 'STORE_ADMIN' ? (
-                            <button
-                                onClick={() => { handleLockAdmin(); setIsMobileMenuOpen(false); }}
-                                className="px-3 py-2 text-sm font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
-                            >
-                                직원 모드
-                            </button>
-                        ) : (
-                            <button
-                                onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
-                                className="px-3 py-2 text-sm font-semibold text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
-                            >
-                                로그아웃
-                            </button>
-                        )}
                     </div>
                 </div>
             </div>
         </div>
 
-        <aside className={`hidden md:flex ${isSidebarOpen ? 'xl:w-64 md:w-56' : 'w-20'} bg-slate-900 text-white transition-all duration-300 ease-in-out flex-col shadow-xl z-20`}>
+        <aside className={`${forceMobileMode ? 'hidden' : 'hidden md:flex'} ${isSidebarOpen ? 'xl:w-64 md:w-56' : 'w-20'} bg-slate-900 text-white transition-all duration-300 ease-in-out flex-col shadow-xl z-20`}>
             <div className="p-5 flex items-center justify-center md:justify-between border-b border-slate-800 h-16">
             {isSidebarOpen && (
                 <div className="hidden md:flex items-center gap-2">
@@ -1587,7 +1613,7 @@ const App: React.FC = () => {
                 <h1 className="text-xl font-bold tracking-tight text-blue-400 truncate">{appTitle}</h1>
                 </div>
             )}
-            {!isSidebarOpen && <div className="w-full flex justify-center"><StoreIcon className="text-blue-400" size={24} /></div>}
+            {!isSidebarOpen && !forceMobileMode && null}
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`p-1 hover:bg-slate-800 rounded-lg transition-colors ${isSidebarOpen ? 'ml-auto' : 'mx-auto'}`}>
                 {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -1663,13 +1689,29 @@ const App: React.FC = () => {
                     </button>
                 </div>
             )}
+            {(forceMobileMode || isSidebarOpen) && (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                        onClick={() => { setForceMobileMode(true); setIsMobileMenuOpen(true); }}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold border ${forceMobileMode ? 'bg-blue-500 text-white border-blue-400' : 'border-slate-700 text-white hover:bg-slate-800'}`}
+                    >
+                        모바일 모드
+                    </button>
+                    <button
+                        onClick={() => { setForceMobileMode(false); setIsMobileMenuOpen(false); }}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold border ${!forceMobileMode ? 'bg-white text-slate-900 border-white' : 'border-slate-700 text-white hover:bg-slate-800'}`}
+                    >
+                        PC 모드
+                    </button>
+                </div>
+            )}
             </div>
         </aside>
 
         <main className="flex-1 flex flex-col bg-gray-50 relative overflow-hidden">
             <header className="h-16 bg-white border-b border-gray-200 flex items-center px-4 md:px-8 justify-between relative md:sticky md:top-0 z-10 shadow-sm flex-shrink-0 print:hidden">
             <div className="flex items-center gap-3">
-                <button className="md:hidden p-2 -ml-2 hover:bg-gray-100 rounded-lg text-gray-600" onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
+                <button className={`${forceMobileMode ? '' : 'md:hidden'} p-2 -ml-2 hover:bg-gray-100 rounded-lg text-gray-600`} onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 truncate tracking-tight">{activeTab === 'history' ? '판매 내역' : navItems.find(i => i.id === activeTab)?.label}</h2>
             </div>
             <div className="flex items-center gap-4 text-xs md:text-sm text-gray-500 text-right">
