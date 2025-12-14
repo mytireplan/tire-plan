@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { Reservation, Product, User, Store } from '../types';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, CheckCircle2, Trash2, Plus, StickyNote, Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, CheckCircle2, Trash2, Plus, StickyNote, Pencil, X } from 'lucide-react';
 
 interface ReservationSystemProps {
     reservations: Reservation[];
@@ -14,6 +14,7 @@ interface ReservationSystemProps {
     stores: Store[];
     tireBrands: string[];
     tireModels: Record<string, string[]>;
+    isMobile: boolean;
 }
 
 // Helper for Autocomplete Dropdown
@@ -137,7 +138,7 @@ const AutocompleteInput: React.FC<AutocompleteProps> = ({ value, onChange, place
 
 const ReservationSystem: React.FC<ReservationSystemProps> = ({ 
     reservations, onAddReservation, onUpdateReservation, onRemoveReservation, 
-    products, currentStoreId, currentUser, stores, tireModels
+    products, currentStoreId, currentUser, stores, tireModels, isMobile
 }) => {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [adminSelectedStoreId, setAdminSelectedStoreId] = useState<string>(
@@ -154,6 +155,7 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
         memo: ''
     });
     const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
+    const [isQuickSheetOpen, setIsQuickSheetOpen] = useState(false);
 
     // Refs for Keyboard Navigation
     const timeRef = useRef<HTMLInputElement>(null);
@@ -170,6 +172,14 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
         const d = String(date.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
     };
+
+    const compactSelectedDate = useMemo(() => {
+        const d = new Date(selectedDate);
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+        return `${month}/${day} (${weekdays[d.getDay()]})`;
+    }, [selectedDate]);
 
     // Auto-Stock Check Logic
     useEffect(() => {
@@ -243,7 +253,11 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
         };
         onAddReservation(newRes);
         setQuickForm({ ...quickForm, model: '', size: '', phone: '', memo: '' }); 
-        setTimeout(() => timeRef.current?.focus(), 0);
+        if (isMobile) {
+            setIsQuickSheetOpen(false);
+        } else {
+            setTimeout(() => timeRef.current?.focus(), 0);
+        }
     };
 
     const handleGridKeyDown = (e: React.KeyboardEvent, index: number) => {
@@ -284,30 +298,33 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
             {/* LEFT PANEL */}
             <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-gray-200 relative z-0">
                 {/* 1. Header */}
-                <div className="p-4 border-b border-gray-100 flex-shrink-0">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                             <span className="text-blue-600">{selectedDate.split('-')[2]}일</span> 예약 관리
-                             {currentUser.role === 'STORE_ADMIN' && (
+                <div className={`${isMobile ? 'p-3' : 'p-4'} border-b border-gray-100 flex-shrink-0`}>                    
+                    <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-between items-center mb-4'}`}>
+                        <div className="flex items-center gap-2">
+                            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-gray-800 flex items-center gap-2`}>
+                                <span className="text-blue-600">{compactSelectedDate}</span>
+                                {!isMobile && <span className="text-gray-500 text-sm">예약 관리</span>}
+                            </h2>
+                            {!isMobile && currentUser.role === 'STORE_ADMIN' && (
                                 <select value={adminSelectedStoreId} onChange={(e) => setAdminSelectedStoreId(e.target.value)} className="ml-2 text-xs p-1 border rounded bg-gray-50 font-normal">
                                     {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
-                             )}
-                        </h2>
-                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                            )}
+                        </div>
+                        <div className={`flex items-center gap-2 bg-gray-100 p-1 rounded-lg ${isMobile ? 'w-full justify-between' : ''}`}>
                             <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate()-1); setSelectedDate(formatDateYMD(d)); }} className="p-1 hover:bg-white rounded shadow-sm"><ChevronLeft size={18} className="text-gray-600"/></button>
-                            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none text-sm font-bold text-gray-700 w-[110px] text-center focus:outline-none cursor-pointer" />
+                            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none text-sm font-bold text-gray-700 w-[120px] text-center focus:outline-none cursor-pointer" />
                             <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate()+1); setSelectedDate(formatDateYMD(d)); }} className="p-1 hover:bg-white rounded shadow-sm"><ChevronRight size={18} className="text-gray-600"/></button>
                             <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="text-xs px-2 py-1 bg-white rounded shadow-sm font-bold text-blue-600 ml-1 hover:bg-blue-50">오늘</button>
                         </div>
                     </div>
-                     <div className="flex justify-between items-center bg-gray-50 rounded-lg p-2 overflow-x-auto no-scrollbar gap-1">
+                     <div className="flex justify-between items-center bg-gray-50 rounded-lg p-2 overflow-x-auto no-scrollbar gap-1 mt-2">
                         {[-3, -2, -1, 0, 1, 2, 3].map(offset => {
                              const d = new Date(selectedDate); d.setDate(d.getDate() + offset);
                              const dStr = formatDateYMD(d);
                              const isSelected = dStr === selectedDate;
                              return (
-                                 <button key={offset} onClick={() => setSelectedDate(dStr)} className={`flex-1 min-w-[40px] flex flex-col items-center py-2 rounded-md transition-all ${isSelected ? 'bg-white shadow ring-1 ring-blue-500' : 'hover:bg-gray-200'}`}>
+                                 <button key={offset} onClick={() => setSelectedDate(dStr)} className={`flex-1 min-w-[40px] flex flex-col items-center py-1.5 rounded-md transition-all ${isSelected ? 'bg-white shadow ring-1 ring-blue-500' : 'hover:bg-gray-200'}`}>
                                      <span className={`text-[10px] font-medium ${d.getDay() === 0 ? 'text-red-500' : d.getDay() === 6 ? 'text-blue-500' : ''}`}>{['일', '월', '화', '수', '목', '금', '토'][d.getDay()]}</span>
                                      <span className={`text-sm font-bold ${isSelected ? 'text-blue-600' : ''}`}>{d.getDate()}</span>
                                  </button>
@@ -316,58 +333,107 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
                      </div>
                 </div>
 
-                {/* 2. Quick Input Row */}
-                <div className="p-4 bg-blue-50/50 border-b border-blue-100 flex-shrink-0 relative z-20 overflow-visible">
-                    <h3 className="text-xs font-bold text-blue-600 uppercase mb-2 flex items-center gap-1"><Plus size={12}/> 빠른 예약 등록</h3>
-                    <div className={`grid ${gridCols} shadow-sm rounded-lg border border-blue-300 bg-white h-9 divide-x divide-gray-200 overflow-visible`}>
-                         <div className="relative group"><input ref={timeRef} type="time" className="w-full h-full text-center text-sm font-bold text-gray-800 outline-none focus:bg-blue-50" value={quickForm.time} onChange={e => setQuickForm({...quickForm, time: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 0)} /></div>
-                         <div className="relative"><AutocompleteInput inputRef={sizeRef} placeholder="규격" suggestions={uniqueSpecs} value={quickForm.size} onChange={handleSizeChange} className="h-full focus-within:bg-blue-50" onKeyDown={(e) => handleGridKeyDown(e, 1)} /></div>
-                         <div className="relative"><AutocompleteInput inputRef={modelRef} placeholder="모델명 / 상품명" suggestions={uniqueModels} value={quickForm.model} onChange={val => setQuickForm(prev => ({ ...prev, model: val }))} className="h-full focus-within:bg-blue-50" onKeyDown={(e) => handleGridKeyDown(e, 2)} /></div>
-                         <div className="relative"><input ref={qtyRef} type="number" min="1" className="w-full h-full px-1 text-sm text-center outline-none focus:bg-blue-50" placeholder="수량" value={quickForm.qty} onChange={e => setQuickForm({...quickForm, qty: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 3)} /></div>
-                         <div className="relative"><input ref={phoneRef} type="text" className="w-full h-full px-2 text-sm outline-none focus:bg-blue-50 placeholder-gray-400" placeholder="010-0000-0000" value={quickForm.phone} onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ''); let fmt = val; if(val.length>3 && val.length<=7) fmt = val.slice(0,3)+'-'+val.slice(3); else if(val.length>7) fmt = val.slice(0,3)+'-'+val.slice(3,7)+'-'+val.slice(7,11); setQuickForm({...quickForm, phone: fmt}) }} onKeyDown={(e) => handleGridKeyDown(e, 4)} /></div>
-                         <div className="relative"><input ref={memoRef} type="text" className="w-full h-full px-2 text-sm outline-none focus:bg-blue-50 placeholder-gray-400" placeholder="메모 입력" value={quickForm.memo} onChange={e => setQuickForm({...quickForm, memo: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 5)} /></div>
-                         <button onClick={handleQuickSubmit} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center rounded-r-lg">등록</button>
+                {/* 2. Quick Input */}
+                {!isMobile ? (
+                    <div className="p-4 bg-blue-50/50 border-b border-blue-100 flex-shrink-0 relative z-20 overflow-visible">
+                        <h3 className="text-xs font-bold text-blue-600 uppercase mb-2 flex items-center gap-1"><Plus size={12}/> 빠른 예약 등록</h3>
+                        <div className={`grid ${gridCols} shadow-sm rounded-lg border border-blue-300 bg-white h-9 divide-x divide-gray-200 overflow-visible`}>
+                             <div className="relative group"><input ref={timeRef} type="time" className="w-full h-full text-center text-sm font-bold text-gray-800 outline-none focus:bg-blue-50" value={quickForm.time} onChange={e => setQuickForm({...quickForm, time: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 0)} /></div>
+                             <div className="relative"><AutocompleteInput inputRef={sizeRef} placeholder="규격" suggestions={uniqueSpecs} value={quickForm.size} onChange={handleSizeChange} className="h-full focus-within:bg-blue-50" onKeyDown={(e) => handleGridKeyDown(e, 1)} /></div>
+                             <div className="relative"><AutocompleteInput inputRef={modelRef} placeholder="모델명 / 상품명" suggestions={uniqueModels} value={quickForm.model} onChange={val => setQuickForm(prev => ({ ...prev, model: val }))} className="h-full focus-within:bg-blue-50" onKeyDown={(e) => handleGridKeyDown(e, 2)} /></div>
+                             <div className="relative"><input ref={qtyRef} type="number" min="1" className="w-full h-full px-1 text-sm text-center outline-none focus:bg-blue-50" placeholder="수량" value={quickForm.qty} onChange={e => setQuickForm({...quickForm, qty: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 3)} /></div>
+                             <div className="relative"><input ref={phoneRef} type="text" className="w-full h-full px-2 text-sm outline-none focus:bg-blue-50 placeholder-gray-400" placeholder="010-0000-0000" value={quickForm.phone} onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ''); let fmt = val; if(val.length>3 && val.length<=7) fmt = val.slice(0,3)+'-'+val.slice(3); else if(val.length>7) fmt = val.slice(0,3)+'-'+val.slice(3,7)+'-'+val.slice(7,11); setQuickForm({...quickForm, phone: fmt}) }} onKeyDown={(e) => handleGridKeyDown(e, 4)} /></div>
+                             <div className="relative"><input ref={memoRef} type="text" className="w-full h-full px-2 text-sm outline-none focus:bg-blue-50 placeholder-gray-400" placeholder="메모 입력" value={quickForm.memo} onChange={e => setQuickForm({...quickForm, memo: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 5)} /></div>
+                             <button onClick={handleQuickSubmit} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center rounded-r-lg">등록</button>
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="p-3 border-b border-gray-100 bg-white flex-shrink-0">
+                        <button onClick={() => setIsQuickSheetOpen(true)} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow-sm active:opacity-90">
+                            <Plus size={16} /> 빠른 예약 등록
+                        </button>
+                    </div>
+                )}
 
                 {/* 3. Daily List */}
                 <div className="flex-1 flex flex-col overflow-hidden bg-white relative z-0">
-                     <div className={`grid ${gridCols} bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex-shrink-0`}>
-                        <div className="py-2 text-center border-r border-gray-100">시간</div>
-                        <div className="py-2 px-2 border-r border-gray-100">규격</div>
-                        <div className="py-2 px-2 border-r border-gray-100">모델명</div>
-                        <div className="py-2 text-center border-r border-gray-100">수량</div>
-                        <div className="py-2 px-2 border-r border-gray-100">연락처</div>
-                        <div className="py-2 px-2 border-r border-gray-100">메모</div>
-                        <div className="py-2 text-center">상태</div>
-                     </div>
-                     <div className="flex-1 overflow-y-auto">
-                        {dailyReservations.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-48 text-gray-400"><StickyNote size={32} className="opacity-20 mb-2"/><p>예약 내역이 없습니다.</p></div>
-                        ) : (
-                            <div className="divide-y divide-gray-100">
-                                {dailyReservations.map(res => {
-                                    const isCompleted = res.status === 'COMPLETED';
-                                    const isCanceled = res.status === 'CANCELED';
-                                    return (
-                                        <div key={res.id} className={`grid ${gridCols} group transition-colors text-sm items-center hover:bg-blue-50/20 ${isCompleted ? 'bg-gray-50 opacity-70' : isCanceled ? 'bg-red-50/20' : ''}`}>
-                                            <div className="py-1.5 text-center font-bold text-gray-700 border-r border-gray-100">{res.time}</div>
-                                            <div className="py-1.5 px-2 truncate border-r border-gray-100 text-blue-600 font-bold text-xs">{res.specification || '-'}</div>
-                                            <div className="py-1.5 px-2 border-r border-gray-100 min-w-0"><div className={`font-bold truncate text-xs ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{res.productName}</div></div>
-                                            <div className="py-1.5 text-center text-gray-600 border-r border-gray-100">{res.quantity}</div>
-                                            <div className="py-1.5 px-2 text-xs text-gray-500 border-r border-gray-100 truncate">{res.phoneNumber || '-'}</div>
-                                            <div className="py-1.5 px-2 text-xs text-gray-500 border-r border-gray-100 truncate">{res.memo}</div>
-                                            <div className="py-1.5 text-center flex items-center justify-center gap-1">
-                                                <button onClick={() => setEditingReservation(res)} className="p-1 rounded text-gray-300 hover:text-blue-500 hover:bg-gray-100 transition-colors opacity-0 group-hover:opacity-100" title="수정"><Pencil size={16} /></button>
-                                                <button onClick={() => onUpdateReservation({ ...res, status: isCompleted ? 'PENDING' : 'COMPLETED' })} className={`p-1 rounded hover:bg-gray-100 transition-colors ${isCompleted ? 'text-green-600' : 'text-gray-300 hover:text-green-500'}`}><CheckCircle2 size={16} fill={isCompleted ? "currentColor" : "none"} className={isCompleted ? "text-green-100" : ""}/></button>
-                                                <button onClick={() => { if(confirm('삭제하시겠습니까?')) onRemoveReservation(res.id); }} className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-gray-100 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
+                    {!isMobile && (
+                        <div className={`grid ${gridCols} bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase flex-shrink-0`}>
+                            <div className="py-2 text-center border-r border-gray-100">시간</div>
+                            <div className="py-2 px-2 border-r border-gray-100">규격</div>
+                            <div className="py-2 px-2 border-r border-gray-100">모델명</div>
+                            <div className="py-2 text-center border-r border-gray-100">수량</div>
+                            <div className="py-2 px-2 border-r border-gray-100">연락처</div>
+                            <div className="py-2 px-2 border-r border-gray-100">메모</div>
+                            <div className="py-2 text-center">상태</div>
+                        </div>
+                    )}
+                    {!isMobile ? (
+                        <div className="flex-1 overflow-y-auto">
+                            {dailyReservations.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-48 text-gray-400"><StickyNote size={32} className="opacity-20 mb-2"/><p>예약 내역이 없습니다.</p></div>
+                            ) : (
+                                <div className="divide-y divide-gray-100">
+                                    {dailyReservations.map(res => {
+                                        const isCompleted = res.status === 'COMPLETED';
+                                        const isCanceled = res.status === 'CANCELED';
+                                        return (
+                                            <div key={res.id} className={`grid ${gridCols} group transition-colors text-sm items-center hover:bg-blue-50/20 ${isCompleted ? 'bg-gray-50 opacity-70' : isCanceled ? 'bg-red-50/20' : ''}`}>
+                                                <div className="py-1.5 text-center font-bold text-gray-700 border-r border-gray-100">{res.time}</div>
+                                                <div className="py-1.5 px-2 truncate border-r border-gray-100 text-blue-600 font-bold text-xs">{res.specification || '-'}</div>
+                                                <div className="py-1.5 px-2 border-r border-gray-100 min-w-0"><div className={`font-bold truncate text-xs ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{res.productName}</div></div>
+                                                <div className="py-1.5 text-center text-gray-600 border-r border-gray-100">{res.quantity}</div>
+                                                <div className="py-1.5 px-2 text-xs text-gray-500 border-r border-gray-100 truncate">{res.phoneNumber || '-'}</div>
+                                                <div className="py-1.5 px-2 text-xs text-gray-500 border-r border-gray-100 truncate">{res.memo}</div>
+                                                <div className="py-1.5 text-center flex items-center justify-center gap-1">
+                                                    <button onClick={() => setEditingReservation(res)} className="p-1 rounded text-gray-300 hover:text-blue-500 hover:bg-gray-100 transition-colors opacity-0 group-hover:opacity-100" title="수정"><Pencil size={16} /></button>
+                                                    <button onClick={() => onUpdateReservation({ ...res, status: isCompleted ? 'PENDING' : 'COMPLETED' })} className={`p-1 rounded hover:bg-gray-100 transition-colors ${isCompleted ? 'text-green-600' : 'text-gray-300 hover:text-green-500'}`}><CheckCircle2 size={16} fill={isCompleted ? "currentColor" : "none"} className={isCompleted ? "text-green-100" : ""}/></button>
+                                                    <button onClick={() => { if(confirm('삭제하시겠습니까?')) onRemoveReservation(res.id); }} className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-gray-100 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                     </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex-1 overflow-y-auto bg-gray-50 p-3">
+                            {dailyReservations.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-40 text-gray-400"><StickyNote size={28} className="opacity-20 mb-2"/><p className="text-sm">예약 내역이 없습니다.</p></div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {dailyReservations.map(res => {
+                                        const isCompleted = res.status === 'COMPLETED';
+                                        const isCanceled = res.status === 'CANCELED';
+                                        const statusBadge = isCompleted ? '완료' : isCanceled ? '취소' : '대기';
+                                        const statusClass = isCompleted ? 'bg-green-50 text-green-700' : isCanceled ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600';
+                                        return (
+                                            <button
+                                                key={res.id}
+                                                onClick={() => setEditingReservation(res)}
+                                                className={`w-full text-left bg-white rounded-xl border border-gray-100 p-3 shadow-sm active:bg-gray-50 transition-colors ${isCanceled ? 'opacity-80' : ''}`}
+                                            >
+                                                <div className="flex items-baseline justify-between gap-2">
+                                                    <span className="text-base font-extrabold text-gray-900">{res.time}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-bold text-blue-600 truncate max-w-[120px]">{res.specification || '-'}</span>
+                                                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold">{res.quantity}개</span>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-1 text-sm font-semibold text-gray-800 truncate">{res.productName}</div>
+                                                <div className="mt-1 text-xs text-gray-500">{res.phoneNumber || '-'}</div>
+                                                {res.memo && <div className="mt-1 text-xs text-gray-500 line-clamp-2">{res.memo}</div>}
+                                                <div className="mt-2 flex items-center justify-between">
+                                                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${statusClass}`}>{statusBadge}</span>
+                                                    <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1"><Pencil size={12}/> 수정</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -401,6 +467,50 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
                     {Object.keys(upcomingGroups).length === 0 && <div className="text-center py-10 text-gray-400"><p>예정된 일정이 없습니다.</p></div>}
                 </div>
             </div>
+
+            {/* Mobile Quick Add Sheet */}
+            {isMobile && isQuickSheetOpen && (
+                <div className="fixed inset-0 z-40 bg-black/40 flex items-end">
+                    <div className="bg-white w-full rounded-t-2xl p-4 space-y-3 max-h-[80vh] overflow-y-auto shadow-2xl">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-900">빠른 예약 등록</h3>
+                            <button onClick={() => setIsQuickSheetOpen(false)} className="p-2 text-gray-500 hover:text-gray-700"><X size={18} /></button>
+                        </div>
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[11px] font-bold text-gray-500">시간</label>
+                                    <input ref={timeRef} type="time" className="w-full mt-1 p-2 border border-gray-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-blue-200 focus:border-blue-400" value={quickForm.time} onChange={e => setQuickForm({...quickForm, time: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-bold text-gray-500">수량</label>
+                                    <input type="number" min="1" className="w-full mt-1 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400" value={quickForm.qty} onChange={e => setQuickForm({...quickForm, qty: e.target.value})} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500">규격</label>
+                                <input type="text" className="w-full mt-1 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400" placeholder="예: 245/45R19" value={quickForm.size} onChange={(e) => handleSizeChange(e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500">모델명</label>
+                                <input type="text" className="w-full mt-1 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400" placeholder="모델명 / 상품명" value={quickForm.model} onChange={e => setQuickForm({...quickForm, model: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500">연락처</label>
+                                <input type="text" className="w-full mt-1 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400" placeholder="010-0000-0000" value={quickForm.phone} onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ''); let fmt = val; if(val.length>3 && val.length<=7) fmt = val.slice(0,3)+'-'+val.slice(3); else if(val.length>7) fmt = val.slice(0,3)+'-'+val.slice(3,7)+'-'+val.slice(7,11); setQuickForm({...quickForm, phone: fmt}) }} />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500">메모</label>
+                                <textarea className="w-full mt-1 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 resize-none" rows={2} placeholder="메모 입력" value={quickForm.memo} onChange={e => setQuickForm({...quickForm, memo: e.target.value})} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-2">
+                            <button onClick={() => setIsQuickSheetOpen(false)} className="py-2.5 rounded-lg border border-gray-200 font-bold text-gray-600 hover:bg-gray-50">닫기</button>
+                            <button onClick={handleQuickSubmit} className="py-2.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700">등록</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Edit Modal */}
             {editingReservation && (

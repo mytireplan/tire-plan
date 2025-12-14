@@ -1418,6 +1418,7 @@ const App: React.FC = () => {
     }, []);
 
     const isMobilePOS = isMobileViewport && activeTab === 'pos';
+    const isMobileReservation = isMobileViewport && activeTab === 'reservation';
 
   // Main Render Logic
   if (viewState === 'BINDING') {
@@ -1763,7 +1764,7 @@ const App: React.FC = () => {
                         <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-bold">점장 모드</span>
                     )}
                 </div>
-                {!isMobilePOS && (
+                {!(isMobilePOS || isMobileReservation) && (
                     sessionRole === 'STAFF' ? (
                         <button
                             onClick={() => { setIsAdminModalOpen(true); setPinInput(''); setPinError(''); }}
@@ -1807,6 +1808,7 @@ const App: React.FC = () => {
                 <ReservationSystem
                     reservations={reservations} onAddReservation={handleAddReservation} onUpdateReservation={handleUpdateReservation} onRemoveReservation={handleRemoveReservation}
                     products={products} currentStoreId={currentStoreId} currentUser={effectiveUser} stores={visibleStores} tireBrands={tireBrands} tireModels={TIRE_MODELS}
+                    isMobile={isMobileViewport}
                 />
             )}
             {activeTab === 'leave' && (
