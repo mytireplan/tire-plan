@@ -485,6 +485,15 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const uniqueCount = cart.length;
+  const cartQtyMap = useMemo(() => {
+      const map: Record<string, number> = {};
+      cart.forEach(item => {
+          map[item.id] = (map[item.id] || 0) + item.quantity;
+      });
+      return map;
+  }, [cart]);
 
 
   const requestCheckout = (method: PaymentMethod) => {
@@ -599,8 +608,6 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       return '';
   };
 
-    const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
   // Get models for selected brand
 
 
@@ -693,26 +700,36 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                         const stock = getStock(product);
                         const isService = product.category === '기타' || stock > 900;
                         const isLowStock = !isService && stock < 10;
+                        const qtyInCart = cartQtyMap[product.id] || 0;
+                        const isSelected = qtyInCart > 0;
                         return (
                             <button
                                 key={product.id}
                                 onClick={() => addToCart(product)}
                                 disabled={false}
-                                className={`group flex flex-col justify-between items-start p-4 rounded-xl border bg-white transition-all shadow-sm h-full min-h-[11rem] relative text-left
-                                    hover:border-blue-500 hover:shadow-md cursor-pointer border-gray-100`}
+                                className={`group flex flex-col justify-between items-start p-4 rounded-xl border transition-all shadow-sm h-full min-h-[11rem] relative text-left
+                                    hover:border-blue-500 hover:shadow-md cursor-pointer ${isSelected ? 'border-blue-500 bg-blue-50/60 shadow-md ring-1 ring-blue-200' : 'border-gray-100 bg-white'}`}
                             >
-                                {product.brand && product.brand !== '기타' && (
-                                    <span className="absolute top-3 right-3 text-[10px] font-bold px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 z-10">
-                                        {product.brand}
-                                    </span>
+                                {qtyInCart > 0 && (
+                                    <div className="absolute top-3 right-3 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                                        {qtyInCart}개
+                                    </div>
                                 )}
-                                
                                 <div className="w-full mt-1">
                                     <div className="text-xs md:text-sm font-semibold text-gray-400 mb-1 text-left">{product.category}</div>
                                     <h4 className="font-bold text-base md:text-lg text-gray-800 w-full text-left mb-2 pr-6 truncate" title={product.name} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h4>
-                                    {product.specification && (
-                                         <div className="text-left">
-                                            <span className="text-sm text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded inline-block">{product.specification}</span>
+                                    {(product.specification || (product.brand && product.brand !== '기타')) && (
+                                        <div className="flex items-center justify-between gap-2 mt-1">
+                                            {product.specification && (
+                                                <span className="text-sm text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded inline-block">
+                                                    {product.specification}
+                                                </span>
+                                            )}
+                                            {product.brand && product.brand !== '기타' && (
+                                                <span className="inline-flex items-center text-[10px] font-bold px-2 py-1 bg-gray-100 rounded text-gray-600 whitespace-nowrap">
+                                                    {product.brand}
+                                                </span>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -785,9 +802,9 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                     <span className="text-[32px] font-bold text-blue-600">{formatCurrency(cartTotal)}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                    <PaymentButton icon={CreditCard} label="카드" onClick={() => requestCheckout(PaymentMethod.CARD)} disabled={cart.length === 0 || isProcessing} color="bg-blue-600 hover:bg-blue-700" />
-                    <PaymentButton icon={Banknote} label="현금" onClick={() => requestCheckout(PaymentMethod.CASH)} disabled={cart.length === 0 || isProcessing} color="bg-emerald-600 hover:bg-emerald-700" />
-                    <PaymentButton icon={Smartphone} label="이체" onClick={() => requestCheckout(PaymentMethod.TRANSFER)} disabled={cart.length === 0 || isProcessing} color="bg-violet-600 hover:bg-violet-700" />
+                    <PaymentButton icon={CreditCard} label="카드" onClick={() => requestCheckout(PaymentMethod.CARD)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-blue-600 hover:bg-blue-700" />
+                    <PaymentButton icon={Banknote} label="현금" onClick={() => requestCheckout(PaymentMethod.CASH)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-emerald-600 hover:bg-emerald-700" />
+                    <PaymentButton icon={Smartphone} label="이체" onClick={() => requestCheckout(PaymentMethod.TRANSFER)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-violet-600 hover:bg-violet-700" />
                 </div>
             </div>
         </div>
@@ -798,8 +815,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
         >
             <div className={`bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto transition-transform duration-300 ${isBottomSheetOpen ? 'translate-y-0' : 'translate-y-[40%]'}`}>
-                <button
-                    className="w-full flex items-center justify-between p-3 bg-white"
+                <div
+                    className="w-full flex items-center justify-between p-3 bg-white cursor-pointer"
                     onClick={() => setIsBottomSheetOpen(prev => !prev)}
                 >
                     <div className="flex items-center gap-2 text-left">
@@ -807,15 +824,19 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                             <ShoppingCart size={18} />
                         </div>
                         <div className="min-w-0">
-                            <div className="text-sm font-extrabold text-gray-900 truncate">선택 {cartCount}개</div>
-                            <div className="text-xs text-gray-500">총 {formatCurrency(cartTotal)}</div>
+                            <div className="text-xs font-semibold text-gray-600">총 {totalQty}개 · {uniqueCount}종</div>
+                            <div className="text-lg font-extrabold text-gray-900 truncate">{formatCurrency(cartTotal)}</div>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">주문 확인</span>
+                        <span
+                            className={`text-[11px] px-2 py-1 rounded-full font-semibold ${uniqueCount === 0 || totalQty === 0 ? 'bg-gray-200 text-gray-400' : 'bg-blue-50 text-blue-700'}`}
+                        >
+                            주문 확인
+                        </span>
                         {isBottomSheetOpen ? <ChevronDown size={18} className="text-gray-500" /> : <ChevronUp size={18} className="text-gray-500" />}
                     </div>
-                </button>
+                </div>
                 <div className={`transition-[max-height] duration-300 ease-out ${isBottomSheetOpen ? 'max-h-[70vh]' : 'max-h-0'}`}>
                     <div className="border-t border-gray-100 divide-y max-h-[52vh] overflow-y-auto">
                         {cart.length === 0 ? (
@@ -851,9 +872,9 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                 <span className="text-2xl font-extrabold text-blue-600">{formatCurrency(cartTotal)}</span>
                             </div>
                             <div className="grid grid-cols-3 gap-2">
-                                <PaymentButton icon={CreditCard} label="카드" onClick={() => requestCheckout(PaymentMethod.CARD)} disabled={cart.length === 0 || isProcessing} color="bg-blue-600 hover:bg-blue-700" />
-                                <PaymentButton icon={Banknote} label="현금" onClick={() => requestCheckout(PaymentMethod.CASH)} disabled={cart.length === 0 || isProcessing} color="bg-emerald-600 hover:bg-emerald-700" />
-                                <PaymentButton icon={Smartphone} label="이체" onClick={() => requestCheckout(PaymentMethod.TRANSFER)} disabled={cart.length === 0 || isProcessing} color="bg-violet-600 hover:bg-violet-700" />
+                                <PaymentButton icon={CreditCard} label="카드" onClick={() => requestCheckout(PaymentMethod.CARD)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-blue-600 hover:bg-blue-700" />
+                                <PaymentButton icon={Banknote} label="현금" onClick={() => requestCheckout(PaymentMethod.CASH)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-emerald-600 hover:bg-emerald-700" />
+                                <PaymentButton icon={Smartphone} label="이체" onClick={() => requestCheckout(PaymentMethod.TRANSFER)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-violet-600 hover:bg-violet-700" />
                             </div>
                         </div>
                     )}
