@@ -252,6 +252,21 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
     };
     const recentSpecs = useMemo(() => recentByField(r => r.specification), [filteredReservations]);
     const recentModels = useMemo(() => recentByField(r => r.productName), [filteredReservations]);
+
+    const mergeSuggestions = (primary: string[], secondary: string[], limit = 50) => {
+        const seen = new Set<string>();
+        const merged: string[] = [];
+        [...primary, ...secondary].forEach(val => {
+            if (!val) return;
+            if (seen.has(val)) return;
+            seen.add(val);
+            merged.push(val);
+        });
+        return merged.slice(0, limit);
+    };
+
+    const specSuggestions = useMemo(() => mergeSuggestions(recentSpecs, uniqueSpecs), [recentSpecs, uniqueSpecs]);
+    const modelSuggestions = useMemo(() => mergeSuggestions(recentModels, uniqueModels), [recentModels, uniqueModels]);
     const dailyReservations = useMemo(() => filteredReservations.filter(r => r.date === selectedDate).sort((a, b) => a.time.localeCompare(b.time)), [filteredReservations, selectedDate]);
     const upcomingGroups = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -369,10 +384,10 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
                 {!isMobile ? (
                     <div className="p-4 bg-blue-50/50 border-b border-blue-100 flex-shrink-0 relative z-20 overflow-visible">
                         <h3 className="text-xs font-bold text-blue-600 uppercase mb-2 flex items-center gap-1"><Plus size={12}/> 빠른 예약 등록</h3>
-                        <div className={`grid ${gridCols} shadow-sm rounded-lg border border-blue-300 bg-white h-9 divide-x divide-gray-200 overflow-visible`}>
-                             <div className="relative group"><input ref={timeRef} type="time" className="w-full h-full text-center text-sm font-bold text-gray-800 outline-none focus:bg-blue-50" value={quickForm.time} onChange={e => setQuickForm({...quickForm, time: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 0)} /></div>
-                             <div className="relative"><AutocompleteInput inputRef={sizeRef} placeholder="규격" suggestions={uniqueSpecs} value={quickForm.size} onChange={handleSizeChange} className="h-full focus-within:bg-blue-50" onKeyDown={(e) => handleGridKeyDown(e, 1)} datalistId="recent-specs" datalistOptions={recentSpecs} /></div>
-                             <div className="relative"><AutocompleteInput inputRef={modelRef} placeholder="모델명 / 상품명" suggestions={uniqueModels} value={quickForm.model} onChange={val => setQuickForm(prev => ({ ...prev, model: val }))} className="h-full focus-within:bg-blue-50" onKeyDown={(e) => handleGridKeyDown(e, 2)} datalistId="recent-models" datalistOptions={recentModels} /></div>
+                            <div className={`grid ${gridCols} shadow-sm rounded-lg border border-blue-300 bg-white h-9 divide-x divide-gray-200 overflow-visible`}>
+                                <div className="relative group"><input ref={timeRef} type="time" className="w-full h-full text-center text-sm font-bold text-gray-800 outline-none focus:bg-blue-50" value={quickForm.time} onChange={e => setQuickForm({...quickForm, time: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 0)} /></div>
+                                <div className="relative"><AutocompleteInput inputRef={sizeRef} placeholder="규격" suggestions={specSuggestions} value={quickForm.size} onChange={handleSizeChange} className="h-full focus-within:bg-blue-50" onKeyDown={(e) => handleGridKeyDown(e, 1)} /></div>
+                                <div className="relative"><AutocompleteInput inputRef={modelRef} placeholder="모델명 / 상품명" suggestions={modelSuggestions} value={quickForm.model} onChange={val => setQuickForm(prev => ({ ...prev, model: val }))} className="h-full focus-within:bg-blue-50" onKeyDown={(e) => handleGridKeyDown(e, 2)} /></div>
                              <div className="relative"><input ref={qtyRef} type="number" min="1" className="w-full h-full px-1 text-sm text-center outline-none focus:bg-blue-50" placeholder="수량" value={quickForm.qty} onChange={e => setQuickForm({...quickForm, qty: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 3)} /></div>
                              <div className="relative"><input ref={phoneRef} type="text" className="w-full h-full px-2 text-sm outline-none focus:bg-blue-50 placeholder-gray-400" placeholder="010-0000-0000" value={quickForm.phone} onChange={e => { const val = e.target.value.replace(/[^0-9]/g, ''); let fmt = val; if(val.length>3 && val.length<=7) fmt = val.slice(0,3)+'-'+val.slice(3); else if(val.length>7) fmt = val.slice(0,3)+'-'+val.slice(3,7)+'-'+val.slice(7,11); setQuickForm({...quickForm, phone: fmt}) }} onKeyDown={(e) => handleGridKeyDown(e, 4)} /></div>
                              <div className="relative"><input ref={memoRef} type="text" className="w-full h-full px-2 text-sm outline-none focus:bg-blue-50 placeholder-gray-400" placeholder="메모 입력" value={quickForm.memo} onChange={e => setQuickForm({...quickForm, memo: e.target.value})} onKeyDown={(e) => handleGridKeyDown(e, 5)} /></div>
@@ -521,26 +536,26 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
                             </div>
                             <div>
                                 <label className="text-[11px] font-bold text-gray-500">규격</label>
-                                <div className="mt-1 flex gap-2">
-                                    <input type="text" className="flex-1 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400" placeholder="예: 245/45R19" value={quickForm.size} onChange={(e) => handleSizeChange(e.target.value)} />
-                                    {recentSpecs.length > 0 && (
-                                        <select className="w-28 p-2 border border-gray-200 rounded-lg text-sm bg-white" value="" onChange={(e) => { if (e.target.value) handleSizeChange(e.target.value); e.target.value=''; }}>
-                                            <option value="">최근</option>
-                                            {recentSpecs.map((spec, idx) => <option key={idx} value={spec}>{spec}</option>)}
-                                        </select>
-                                    )}
+                                <div className="mt-1">
+                                    <AutocompleteInput
+                                        placeholder="예: 245/45R19"
+                                        suggestions={specSuggestions}
+                                        value={quickForm.size}
+                                        onChange={(val) => handleSizeChange(val)}
+                                        className="border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-200 focus-within:border-blue-400"
+                                    />
                                 </div>
                             </div>
                             <div>
                                 <label className="text-[11px] font-bold text-gray-500">모델명</label>
-                                <div className="mt-1 flex gap-2">
-                                    <input type="text" className="flex-1 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400" placeholder="모델명 / 상품명" value={quickForm.model} onChange={e => setQuickForm({...quickForm, model: e.target.value})} />
-                                    {recentModels.length > 0 && (
-                                        <select className="w-28 p-2 border border-gray-200 rounded-lg text-sm bg-white" value="" onChange={(e) => { if (e.target.value) setQuickForm({...quickForm, model: e.target.value}); e.target.value=''; }}>
-                                            <option value="">최근</option>
-                                            {recentModels.map((m, idx) => <option key={idx} value={m}>{m}</option>)}
-                                        </select>
-                                    )}
+                                <div className="mt-1">
+                                    <AutocompleteInput
+                                        placeholder="모델명 / 상품명"
+                                        suggestions={modelSuggestions}
+                                        value={quickForm.model}
+                                        onChange={(val) => setQuickForm({...quickForm, model: val})}
+                                        className="border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-200 focus-within:border-blue-400"
+                                    />
                                 </div>
                             </div>
                             <div>
