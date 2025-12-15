@@ -40,49 +40,103 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
   // Swap/Add Item Modal State
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
-  const renderEditableField = (
-      id: string, 
-      value: string | number, 
-      onChange: (val: string) => void, 
-      type: 'text' | 'number' = 'text',
-      labelClass = ''
-  ) => {
-      const isEditing = activeEditField === id;
+  const [swapTarget, setSwapTarget] = useState<{
+      saleId: string, 
+      itemId?: string, 
+      isEditMode?: boolean, 
+      itemIndex?: number,
+      isAdding?: boolean // New flag for adding item
+  } | null>(null);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [swapSearchBrand, setSwapSearchBrand] = useState<string>('ALL');
 
-      if (selectedSale?.isCanceled) {
-          return <span className={labelClass}>{value}</span>;
+  // Sales Detail Edit State
+  const [editFormData, setEditFormData] = useState<Sale | null>(null);
+  const [activeEditField, setActiveEditField] = useState<string | null>(null); // 'customer.name', 'item-0-qty'
+  const [lockedTotalAmount, setLockedTotalAmount] = useState<number>(0);
+
+  // --- Immediate Stock In State ---
+  const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
+  const [stockInForm, setStockInForm] = useState({
+      supplier: '',
+      category: '타이어',
+      brand: tireBrands[0] || '기타',
+      productName: '',
+      specification: '',
+      quantity: 1,
+      factoryPrice: 0
+  });
+
+    const isAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN';
+
+  useEffect(() => {
+    if (filter.type === 'DATE' && filter.value) {
+        setCurrentDate(new Date(filter.value));
+        setViewMode('daily');
+    } else if (filter.type === 'PAYMENT') {
+        setActivePaymentMethod(filter.value);
+        setActiveStoreId('ALL');
+        setViewMode('monthly'); 
+        setCurrentDate(new Date());
+    }
+  }, [filter]);
+
+  useEffect(() => {
+      if (currentUser.role === 'STAFF' && currentStoreId) {
+          setActiveStoreId(currentStoreId);
       }
+  }, [currentUser, currentStoreId]);
 
-      if (isEditing) {
-          return (
-              <input 
-                  autoFocus
-                  type={type}
-                  className="w-full border border-blue-500 rounded p-1 text-sm bg-white"
-                  value={value}
-                  onChange={(e) => onChange(e.target.value)}
-                  onBlur={() => setActiveEditField(null)}
-                  onKeyDown={(e) => {
-                      if(e.key === 'Enter') setActiveEditField(null);
-                  }}
-              />
-          );
+  useEffect(() => {
+      if (selectedSale) {
+          setEditFormData(JSON.parse(JSON.stringify(selectedSale)));
+          setLockedTotalAmount(selectedSale.totalAmount);
+          setActiveEditField(null);
+      } else {
+          setEditFormData(null);
       }
+  }, [selectedSale]);
 
-      const displayValue = (type === 'number')
-          ? (typeof value === 'number' ? formatNumber(value) : (value !== '' ? formatNumber(Number(value)) : ''))
-          : value;
-
-      return (
-          <div 
-            onClick={() => setActiveEditField(id)}
-            className={`cursor-pointer hover:bg-gray-100 rounded px-1 -mx-1 border border-transparent hover:border-gray-200 transition-colors ${labelClass}`}
-            title="클릭하여 수정"
-          >
-              {displayValue !== '' && displayValue !== undefined && displayValue !== null ? displayValue : <span className="text-gray-300 italic">입력...</span>}
-          </div>
-      );
+  const handlePrev = () => {
+    const newDate = new Date(currentDate);
+    if (viewMode === 'daily') newDate.setDate(newDate.getDate() - 1);
+    if (viewMode === 'weekly') newDate.setDate(newDate.getDate() - 7);
+    if (viewMode === 'monthly' || viewMode === 'staff') newDate.setMonth(newDate.getMonth() - 1);
+    setCurrentDate(newDate);
   };
+
+  const handleNext = () => {
+    const newDate = new Date(currentDate);
+    if (viewMode === 'daily') newDate.setDate(newDate.getDate() + 1);
+    if (viewMode === 'weekly') newDate.setDate(newDate.getDate() + 7);
+    if (viewMode === 'monthly' || viewMode === 'staff') newDate.setMonth(newDate.getMonth() + 1);
+    setCurrentDate(newDate);
+  };
+
+  const getDateRange = () => {
+      const start = new Date(currentDate);
+      const end = new Date(currentDate);
+
+      if (viewMode === 'daily') {
+          start.setHours(0,0,0,0);
+          end.setHours(23,59,59,999);
+      } else if (viewMode === 'weekly') {
+          const day = start.getDay();
+          start.setDate(start.getDate() - day);
+          start.setHours(0,0,0,0);
+          end.setDate(start.getDate() + 6);
+          end.setHours(23,59,59,999);
+      } else {
+          start.setDate(1);
+          start.setHours(0,0,0,0);
+          end.setMonth(end.getMonth() + 1);
+          end.setDate(0);
+          end.setHours(23,59,59,999);
+      }
+      return { start, end };
+  };
+
+  const { start: filterStart, end: filterEnd } = getDateRange();
   const getLatestCost = (productName: string, spec?: string) => {
     if (!stockInHistory || stockInHistory.length === 0) return 0;
     const matches = stockInHistory.filter(r => {
