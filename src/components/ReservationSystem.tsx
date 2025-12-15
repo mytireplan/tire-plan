@@ -230,9 +230,11 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
     }, [products, tireModels]);
 
     const filteredReservations = useMemo(() => reservations.filter(r => r.storeId === activeStoreId), [reservations, activeStoreId]);
+    const RECENT_LIMIT = 20; // Increase length and allow fallback to all stores when local history is sparse
     const recentByField = (getter: (r: Reservation) => string | undefined) => {
+        const sourceReservations = filteredReservations.length >= 5 ? filteredReservations : reservations; // fallback to global when local data is low
         const seen = new Set<string>();
-        const sorted = [...filteredReservations].sort((a, b) => {
+        const sorted = [...sourceReservations].sort((a, b) => {
             const aTime = new Date(`${a.date}T${a.time || '00:00'}`).getTime();
             const bTime = new Date(`${b.date}T${b.time || '00:00'}`).getTime();
             return bTime - aTime;
@@ -244,7 +246,7 @@ const ReservationSystem: React.FC<ReservationSystemProps> = ({
             if (seen.has(val)) continue;
             seen.add(val);
             result.push(val);
-            if (result.length >= 15) break;
+            if (result.length >= RECENT_LIMIT) break;
         }
         return result;
     };
