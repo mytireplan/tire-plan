@@ -606,6 +606,60 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
             onClick={() => setActiveEditField(id)}
             className={`cursor-pointer hover:bg-gray-100 rounded px-1 -mx-1 border border-transparent hover:border-gray-200 transition-colors ${labelClass}`}
             title="클릭하여 수정"
+                <div className="md:hidden flex flex-col bg-white border-b border-gray-100">
+                    {salesWithMetrics.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                            <ShoppingBag size={32} className="opacity-20 mb-2" />
+                            <p className="text-sm">조회된 판매 내역이 없습니다.</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-gray-100">
+                            {salesWithMetrics.map((sale) => {
+                                const displayItem = getPrimaryItem(sale);
+                                const timeLabel = new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                const paymentIcon = getPaymentIcon(sale.paymentMethod);
+                                return (
+                                    <button
+                                        key={sale.id}
+                                        onClick={() => setSelectedSale(sale)}
+                                        className={`w-full text-left p-4 active:bg-gray-50 transition-colors ${sale.isCanceled ? 'bg-gray-50' : ''}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-base font-extrabold text-gray-900">{timeLabel}</span>
+                                                {sale.isCanceled && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold">취소</span>}
+                                                {!sale.isCanceled && sale.isEdited && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold">수정됨</span>}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-right">
+                                                <span className={`font-bold text-sm ${sale.isCanceled ? 'text-red-400 line-through' : 'text-gray-900'}`}>{formatCurrency(sale.totalAmount)}</span>
+                                                <span className="text-gray-400">{paymentIcon}</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <span className={`text-sm font-bold ${sale.isCanceled ? 'text-red-400 line-through' : 'text-blue-600'}`}>{displayItem.specification}</span>
+                                            <span className={`text-sm ${sale.isCanceled ? 'text-red-400 line-through' : 'text-gray-800'} truncate`}>
+                                                {displayItem.brand} {displayItem.productName}
+                                                {sale.items.length > 1 && <span className="text-gray-400 text-xs ml-1">외 {sale.items.length - 1}건</span>}
+                                            </span>
+                                        </div>
+                                        <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                                            <span className="truncate">{isStoreSelected ? sale.staffName : `${stores.find(s => s.id === sale.storeId)?.name || ''} / ${sale.staffName}`}</span>
+                                            {sale.memo && <span className="truncate max-w-[40%]" title={sale.memo}>{sale.memo}</span>}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                    <div className="bg-gray-50 border-t border-gray-200 p-4 flex justify-between items-center">
+                        <div className="text-[11px] font-bold text-gray-500">합계</div>
+                        <div className="text-right">
+                            <div className="text-xs text-gray-500">총 매출</div>
+                            <div className="text-lg font-bold text-blue-600">{formatCurrency(aggregates.revenue)}</div>
+                        </div>
+                    </div>
+                </div>
+
           >
               {displayValue !== '' && displayValue !== undefined && displayValue !== null ? displayValue : <span className="text-gray-300 italic">입력...</span>}
           </div>
