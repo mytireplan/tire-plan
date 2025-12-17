@@ -1490,6 +1490,16 @@ const App: React.FC = () => {
                           <p className="text-xs text-slate-500">선택 후 이 기기는 해당 지점으로 고정되며, 스태프 화면으로 바로 진입합니다.</p>
                       </div>
                   )}
+
+                  <div className="pt-2 border-t border-slate-100 flex justify-end">
+                      <button
+                          type="button"
+                          onClick={() => setViewState('LOGIN')}
+                          className="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-4"
+                      >
+                          슈퍼어드민 로그인
+                      </button>
+                  </div>
               </div>
           </div>
       );
