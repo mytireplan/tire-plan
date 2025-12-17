@@ -425,7 +425,7 @@ const INITIAL_TRANSFER_HISTORY: StockTransferRecord[] = [
 
 type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin';
 
-type ViewState = 'BINDING' | 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
+type ViewState = 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
 
 type DeviceBinding = {
     ownerId: string;
@@ -436,13 +436,9 @@ type DeviceBinding = {
 const App: React.FC = () => {
     // App Config State
     const appTitle = 'TirePlan';
-    const [viewState, setViewState] = useState<ViewState>('BINDING');
+    const [viewState, setViewState] = useState<ViewState>('LOGIN');
 
     const [deviceBinding, setDeviceBinding] = useState<DeviceBinding | null>(null);
-    const [bindingOwnerId, setBindingOwnerId] = useState('');
-    const [bindingPassword, setBindingPassword] = useState('');
-    const [bindingError, setBindingError] = useState('');
-    const [bindingVerified, setBindingVerified] = useState(false);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [pinInput, setPinInput] = useState('');
     const [pinError, setPinError] = useState('');
@@ -551,14 +547,14 @@ const App: React.FC = () => {
                   setActiveTab('pos');
                   setViewState('APP');
               } else {
-                  setViewState('BINDING');
+                  setViewState('LOGIN');
               }
           } catch (err) {
               console.error('❌ Failed to parse device binding', err);
-              setViewState('BINDING');
+              setViewState('LOGIN');
           }
       } else {
-          setViewState('BINDING');
+          setViewState('LOGIN');
       }
   }, [deviceBinding, currentUser, users]);
 
@@ -799,33 +795,6 @@ const App: React.FC = () => {
       return false;
   };
 
-  const handleBindingLogin = (): boolean => {
-      const user = users.find(u => u.id === bindingOwnerId.trim());
-      if (!user || user.password !== bindingPassword.trim()) {
-          setBindingError('아이디 또는 비밀번호가 올바르지 않습니다.');
-          return false;
-      }
-      setBindingError('');
-      return true;
-  };
-
-  const finalizeBinding = (storeId: string) => {
-      const ownerUser = users.find(u => u.id === bindingOwnerId.trim());
-      if (!ownerUser) return;
-      const newBinding: DeviceBinding = {
-          ownerId: ownerUser.id,
-          storeId,
-          deviceId: `POS-${Date.now()}`,
-      };
-      localStorage.setItem('device-binding', JSON.stringify(newBinding));
-      setDeviceBinding(newBinding);
-      setCurrentUser({ id: ownerUser.id, name: ownerUser.name, role: ownerUser.role, storeId });
-      setCurrentStoreId(storeId);
-      setSessionRole('STAFF');
-      setActiveTab('pos');
-      setViewState('APP');
-  };
-
   const handleUpdatePassword = (newPass: string) => {
       if(!currentUser) return;
       setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, password: newPass } : u));
@@ -867,6 +836,16 @@ const App: React.FC = () => {
   };
 
   const handleSelectStore = (storeId: string, role: UserRole) => {
+      // Bind device on first store selection for owners
+      if (currentUser?.role === 'STORE_ADMIN') {
+          const binding: DeviceBinding = {
+              ownerId: currentUser.id,
+              storeId,
+              deviceId: deviceBinding?.deviceId || `POS-${Date.now()}`,
+          };
+          setDeviceBinding(binding);
+          localStorage.setItem('device-binding', JSON.stringify(binding));
+      }
       setCurrentStoreId(storeId);
       setSessionRole(role);
       setViewState('APP');
@@ -1421,90 +1400,6 @@ const App: React.FC = () => {
     const isMobileReservation = isMobileViewport && activeTab === 'reservation';
 
   // Main Render Logic
-  if (viewState === 'BINDING') {
-      const ownerStores = stores.filter(s => s.ownerId === bindingOwnerId.trim());
-      return (
-          <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-              <div className="w-full max-w-xl bg-white rounded-2xl shadow-lg border border-slate-100 p-6 space-y-6">
-                  <div>
-                      <h1 className="text-2xl font-bold text-slate-900">기기 최초 등록</h1>
-                      <p className="text-sm text-slate-500 mt-1">부여된 시리얼(사장님 ID)로 로그인 후 지점을 선택하면 이 기기가 해당 지점에 고정됩니다.</p>
-                  </div>
-
-                  <form
-                      onSubmit={(e) => {
-                          e.preventDefault();
-                          const ok = handleBindingLogin();
-                          if (ok) setBindingVerified(true);
-                      }}
-                      className="space-y-4"
-                  >
-                      <div>
-                          <label className="block text-sm font-bold text-slate-800 mb-1">사장님 ID</label>
-                          <input
-                              value={bindingOwnerId}
-                              onChange={(e) => { setBindingOwnerId(e.target.value); setBindingError(''); setBindingVerified(false); }}
-                              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                              placeholder="예: 250001"
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-sm font-bold text-slate-800 mb-1">비밀번호</label>
-                          <input
-                              type="password"
-                              value={bindingPassword}
-                              onChange={(e) => { setBindingPassword(e.target.value); setBindingError(''); setBindingVerified(false); }}
-                              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                              placeholder="사장님 비밀번호"
-                          />
-                      </div>
-                      {bindingError && <p className="text-sm text-red-600">{bindingError}</p>}
-                      <button
-                          type="submit"
-                          className="w-full py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 disabled:opacity-50"
-                          disabled={!bindingOwnerId.trim() || !bindingPassword.trim()}
-                      >
-                          지점 목록 보기
-                      </button>
-                  </form>
-
-                  {bindingVerified && (
-                      <div className="space-y-3">
-                          <p className="text-sm font-bold text-slate-800">지점 선택</p>
-                          {ownerStores.length === 0 ? (
-                              <p className="text-sm text-slate-500">해당 사장님 계정에 등록된 지점이 없습니다.</p>
-                          ) : (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  {ownerStores.map(store => (
-                                      <button
-                                          key={store.id}
-                                          onClick={() => finalizeBinding(store.id)}
-                                          className="border border-slate-200 rounded-lg p-4 text-left hover:border-blue-400 hover:shadow-sm transition"
-                                      >
-                                          <p className="font-bold text-slate-900">{store.name}</p>
-                                          <p className="text-xs text-slate-500 mt-1">코드: {store.code}</p>
-                                      </button>
-                                  ))}
-                              </div>
-                          )}
-                          <p className="text-xs text-slate-500">선택 후 이 기기는 해당 지점으로 고정되며, 스태프 화면으로 바로 진입합니다.</p>
-                      </div>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-100 flex justify-end">
-                      <button
-                          type="button"
-                          onClick={() => setViewState('LOGIN')}
-                          className="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-4"
-                      >
-                          슈퍼어드민 로그인
-                      </button>
-                  </div>
-              </div>
-          </div>
-      );
-  }
-
   if (viewState === 'LOGIN') {
       return <LoginScreen onLogin={handleLoginWithState} />;
   }
