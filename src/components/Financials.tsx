@@ -470,7 +470,7 @@ const Financials: React.FC<FinancialsProps> = ({
                  </div>
 
                  <div className="flex-1 overflow-x-auto min-h-[400px]">
-                    <table className="w-full text-sm text-left">
+                    <table className="w-full min-w-[720px] text-sm text-left">
                         <thead className="text-xs text-gray-500 uppercase bg-gray-50 sticky top-0 z-10">
                             <tr>
                                 <th className="px-4 py-3">날짜</th>
@@ -498,7 +498,7 @@ const Financials: React.FC<FinancialsProps> = ({
                                                  {record.category}
                                              </span>
                                          </td>
-                                         <td className="px-4 py-3 text-gray-800 font-medium">
+                                         <td className="px-4 py-3 text-gray-800 font-medium break-keep">
                                              {record.description}
                                              {record.isUnsettled && <span className="ml-2 text-[10px] text-red-500 font-bold">⚠️ 단가 미입력</span>}
                                          </td>

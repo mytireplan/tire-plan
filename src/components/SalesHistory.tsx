@@ -1008,8 +1008,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                           <div className="space-y-3">
                               {editFormData.items.map((item, idx) => (
                               <div key={idx} className={`flex flex-col p-3 rounded-lg border ${item.productId === '99999' ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100'}`}>
-                                  <div className="flex justify-between items-start">
-                                      <div className="flex-1 mr-4">
+                                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-between items-start">
+                                      <div className="flex-1 sm:mr-4 w-full">
                                           <div className="space-y-1">
                                               <label className="text-[10px] text-gray-500 font-bold">상품명 (재고 연동)</label>
                                               <button 
@@ -1023,9 +1023,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                           </div>
                                       </div>
                                       
-                                      <div className="text-right min-w-[100px]">
-                                          <div className="flex flex-col gap-1 items-end">
-                                              <div className="flex items-center gap-1 justify-end">
+                                      <div className="w-full sm:w-auto text-right">
+                                          <div className="flex sm:flex-col gap-2 sm:gap-1 sm:items-end items-center justify-between sm:justify-end">
+                                              <div className="flex items-center gap-1 sm:justify-end justify-between w-full sm:w-auto">
                                                   <span className="text-xs text-gray-500">단가</span>
                                                   {editFormData.items.length === 1 ? (
                                                       <span className="text-sm font-bold text-right w-20 text-gray-400 cursor-not-allowed" title="단일 상품은 총액과 동일해야 합니다">
@@ -1037,11 +1037,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                           item.priceAtSale, 
                                                           (val) => handleEditChange('priceAtSale', Number(val), idx), 
                                                           'number', 
-                                                          'text-sm font-bold text-right w-20'
+                                                          'text-sm font-bold text-right w-24'
                                                       )
                                                   )}
                                               </div>
-                                              <div className="flex items-center gap-1 justify-end h-8 mt-1">
+                                              <div className="flex items-center gap-2 justify-end h-8 sm:mt-1 w-full sm:w-auto">
                                                   <span className="text-xs text-gray-500">수량</span>
                                                   {activeEditField === `item-${idx}-qty` && !selectedSale.isCanceled ? (
                                                        <div className="flex items-center border border-blue-500 rounded bg-white">
