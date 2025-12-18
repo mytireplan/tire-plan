@@ -266,6 +266,8 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   };
 
   const calendarDays = getDaysInMonth(currentDate);
+    const [calendarView, setCalendarView] = useState<'grid' | 'list'>('grid');
+    const calendarList = useMemo(() => calendarDays.filter((d): d is Date => Boolean(d)), [calendarDays]);
 
   const getDailyStats = (date: Date) => {
     const dateString = formatDateYMD(date);
@@ -618,7 +620,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
       </div>
 
       {/* Summary Cards - Enhanced Layout (Modified for Tablet) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-2 lg:gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {/* 1. Total Revenue (Highlighted) - Comparison Updated */}
         <SummaryCard 
             title={`${currentDate.getMonth() + 1}월 총 매출`}
@@ -814,71 +816,133 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                 <Calendar className="text-blue-600" size={20} /> 
                 {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 매출 캘린더
             </h3>
-            {prevMonthDailyAverage > 0 && (
-                <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 font-medium">
-                    전월 일 평균 {formatCurrency(Math.round(prevMonthDailyAverage))} 초과 달성일 강조
-                </span>
-            )}
+            <div className="flex items-center gap-2">
+                {prevMonthDailyAverage > 0 && (
+                    <span className="text-[10px] sm:text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 font-medium whitespace-nowrap">
+                        전월 일 평균 {formatCurrency(Math.round(prevMonthDailyAverage))} 초과 달성일 강조
+                    </span>
+                )}
+                <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1">
+                    <button 
+                        onClick={() => setCalendarView('grid')}
+                        className={`px-2 py-1 text-xs font-bold rounded-md ${calendarView === 'grid' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                    >달력</button>
+                    <button 
+                        onClick={() => setCalendarView('list')}
+                        className={`px-2 py-1 text-xs font-bold rounded-md ${calendarView === 'list' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                    >목록</button>
+                </div>
+            </div>
         </div>
         <div className="p-4 md:p-6">
-            <div className="grid grid-cols-7 mb-2">
-                {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
-                    <div key={day} className={`text-center text-xs md:text-sm font-medium py-2 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
-                        {day}
+            {calendarView === 'grid' ? (
+                <>
+                    <div className="grid grid-cols-7 mb-2">
+                        {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
+                            <div key={day} className={`text-center text-xs md:text-sm font-medium py-2 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
+                                {day}
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
-            
-            <div className="grid grid-cols-7 gap-1 md:gap-2">
-                {calendarDays.map((date, index) => {
-                    if (!date) return <div key={`empty-${index}`} className="min-h-[80px] md:h-28 bg-gray-50/50 rounded-lg"></div>;
                     
-                    const { revenue, cash, card, transfer } = getDailyStats(date);
-                    const isToday = new Date().toDateString() === date.toDateString();
-                    const isSunday = date.getDay() === 0;
-                    const isSaturday = date.getDay() === 6;
-                    const dateString = formatDateYMD(date);
+                    <div className="grid grid-cols-7 gap-1 md:gap-2">
+                        {calendarDays.map((date, index) => {
+                            if (!date) return <div key={`empty-${index}`} className="min-h-[80px] md:h-28 bg-gray-50/50 rounded-lg"></div>;
+                            
+                            const { revenue, cash, card, transfer } = getDailyStats(date);
+                            const isToday = new Date().toDateString() === date.toDateString();
+                            const isSunday = date.getDay() === 0;
+                            const isSaturday = date.getDay() === 6;
+                            const dateString = formatDateYMD(date);
 
-                    // Determine background color based on comparison with previous month daily average
-                    const isHighRevenue = prevMonthDailyAverage > 0 && revenue > prevMonthDailyAverage;
-                    
-                    return (
-                        <div 
-                            key={date.toISOString()} 
-                            onClick={() => onNavigateToHistory({ 
-                                type: 'DATE', 
-                                value: dateString, 
-                                label: `${date.getMonth()+1}월 ${date.getDate()}일 매출 상세` 
-                            })}
-                            className={`min-h-[80px] md:h-28 rounded-lg border p-1 md:p-2 flex flex-col justify-between transition-all cursor-pointer
-                                ${isToday ? 'border-blue-500 ring-1 ring-blue-200 bg-blue-50' : 
-                                  isHighRevenue ? 'bg-emerald-50/50 border-emerald-100 hover:border-emerald-300 hover:shadow-md' : 
-                                  'border-gray-100 hover:border-blue-300 bg-white hover:shadow-md hover:-translate-y-1'}
-                            `}
-                        >
-                            <span className={`text-xs md:text-sm font-medium 
-                                ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-700'}
-                            `}>
-                                {date.getDate()}
-                            </span>
-                            {revenue > 0 && (
-                                <div className="text-right flex flex-col items-end gap-0.5 mt-1">
-                                    <div className={`font-bold text-sm leading-tight tracking-tight ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
-                                        {formatCurrency(revenue)}
+                            const isHighRevenue = prevMonthDailyAverage > 0 && revenue > prevMonthDailyAverage;
+                            
+                            return (
+                                <div 
+                                    key={date.toISOString()} 
+                                    onClick={() => onNavigateToHistory({ 
+                                        type: 'DATE', 
+                                        value: dateString, 
+                                        label: `${date.getMonth()+1}월 ${date.getDate()}일 매출 상세` 
+                                    })}
+                                    className={`min-h-[80px] md:h-28 rounded-lg border p-1 md:p-2 flex flex-col justify-between transition-all cursor-pointer
+                                        ${isToday ? 'border-blue-500 ring-1 ring-blue-200 bg-blue-50' : 
+                                          isHighRevenue ? 'bg-emerald-50/50 border-emerald-100 hover:border-emerald-300 hover:shadow-md' : 
+                                          'border-gray-100 hover:border-blue-300 bg-white hover:shadow-md hover:-translate-y-1'}
+                                    `}
+                                >
+                                    <span className={`text-[11px] md:text-sm font-medium 
+                                        ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-700'}
+                                    `}>
+                                        {date.getDate()}
+                                    </span>
+                                    {revenue > 0 && (
+                                        <div className="text-right flex flex-col items-end gap-0.5 mt-1">
+                                            <div className={`font-bold text-[13px] leading-tight tracking-tight ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                                {formatCurrency(revenue)}
+                                            </div>
+                                            <div className="flex flex-col items-end text-[9px] text-gray-500 font-medium leading-snug mt-1 gap-0.5">
+                                                {card > 0 && (
+                                                    <span className="flex items-center gap-1 text-blue-500">
+                                                        <CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만
+                                                    </span>
+                                                )}
+                                                {cash > 0 && (
+                                                    <span className="flex items-center gap-1 text-emerald-600">
+                                                        <Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만
+                                                    </span>
+                                                )}
+                                                {transfer > 0 && (
+                                                    <span className="flex items-center gap-1 text-violet-600">
+                                                        <Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </>
+            ) : (
+                <div className="flex flex-col gap-2">
+                    {calendarList.map(date => {
+                        const { revenue, cash, card, transfer } = getDailyStats(date);
+                        const isToday = new Date().toDateString() === date.toDateString();
+                        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                        const isHighRevenue = prevMonthDailyAverage > 0 && revenue > prevMonthDailyAverage;
+                        const dateString = formatDateYMD(date);
+                        const dayLabel = ['일','월','화','수','목','금','토'][date.getDay()];
+
+                        return (
+                            <button
+                                key={date.toISOString()}
+                                onClick={() => onNavigateToHistory({ type: 'DATE', value: dateString, label: `${date.getMonth()+1}월 ${date.getDate()}일 매출 상세` })}
+                                className={`flex items-center justify-between w-full text-left rounded-xl border px-3 py-2 transition-all ${
+                                    isToday ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : isHighRevenue ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-100 bg-white hover:border-blue-200 hover:shadow-sm'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center text-sm font-bold ${isWeekend ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-800'}`}>
+                                        <span>{date.getDate()}</span>
+                                        <span className="text-[10px] font-medium text-gray-500">{dayLabel}</span>
                                     </div>
-                                    
-                                    {/* Detailed Breakdown */}
-                                    <div className="flex flex-col items-end text-[10px] text-gray-400 font-medium leading-snug mt-1">
-                                        {card > 0 && <span className="text-blue-400/80">카드 {formatCurrency(Math.round(card/10000))}만</span>}
-                                        {cash > 0 && <span className="text-emerald-400/80">현금 {formatCurrency(Math.round(cash/10000))}만</span>}
-                                        {transfer > 0 && <span className="text-violet-400/80">이체 {formatCurrency(Math.round(transfer/10000))}만</span>}
+                                    <div className="flex flex-col">
+                                        <span className={`text-[13px] font-bold ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>{formatCurrency(revenue)}</span>
+                                        <div className="flex flex-wrap gap-1 text-[10px] text-gray-500 mt-0.5">
+                                            {card > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full flex items-center gap-1"><CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만</span>}
+                                            {cash > 0 && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full flex items-center gap-1"><Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만</span>}
+                                            {transfer > 0 && <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full flex items-center gap-1"><Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만</span>}
+                                        </div>
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+                                <div className="text-[11px] text-gray-500 font-medium whitespace-nowrap">{date.toLocaleDateString()}</div>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
         </div>
       </div>
       {/* Notice Modal (shared for admin) */}
@@ -921,17 +985,17 @@ const SummaryCard = ({ title, value, icon: Icon, color, growth, isPrimary = fals
         className={`
             relative overflow-hidden rounded-xl shadow-sm border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md
             ${isPrimary ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white border-blue-600' : 'bg-white border-gray-100 hover:border-blue-200'}
-            p-5 ${isSidebarOpen ? 'md:p-3 xl:p-5' : ''}
+            p-4 sm:p-5 ${isSidebarOpen ? 'md:p-3 xl:p-5' : ''}
         `}
     >
-        <div className="flex justify-between items-start mb-4 md:mb-2">
+        <div className="flex justify-between items-start mb-4 md:mb-2 gap-3">
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-1">
                      {/* Tablet View (md & lg): Show small inline icon ONLY if sidebar is OPEN. If closed, hide it (rely on large icon). Revert to normal on xl. */}
                      <Icon className={`hidden ${isSidebarOpen ? 'md:block xl:hidden' : ''} w-3.5 h-3.5 flex-shrink-0 ${isPrimary ? 'text-blue-200' : color.replace('bg-', 'text-')}`} />
-                     <p className={`text-sm ${isSidebarOpen ? 'md:text-xs xl:text-sm' : ''} font-medium whitespace-nowrap ${isPrimary ? 'text-blue-100' : 'text-gray-500'}`}>{title}</p>
+                     <p className={`text-sm leading-tight ${isSidebarOpen ? 'md:text-xs xl:text-sm' : ''} font-medium whitespace-normal sm:whitespace-nowrap ${isPrimary ? 'text-blue-100' : 'text-gray-500'}`}>{title}</p>
                 </div>
-                <h4 className={`font-bold tracking-tight whitespace-nowrap ${isPrimary ? 'text-2xl' : 'text-2xl text-gray-900'} ${isSidebarOpen ? 'md:text-lg xl:text-2xl' : ''}`}>{value}</h4>
+                <h4 className={`font-bold tracking-tight whitespace-normal break-words sm:whitespace-nowrap ${isPrimary ? 'text-xl sm:text-2xl' : 'text-xl sm:text-2xl text-gray-900'} ${isSidebarOpen ? 'md:text-lg xl:text-2xl' : ''}`}>{value}</h4>
             </div>
             {/* Tablet View (md & lg): Show large icon ONLY if sidebar is CLOSED. If open, hide it to save space. Show on xl. */}
             <div className={`ml-2 ${isSidebarOpen ? 'md:hidden xl:block' : ''} lg:block p-3 lg:p-2 rounded-xl shadow-sm flex-shrink-0 ${isPrimary ? 'bg-white/20 text-white' : `${color.replace('bg-', 'bg-').replace('600', '50')} ${color.replace('bg-', 'text-')}`}`}>
@@ -939,7 +1003,7 @@ const SummaryCard = ({ title, value, icon: Icon, color, growth, isPrimary = fals
             </div>
         </div>
         
-        <div className="flex items-center gap-2 text-xs whitespace-nowrap">
+        <div className="flex items-center gap-2 text-xs whitespace-normal sm:whitespace-nowrap flex-wrap">
             {comparisonText ? (
                  <span className={`${isPrimary ? 'text-blue-100' : 'text-gray-500'} font-medium ${isSidebarOpen ? 'md:text-[10px] xl:text-xs' : ''} lg:text-xs truncate`}>
                     {comparisonText}

@@ -435,8 +435,9 @@ const Financials: React.FC<FinancialsProps> = ({
                                         innerRadius={60}
                                         outerRadius={100}
                                         paddingAngle={2}
-                                            dataKey="value"
-                                            label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                                        dataKey="value"
+                                        labelLine={false}
+                                        label={renderPieLabel}
                                     >
                                         {expenseChartData.map((_, index) => (
                                             <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -483,14 +484,14 @@ const Financials: React.FC<FinancialsProps> = ({
                  </div>
 
                  <div className="flex-1 overflow-x-auto min-h-[400px]">
-                    <table className="w-full min-w-[640px] text-sm text-left">
+                    <table className="w-full min-w-[640px] text-sm text-left relative">
                         <thead className="text-xs text-gray-500 uppercase bg-gray-50 sticky top-0 z-10">
                             <tr>
                                 <th className="px-3 py-3 w-[72px] text-center">날짜</th>
                                 <th className="px-3 py-3 w-[96px]">구분</th>
                                 <th className="px-3 py-3">내용 / 거래처</th>
-                                <th className="px-3 py-3 w-[110px] text-right">금액</th>
-                                <th className="px-3 py-3 w-[60px] text-right">관리</th>
+                                <th className="px-3 py-3 w-[110px] text-right sticky right-[60px] bg-gray-50">금액</th>
+                                <th className="px-3 py-3 w-[60px] text-right sticky right-0 bg-gray-50">관리</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -511,14 +512,14 @@ const Financials: React.FC<FinancialsProps> = ({
                                                  {record.category}
                                              </span>
                                          </td>
-                                         <td className="px-3 py-2 text-gray-800 font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[220px]" title={record.description}>
+                                         <td className="px-3 py-2 text-gray-800 font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]" title={record.description}>
                                              {record.description}
                                              {record.isUnsettled && <span className="ml-2 text-[10px] text-red-500 font-bold">⚠️ 단가 미입력</span>}
                                          </td>
-                                         <td className={`px-3 py-2 text-right font-bold whitespace-nowrap ${record.isUnsettled ? 'text-red-400' : 'text-gray-900'}`}>
+                                         <td className={`px-3 py-2 text-right font-bold whitespace-nowrap sticky right-[60px] bg-white ${record.isUnsettled ? 'text-red-400' : 'text-gray-900'}`}>
                                              {formatCurrency(record.amount)}
                                          </td>
-                                         <td className="px-3 py-2 text-right">
+                                         <td className="px-3 py-2 text-right sticky right-0 bg-white">
                                              {record.type === 'EXPENSE' && (
                                                  <button onClick={() => { if(confirm('삭제하시겠습니까?')) onRemoveExpense(record.id); }} className="text-gray-300 hover:text-red-500">
                                                      <Trash2 size={14} />
@@ -601,17 +602,16 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-scale-in">
                 <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-slate-50 shrink-0 rounded-t-2xl">
-                                    <Pie
-                                        data={expenseChartData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={100}
-                                        paddingAngle={2}
-                                            dataKey="value"
-                                            labelLine={false}
-                                            label={renderPieLabel}
-                                    >
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <Table className="text-blue-600" /> 매입원가 일괄 입력
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1">거래처 명세서를 보고 단가만 빠르게 입력하세요. (Enter키로 이동)</p>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={24}/></button>
+                </div>
+
+                <div className="p-4 bg-white border-b border-gray-100 flex items-center gap-4 shrink-0">
                     <span className="text-sm font-bold text-gray-700">거래처 필터:</span>
                     <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                         <button 
