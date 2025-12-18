@@ -265,9 +265,10 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
     return days;
   };
 
-  const calendarDays = getDaysInMonth(currentDate);
+    const calendarDays = getDaysInMonth(currentDate);
     const [calendarView, setCalendarView] = useState<'grid' | 'list'>('grid');
     const calendarList = useMemo(() => calendarDays.filter((d): d is Date => Boolean(d)), [calendarDays]);
+    const formatManLabel = (amount: number) => `₩${formatNumber(Math.round(amount / 10000))}만`;
 
   const getDailyStats = (date: Date) => {
     const dateString = formatDateYMD(date);
@@ -583,15 +584,14 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       {/* Filter Header */}
-      <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-4">
-        <div className="flex items-center gap-6">
+      <div className="flex flex-col bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-3">
+        <div className="flex flex-col gap-2">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <TrendingUp className="text-blue-600" />
                 매출 현황 대시보드
             </h2>
-            
             {/* Month Navigation */}
-            <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1 border border-gray-200">
+            <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1 border border-gray-200 w-full sm:w-auto">
                 <button onClick={prevMonth} className="p-1 hover:bg-white rounded shadow-sm transition-all text-gray-600">
                     <ChevronLeft size={20} />
                 </button>
@@ -604,12 +604,12 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
             </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex items-center gap-3 w-full">
             <StoreIcon size={18} className="text-gray-500" />
             <select 
                 value={selectedStoreId}
                 onChange={(e) => setSelectedStoreId(e.target.value)}
-                className={`bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 w-full md:w-auto`}
+                className={`bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 w-full sm:w-auto`}
             >
                 <option value="ALL">전체 매장 통합</option>
                 {stores.map(store => (
@@ -624,7 +624,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
         {/* 1. Total Revenue (Highlighted) - Comparison Updated */}
         <SummaryCard 
             title={`${currentDate.getMonth() + 1}월 총 매출`}
-            value={formatCurrency(totalRevenue)} 
+            value={formatManLabel(totalRevenue)} 
             icon={TrendingUp}
             color="bg-blue-600"
             textColor="text-blue-700"
@@ -716,13 +716,13 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
         <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Main Sales Chart (Stacked) - Takes 2 cols on Tablet/Desktop */}
             <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-gray-800">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+                    <h3 className="text-lg font-bold text-gray-800 whitespace-nowrap">
                         주간 매출 상세 (결제수단별)
                     </h3>
-                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1 w-fit">
                         <button onClick={() => moveChartWeek('prev')} className="p-1 hover:bg-white rounded shadow-sm transition-all"><ChevronLeft size={20}/></button>
-                        <span className="text-sm font-medium px-2">
+                        <span className="text-sm font-medium px-2 whitespace-nowrap">
                             {chartStartDate.toLocaleDateString()} ~ {new Date(new Date(chartStartDate).setDate(chartStartDate.getDate()+6)).toLocaleDateString()}
                         </span>
                         <button onClick={() => moveChartWeek('next')} className="p-1 hover:bg-white rounded shadow-sm transition-all"><ChevronRight size={20}/></button>
@@ -811,12 +811,12 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
 
       {/* Sales Calendar Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+        <div className="p-6 border-b border-gray-100 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 whitespace-nowrap">
                 <Calendar className="text-blue-600" size={20} /> 
                 {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 매출 캘린더
             </h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
                 {prevMonthDailyAverage > 0 && (
                     <span className="text-[10px] sm:text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 font-medium whitespace-nowrap">
                         전월 일 평균 {formatCurrency(Math.round(prevMonthDailyAverage))} 초과 달성일 강조
@@ -877,23 +877,23 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                         {date.getDate()}
                                     </span>
                                     {revenue > 0 && (
-                                        <div className="text-right flex flex-col items-end gap-0.5 mt-1">
-                                            <div className={`font-bold text-[13px] leading-tight tracking-tight ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                        <div className="text-right flex flex-col items-end gap-0.5 mt-1 w-full">
+                                            <div className={`font-bold text-[13px] leading-tight tracking-tight truncate max-w-full ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
                                                 {formatCurrency(revenue)}
                                             </div>
-                                            <div className="flex flex-col items-end text-[9px] text-gray-500 font-medium leading-snug mt-1 gap-0.5">
+                                            <div className="flex flex-col items-end text-[9px] text-gray-500 font-medium leading-snug mt-1 gap-0.5 w-full">
                                                 {card > 0 && (
-                                                    <span className="flex items-center gap-1 text-blue-500">
+                                                    <span className="flex items-center gap-1 text-blue-500 truncate max-w-full">
                                                         <CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만
                                                     </span>
                                                 )}
                                                 {cash > 0 && (
-                                                    <span className="flex items-center gap-1 text-emerald-600">
+                                                    <span className="flex items-center gap-1 text-emerald-600 truncate max-w-full">
                                                         <Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만
                                                     </span>
                                                 )}
                                                 {transfer > 0 && (
-                                                    <span className="flex items-center gap-1 text-violet-600">
+                                                    <span className="flex items-center gap-1 text-violet-600 truncate max-w-full">
                                                         <Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만
                                                     </span>
                                                 )}
@@ -929,11 +929,11 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                         <span className="text-[10px] font-medium text-gray-500">{dayLabel}</span>
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className={`text-[13px] font-bold ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>{formatCurrency(revenue)}</span>
+                                        <span className={`text-[13px] font-bold truncate max-w-[140px] ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>{formatCurrency(revenue)}</span>
                                         <div className="flex flex-wrap gap-1 text-[10px] text-gray-500 mt-0.5">
-                                            {card > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full flex items-center gap-1"><CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만</span>}
-                                            {cash > 0 && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full flex items-center gap-1"><Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만</span>}
-                                            {transfer > 0 && <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full flex items-center gap-1"><Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만</span>}
+                                            {card > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full flex items-center gap-1 truncate max-w-[140px]"><CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만</span>}
+                                            {cash > 0 && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full flex items-center gap-1 truncate max-w-[140px]"><Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만</span>}
+                                            {transfer > 0 && <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full flex items-center gap-1 truncate max-w-[140px]"><Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만</span>}
                                         </div>
                                     </div>
                                 </div>
@@ -995,7 +995,7 @@ const SummaryCard = ({ title, value, icon: Icon, color, growth, isPrimary = fals
                      <Icon className={`hidden ${isSidebarOpen ? 'md:block xl:hidden' : ''} w-3.5 h-3.5 flex-shrink-0 ${isPrimary ? 'text-blue-200' : color.replace('bg-', 'text-')}`} />
                      <p className={`text-sm leading-tight ${isSidebarOpen ? 'md:text-xs xl:text-sm' : ''} font-medium whitespace-normal sm:whitespace-nowrap ${isPrimary ? 'text-blue-100' : 'text-gray-500'}`}>{title}</p>
                 </div>
-                <h4 className={`font-bold tracking-tight whitespace-normal break-words sm:whitespace-nowrap ${isPrimary ? 'text-xl sm:text-2xl' : 'text-xl sm:text-2xl text-gray-900'} ${isSidebarOpen ? 'md:text-lg xl:text-2xl' : ''}`}>{value}</h4>
+                <h4 className={`font-bold tracking-tight whitespace-normal break-words sm:whitespace-nowrap ${isPrimary ? 'text-lg sm:text-xl' : 'text-lg sm:text-xl text-gray-900'} ${isSidebarOpen ? 'md:text-lg xl:text-xl' : ''}`}>{value}</h4>
             </div>
             {/* Tablet View (md & lg): Show large icon ONLY if sidebar is CLOSED. If open, hide it to save space. Show on xl. */}
             <div className={`ml-2 ${isSidebarOpen ? 'md:hidden xl:block' : ''} lg:block p-3 lg:p-2 rounded-xl shadow-sm flex-shrink-0 ${isPrimary ? 'bg-white/20 text-white' : `${color.replace('bg-', 'bg-').replace('600', '50')} ${color.replace('bg-', 'text-')}`}`}>
