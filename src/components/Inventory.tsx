@@ -85,12 +85,13 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
         const matchesSearch = matchesNameOrCategory || matchesSpec;
 
         const totalStock = p.stock ?? 0;
+        const viewStock = currentStoreId === 'ALL' || !currentStoreId ? totalStock : (p.stockByStore[currentStoreId] || 0);
 
     // Logic: Service items (category '기타' or high sentinel stock) are never "low stock"
         const isServiceItem = p.category === '기타' || totalStock > 900;
-        const isLowStock = !isServiceItem && totalStock <= lowStockThreshold;
+        const isLowStock = !isServiceItem && viewStock <= lowStockThreshold;
     
-        if (hideZeroStock && totalStock === 0) return false;
+        if (hideZeroStock && viewStock === 0) return false;
     if (filterLowStock && !isLowStock) return false;
     
     return matchesSearch;
@@ -289,8 +290,10 @@ const handleSave = async (e: React.FormEvent) => {
         ) : (
             filteredProducts.map(product => {
                 const category = normalizeCategory(product.category);
-                const isService = category === '기타' || (product.stock || 0) > 900;
-                const isLowStock = !isService && (product.stock || 0) <= lowStockThreshold;
+                const totalStock = product.stock || 0;
+                const viewStock = currentStoreId === 'ALL' || !currentStoreId ? totalStock : (product.stockByStore[currentStoreId] || 0);
+                const isService = category === '기타' || totalStock > 900;
+                const isLowStock = !isService && viewStock <= lowStockThreshold;
 
                 return (
                     <div 
@@ -337,7 +340,7 @@ const handleSave = async (e: React.FormEvent) => {
                         <div className="md:col-span-4 flex gap-2 flex-wrap mt-2 md:mt-0 items-center">
                             {stores.map(store => {
                                 const stock = product.stockByStore[store.id] || 0;
-                                const isStoreLow = !isService && stock <= (Math.ceil(lowStockThreshold / stores.length)); 
+                                const isStoreLow = !isService && stock <= lowStockThreshold; 
                                 return (
                                     <div key={store.id} className={`text-xs px-2 py-1 rounded border flex items-center gap-1 ${
                                         isStoreLow 
