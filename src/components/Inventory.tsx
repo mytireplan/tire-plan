@@ -42,16 +42,20 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
   });
 
   // Calculate Total Tire Stock for the current view context
-  const totalTireStock = useMemo(() => {
-    return products
-        .filter(p => p.category === '타이어')
-        .reduce((sum, p) => {
-             if (currentStoreId === 'ALL' || !currentStoreId) {
-                 return sum + (p.stock || 0);
-             }
-             return sum + (p.stockByStore[currentStoreId] || 0);
+    const totalTireStock = useMemo(() => {
+        return products.reduce((sum, p) => {
+                const category = normalizeCategory(p.category);
+                const totalStock = p.stock || 0;
+                const isService = category !== '타이어' || totalStock > 900;
+                if (isService) return sum;
+
+                const viewStock = (currentStoreId === 'ALL' || !currentStoreId)
+                        ? totalStock
+                        : (p.stockByStore[currentStoreId] || 0);
+
+                return sum + (viewStock || 0);
         }, 0);
-  }, [products, currentStoreId]);
+    }, [products, currentStoreId]);
 
   const currentStoreName = useMemo(() => {
     if (currentStoreId === 'ALL' || !currentStoreId) return '전체 매장';
