@@ -253,66 +253,67 @@ const Financials: React.FC<FinancialsProps> = ({
     return (
         <div className="space-y-6 animate-fade-in pb-10">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-4 print:hidden">
-                <div className="flex items-center gap-4">
-                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100 print:hidden">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 break-keep">
                         <TrendingUp className="text-blue-600" />
                         {isAdmin ? '재무/결산 리포트' : '지출 내역'}
                     </h2>
-                    
-                    <div className="flex items-center gap-3">
-                        {/* Store Selector (Admin Only) */}
-                        {isAdmin && (
-                            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-                                <StoreIcon size={16} className="text-gray-500"/>
-                                <select 
-                                    value={selectedStoreId} 
-                                    onChange={(e) => setSelectedStoreId(e.target.value)}
-                                    className="bg-transparent text-sm font-bold text-gray-700 outline-none cursor-pointer"
-                                >
-                                    <option value="ALL">전체 지점 통합</option>
-                                    {stores.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+                </div>
 
-                        <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
-                            <button 
-                                onClick={() => handleMonthChange(-1)}
-                                className="p-1 hover:bg-white hover:shadow-sm rounded-md text-gray-600 transition-all"
+                <div className="flex flex-wrap gap-3 w-full md:w-auto md:justify-end">
+                    {/* Store Selector (Admin Only) */}
+                    {isAdmin && (
+                        <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 min-w-[180px] w-full md:w-auto">
+                            <StoreIcon size={16} className="text-gray-500"/>
+                            <select 
+                                value={selectedStoreId} 
+                                onChange={(e) => setSelectedStoreId(e.target.value)}
+                                className="bg-transparent text-sm font-bold text-gray-700 outline-none cursor-pointer min-w-0 w-full"
                             >
-                                <ChevronLeft size={20} />
-                            </button>
-                            
-                            <input 
-                                type="month" 
-                                value={selectedMonth}
-                                onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer text-center px-1"
-                            />
-
-                            <button 
-                                onClick={() => handleMonthChange(1)}
-                                className="p-1 hover:bg-white hover:shadow-sm rounded-md text-gray-600 transition-all"
-                            >
-                                <ChevronRight size={20} />
-                            </button>
+                                <option value="ALL">전체 지점 통합</option>
+                                {stores.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
                         </div>
+                    )}
+
+                    <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200 min-w-[170px] w-full md:w-auto justify-between">
+                        <button 
+                            onClick={() => handleMonthChange(-1)}
+                            className="p-1 hover:bg-white hover:shadow-sm rounded-md text-gray-600 transition-all"
+                        >
+                            <ChevronLeft size={20} />
+                        </button>
+                        
+                        <input 
+                            type="month" 
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer text-center px-1 min-w-0"
+                        />
+
+                        <button 
+                            onClick={() => handleMonthChange(1)}
+                            className="p-1 hover:bg-white hover:shadow-sm rounded-md text-gray-600 transition-all"
+                        >
+                            <ChevronRight size={20} />
+                        </button>
                     </div>
                 </div>
-                <div className="flex gap-2">
+
+                <div className="flex gap-2 w-full md:w-auto flex-wrap md:flex-nowrap">
                     {isAdmin && (
                         <>
                             <button 
                                 onClick={() => setShowBatchCostModal(true)} 
-                                className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-md transition-all ${unsettledStockItems.length > 0 ? 'bg-orange-500 text-white hover:bg-orange-600 animate-pulse' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                                className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-md transition-all whitespace-nowrap ${unsettledStockItems.length > 0 ? 'bg-orange-500 text-white hover:bg-orange-600 animate-pulse' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
                             >
                                 <Calculator size={18} />
                                 {unsettledStockItems.length > 0 ? `원가 일괄 입력 (${unsettledStockItems.length}건)` : '원가 일괄 입력'}
                             </button>
-                            <button onClick={() => setShowFixedCostModal(true)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium flex items-center gap-2">
+                            <button onClick={() => setShowFixedCostModal(true)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium flex items-center gap-2 whitespace-nowrap">
                                 <SettingsIcon size={18} /> 고정지출
                             </button>
                         </>

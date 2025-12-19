@@ -12,6 +12,9 @@ interface SettingsProps {
   currentAdminPassword: string;
   onUpdatePassword: (newPass: string) => void;
 
+    currentOwnerPin: string;
+    onUpdateOwnerPin: (newPin: string) => void;
+
     currentManagerPin: string;
     onUpdateManagerPin: (storeId: string, pin: string) => void;
 
@@ -26,6 +29,7 @@ interface SettingsProps {
 const Settings: React.FC<SettingsProps> = ({ 
     stores, onUpdateStore, onRemoveStore, 
     currentAdminPassword, onUpdatePassword,
+    currentOwnerPin, onUpdateOwnerPin,
     currentManagerPin, onUpdateManagerPin,
         staffList, onAddStaff, onRemoveStaff, currentStoreId,
         staffPermissions, onUpdatePermissions
@@ -58,11 +62,16 @@ const Settings: React.FC<SettingsProps> = ({
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const [managerPinForm, setManagerPinForm] = useState({ current: '', next: '', confirm: '' });
     const [managerPinError, setManagerPinError] = useState('');
-    const passwordGuidelines: string[] = [
+        const loginPasswordGuidelines: string[] = [
             '6자리 이상, 숫자와 영문을 조합해 주세요.',
             '최근 사용한 비밀번호는 피해주세요.',
             '공용 기기에서는 입력 후 화면을 가려주세요.'
-    ];
+        ];
+        const ownerPinGuidelines: string[] = [
+            '숫자 4~8자리로 설정해 주세요.',
+            '사장님만 아는 번호로 관리하세요.',
+            '민감 작업 추가 확인용으로 사용됩니다.'
+        ];
 
   // Staff Management State
   const [newStaffName, setNewStaffName] = useState('');
@@ -117,7 +126,7 @@ const Settings: React.FC<SettingsProps> = ({
       setPasswordVisibility(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const validatePasswordForm = (form: { current: string; new: string; confirm: string }) => {
+    const validateLoginPasswordForm = (form: { current: string; new: string; confirm: string }) => {
       const errors: { current?: string; new?: string; confirm?: string } = {};
 
       if (!form.current) errors.current = '현재 비밀번호를 입력하세요.';
@@ -136,21 +145,44 @@ const Settings: React.FC<SettingsProps> = ({
       return errors;
   };
 
+  const validateOwnerPinForm = (form: { current: string; new: string; confirm: string }) => {
+      const errors: { current?: string; new?: string; confirm?: string } = {};
+
+      if (!form.current) errors.current = '현재 PIN을 입력하세요.';
+      else if (form.current !== currentOwnerPin) errors.current = '현재 PIN이 일치하지 않습니다.';
+
+      if (!form.new) errors.new = '새 PIN을 입력하세요.';
+      else {
+          if (!/^[0-9]{4,8}$/.test(form.new)) errors.new = '숫자 4~8자리로 설정해 주세요.';
+          else if (form.new === form.current) errors.new = '기존 PIN과 다르게 설정해 주세요.';
+      }
+
+      if (!form.confirm) errors.confirm = 'PIN을 다시 입력하세요.';
+      else if (form.confirm !== form.new) errors.confirm = '새 PIN이 일치하지 않습니다.';
+
+      return errors;
+  };
+
   const handlePasswordSubmit = (kind: 'login' | 'owner') => (e: React.FormEvent) => {
       e.preventDefault();
       const form = kind === 'login' ? loginForm : ownerForm;
       const setErrors = kind === 'login' ? setLoginErrors : setOwnerErrors;
       const setForm = kind === 'login' ? setLoginForm : setOwnerForm;
 
-      const errors = validatePasswordForm(form);
+      const errors = kind === 'login' ? validateLoginPasswordForm(form) : validateOwnerPinForm(form);
       setErrors(errors);
       if (Object.keys(errors).length > 0) {
           setToast({ type: 'error', message: '입력 값을 다시 확인해주세요.' });
           return;
       }
 
-      onUpdatePassword(form.new);
-      setToast({ type: 'success', message: kind === 'login' ? '로그인 비밀번호를 변경했어요.' : '사장 전용 비밀번호를 변경했어요.' });
+      if (kind === 'login') {
+          onUpdatePassword(form.new);
+          setToast({ type: 'success', message: '로그인 비밀번호를 변경했어요.' });
+      } else {
+          onUpdateOwnerPin(form.new);
+          setToast({ type: 'success', message: '사장 PIN을 변경했어요.' });
+      }
       setForm({ current: '', new: '', confirm: '' });
   };
 
@@ -318,7 +350,7 @@ const Settings: React.FC<SettingsProps> = ({
                     </div>
                     <div>
                         <h3 className="font-bold text-lg text-slate-800">계정 보안 설정</h3>
-                        <p className="text-xs text-slate-500">로그인 비밀번호와 사장 전용 비밀번호를 분리 관리하세요.</p>
+                                <p className="text-xs text-slate-500">로그인 비밀번호와 사장 PIN을 분리 관리하세요.</p>
                     </div>
                 </div>
                 <div className="text-[11px] text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">모바일에서는 한 컬럼으로 표시됩니다</div>
@@ -409,7 +441,7 @@ const Settings: React.FC<SettingsProps> = ({
                         </div>
 
                         <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
-                            {passwordGuidelines.map((item: string) => (
+                            {loginPasswordGuidelines.map((item: string) => (
                                 <div key={item} className="flex items-center gap-2">
                                     <span className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
                                     {item}
@@ -427,25 +459,25 @@ const Settings: React.FC<SettingsProps> = ({
                         </div>
                     </form>
 
-                    {/* Owner/Admin Password */}
+                    {/* Owner/Admin PIN */}
                     <form onSubmit={handlePasswordSubmit('owner')} className="rounded-xl border border-amber-100 bg-amber-50/60 p-5 shadow-sm flex flex-col gap-4">
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-bold text-amber-900">사장 전용 비밀번호</h4>
-                                <span className="text-[11px] text-amber-700">민감 작업 잠금</span>
+                                <h4 className="text-sm font-bold text-amber-900">사장 PIN 번호</h4>
+                                <span className="text-[11px] text-amber-700">민감 작업 확인용</span>
                             </div>
-                            <p className="text-xs text-amber-800">매장 삭제, 직원 권한 수정 등 사장만 접근해야 하는 작업에 사용하세요.</p>
+                            <p className="text-xs text-amber-800">매장 삭제, 직원 권한 수정 등 사장님만 접근해야 하는 작업에 사용하는 숫자 PIN입니다.</p>
                         </div>
 
                         <div className="space-y-2">
-                            <label className="block text-xs font-bold text-amber-900">현재 비밀번호</label>
+                            <label className="block text-xs font-bold text-amber-900">현재 PIN</label>
                             <div className="relative">
                                 <input 
                                     type={passwordVisibility.ownerCurrent ? 'text' : 'password'}
                                     value={ownerForm.current}
                                     onChange={(e) => handleInputChange('owner', 'current', e.target.value)}
                                     className={`w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none transition-all ${ownerErrors.current ? 'border-red-400 ring-red-100' : 'border-amber-200 bg-white'}`}
-                                    placeholder="현재 비밀번호"
+                                    placeholder="현재 PIN"
                                     autoComplete="current-password"
                                     aria-invalid={!!ownerErrors.current}
                                 />
@@ -462,14 +494,14 @@ const Settings: React.FC<SettingsProps> = ({
                         </div>
 
                         <div className="space-y-2">
-                            <label className="block text-xs font-bold text-amber-900">새 비밀번호</label>
+                            <label className="block text-xs font-bold text-amber-900">새 PIN</label>
                             <div className="relative">
                                 <input 
                                     type={passwordVisibility.ownerNew ? 'text' : 'password'}
                                     value={ownerForm.new}
                                     onChange={(e) => handleInputChange('owner', 'new', e.target.value)}
                                     className={`w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none transition-all ${ownerErrors.new ? 'border-red-400 ring-red-100' : 'border-amber-200 bg-white'}`}
-                                    placeholder="6자리 이상, 숫자+영문 조합"
+                                    placeholder="숫자 4~8자리"
                                     autoComplete="new-password"
                                     aria-invalid={!!ownerErrors.new}
                                 />
@@ -486,7 +518,7 @@ const Settings: React.FC<SettingsProps> = ({
                         </div>
 
                         <div className="space-y-2">
-                            <label className="block text-xs font-bold text-amber-900">새 비밀번호 확인</label>
+                            <label className="block text-xs font-bold text-amber-900">새 PIN 확인</label>
                             <div className="relative">
                                 <input 
                                     type={passwordVisibility.ownerConfirm ? 'text' : 'password'}
@@ -510,8 +542,11 @@ const Settings: React.FC<SettingsProps> = ({
                         </div>
 
                         <div className="bg-white border border-amber-200 rounded-lg p-3 text-xs text-amber-900 space-y-1">
-                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />사장님 본인만 알고 있는 번호로 설정하세요.</div>
-                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />민감 작업 시 추가 확인용으로 활용됩니다.</div>
+                            {ownerPinGuidelines.map((item: string) => (
+                                <div key={item} className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />{item}
+                                </div>
+                            ))}
                         </div>
 
                         <div className="flex justify-end pt-2">
@@ -519,7 +554,7 @@ const Settings: React.FC<SettingsProps> = ({
                                 type="submit"
                                 className="px-4 py-2.5 rounded-lg bg-amber-700 text-white text-sm font-bold hover:bg-amber-800 transition-colors"
                             >
-                                사장 전용 비밀번호 변경
+                                사장 PIN 변경
                             </button>
                         </div>
                     </form>

@@ -36,10 +36,10 @@ const INITIAL_STORE_ACCOUNTS: StoreAccount[] = [
 ];
 
 // Auth Database (Mock) - Owners and Master ONLY
-const MOCK_AUTH_USERS: { id: string; password: string; name: string; role: UserRole; storeId?: string; phoneNumber?: string; joinDate: string }[] = [
-  { id: '250001', password: '1234', name: '김대표', role: 'STORE_ADMIN', phoneNumber: '010-1234-5678', joinDate: '2025.05.01' },
-  { id: '250002', password: '1234', name: '박사장', role: 'STORE_ADMIN', phoneNumber: '010-9876-5432', joinDate: '2025.05.02' },
-  { id: '999999', password: '1234', name: 'Master', role: 'SUPER_ADMIN', joinDate: '2025.01.01' },
+const MOCK_AUTH_USERS: { id: string; password: string; ownerPin?: string; name: string; role: UserRole; storeId?: string; phoneNumber?: string; joinDate: string }[] = [
+    { id: '250001', password: '1234', ownerPin: '1234', name: '김대표', role: 'STORE_ADMIN', phoneNumber: '010-1234-5678', joinDate: '2025.05.01' },
+    { id: '250002', password: '1234', ownerPin: '1234', name: '박사장', role: 'STORE_ADMIN', phoneNumber: '010-9876-5432', joinDate: '2025.05.02' },
+    { id: '999999', password: '1234', ownerPin: '1234', name: 'Master', role: 'SUPER_ADMIN', joinDate: '2025.01.01' },
 ];
 
 // Staff Database (Entities, NOT Login Users)
@@ -453,7 +453,7 @@ const App: React.FC = () => {
   // Sidebar & Menu State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
-    const [forceMobileMode, setForceMobileMode] = useState(() => {
+    const [forceMobileMode] = useState(() => {
         if (typeof window === 'undefined') return false;
         return localStorage.getItem('force-mobile-mode') === 'true';
     });
@@ -462,12 +462,6 @@ const App: React.FC = () => {
         if (typeof window === 'undefined') return false;
         return forceMobileMode || window.innerWidth < 768;
     });
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        localStorage.setItem('force-mobile-mode', forceMobileMode ? 'true' : 'false');
-        if (!forceMobileMode) setIsMobileMenuOpen(false);
-    }, [forceMobileMode]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -489,8 +483,8 @@ const App: React.FC = () => {
     const [tireBrands, setTireBrands] = useState<string[]>(INITIAL_TIRE_BRANDS);
   
   // Initialize Users with Join Date
-  const [users, setUsers] = useState<{id: string, name: string, role: UserRole, storeId?: string, password: string, phoneNumber?: string, joinDate: string}[]>(
-      MOCK_AUTH_USERS.map(u => ({...u, joinDate: u.joinDate || '2025.01.01'}))
+  const [users, setUsers] = useState<{id: string, name: string, role: UserRole, storeId?: string, password: string, ownerPin?: string, phoneNumber?: string, joinDate: string}[]>(
+      MOCK_AUTH_USERS.map(u => ({...u, joinDate: u.joinDate || '2025.01.01', ownerPin: u.ownerPin || u.password }))
   );
   
   const [staffList, setStaffList] = useState<Staff[]>(INITIAL_STAFF); // Manage Staff Entities
@@ -717,7 +711,7 @@ const App: React.FC = () => {
   const ownerPin = useMemo(() => {
       if (!currentUser) return '';
       const ownerUser = users.find(u => u.id === currentUser.id);
-      return ownerUser?.password || '';
+      return ownerUser?.ownerPin || ownerUser?.password || '';
   }, [currentUser, users]);
 
   // Manager PIN: decode per-store hash with safe fallback
@@ -798,6 +792,11 @@ const App: React.FC = () => {
   const handleUpdatePassword = (newPass: string) => {
       if(!currentUser) return;
       setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, password: newPass } : u));
+  };
+
+  const handleUpdateOwnerPin = (newPin: string) => {
+      if(!currentUser) return;
+      setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, ownerPin: newPin } : u));
   };
 
   const handleValidatePassword = (password: string): boolean => {
@@ -958,6 +957,7 @@ const App: React.FC = () => {
           role: 'STORE_ADMIN',
           storeId: newStore.id, // Primary store
           password: '1234',
+          ownerPin: '1234',
           phoneNumber: phoneNumber,
           joinDate: joinDate
       }]);
@@ -1027,7 +1027,7 @@ const App: React.FC = () => {
   };
 
   const handleResetPassword = (code: string) => {
-      setUsers(prev => prev.map(u => u.id === code ? { ...u, password: '1234' } : u));
+      setUsers(prev => prev.map(u => u.id === code ? { ...u, password: '1234', ownerPin: '1234' } : u));
       alert('비밀번호가 1234로 초기화되었습니다.');
   };
 
@@ -1517,20 +1517,6 @@ const App: React.FC = () => {
                                 </button>
                             )}
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => { setForceMobileMode(true); setIsMobileMenuOpen(false); }}
-                                className={`px-3 py-2 rounded-lg text-sm font-semibold border ${forceMobileMode ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-                            >
-                                모바일 모드
-                            </button>
-                            <button
-                                onClick={() => { setForceMobileMode(false); setIsMobileMenuOpen(false); }}
-                                className={`px-3 py-2 rounded-lg text-sm font-semibold border ${!forceMobileMode ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-                            >
-                                PC 모드
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1617,22 +1603,6 @@ const App: React.FC = () => {
                         title={effectiveUser.role === 'STORE_ADMIN' ? "직원 모드로 전환" : "로그아웃"}
                     >
                         {effectiveUser.role === 'STORE_ADMIN' ? <ShieldCheck size={18}/> : <LogOut size={18}/>}
-                    </button>
-                </div>
-            )}
-            {(forceMobileMode || isSidebarOpen) && (
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                        onClick={() => { setForceMobileMode(true); setIsMobileMenuOpen(true); }}
-                        className={`px-3 py-2 rounded-lg text-sm font-semibold border ${forceMobileMode ? 'bg-blue-500 text-white border-blue-400' : 'border-slate-700 text-white hover:bg-slate-800'}`}
-                    >
-                        모바일 모드
-                    </button>
-                    <button
-                        onClick={() => { setForceMobileMode(false); setIsMobileMenuOpen(false); }}
-                        className={`px-3 py-2 rounded-lg text-sm font-semibold border ${!forceMobileMode ? 'bg-white text-slate-900 border-white' : 'border-slate-700 text-white hover:bg-slate-800'}`}
-                    >
-                        PC 모드
                     </button>
                 </div>
             )}
@@ -1767,6 +1737,7 @@ const App: React.FC = () => {
                 stores={visibleStores} onAddStore={handleAddStore} onUpdateStore={handleUpdateStore} onRemoveStore={handleRemoveStore}
                 staffPermissions={staffPermissions} onUpdatePermissions={setStaffPermissions}
                 currentAdminPassword={currentUserPassword} onUpdatePassword={handleUpdatePassword}
+                currentOwnerPin={ownerPin} onUpdateOwnerPin={handleUpdateOwnerPin}
                 currentManagerPin={storePin} onUpdateManagerPin={handleUpdateManagerPin}
                 staffList={staffList} onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff}
                 currentStoreId={currentStoreId}

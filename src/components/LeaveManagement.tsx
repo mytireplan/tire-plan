@@ -123,27 +123,27 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
 
     return (
         <div className="space-y-6 animate-fade-in pb-10 h-full flex flex-col">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 whitespace-nowrap">
                         <CalendarIcon className="text-blue-600" />
                         휴무 및 연차 관리
                     </h2>
-                    <p className="text-sm text-gray-500 mt-1">직원들의 휴무 일정을 캘린더에서 확인하고 신청할 수 있습니다.</p>
+                    <p className="text-sm text-gray-500">직원들의 휴무 일정을 캘린더에서 확인하고 신청할 수 있습니다.</p>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg w-full md:w-auto">
                     <AlertCircle size={16} className="text-orange-500"/>
-                    <span>휴무 신청은 최소 <span className="font-bold text-gray-800">1주일 전</span>에 해야 합니다.</span>
+                    <span className="whitespace-nowrap">휴무 신청은 최소 <span className="font-bold text-gray-800">1주일 전</span>에 해야 합니다.</span>
                 </div>
             </div>
 
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
                 {/* Calendar Header */}
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h3 className="font-bold text-lg text-gray-800">
+                <div className="p-4 border-b border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-gray-50">
+                    <h3 className="font-bold text-lg text-gray-800 whitespace-nowrap">
                         {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
                     </h3>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 w-full sm:w-auto justify-start sm:justify-end">
                         <button onClick={prevMonth} className="p-2 hover:bg-white rounded-lg border border-transparent hover:border-gray-200 transition-colors"><ChevronLeft size={20}/></button>
                         <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50">오늘</button>
                         <button onClick={nextMonth} className="p-2 hover:bg-white rounded-lg border border-transparent hover:border-gray-200 transition-colors"><ChevronRight size={20}/></button>
@@ -151,7 +151,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
                 </div>
 
                 {/* Calendar Grid */}
-                <div className="flex-1 p-6 overflow-y-auto">
+                <div className="flex-1 p-5 sm:p-6 overflow-y-auto">
                     <div className="grid grid-cols-7 mb-2">
                         {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
                             <div key={day} className={`text-center text-sm font-bold py-2 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
@@ -159,7 +159,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
                             </div>
                         ))}
                     </div>
-                    <div className="grid grid-cols-7 gap-2 auto-rows-[minmax(100px,1fr)]">
+                    <div className="grid grid-cols-7 gap-1.5 auto-rows-[minmax(110px,1fr)]">
                         {calendarDays.map((date, index) => {
                             if (!date) return <div key={`empty-${index}`} className="bg-gray-50/30 rounded-lg"></div>;
 
@@ -182,7 +182,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
                                     key={dateStr}
                                     onClick={() => isAvailable && handleDateClick(date)}
                                     className={`
-                                        border rounded-lg p-2 transition-all relative flex flex-col gap-1 group
+                                        border rounded-lg p-3 transition-all relative flex flex-col gap-2 group
                                         ${isToday ? 'border-blue-500 bg-blue-50/30' : 'border-gray-100'}
                                         ${isAvailable ? 'hover:border-blue-300 hover:shadow-md cursor-pointer bg-white' : 'bg-gray-50 cursor-not-allowed opacity-80'}
                                     `}
