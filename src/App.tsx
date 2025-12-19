@@ -1239,6 +1239,30 @@ const App: React.FC = () => {
       const targetSale = sales.find(s => s.id === saleId);
       if (!targetSale || targetSale.isCanceled) return;
       const canceledSale = { ...targetSale, isCanceled: true, cancelDate: new Date().toISOString() };
+      const qtyMap: Record<string, number> = {};
+      targetSale.items.forEach(it => {
+          qtyMap[it.productId] = (qtyMap[it.productId] || 0) + it.quantity;
+      });
+      const storeId = targetSale.storeId;
+      const updatedProducts: Product[] = [];
+
+      setProducts(prev => prev.map(prod => {
+          const qty = qtyMap[prod.id];
+          if (!qty || prod.id === '99999' || !storeId) return prod;
+          const currentStoreStock = prod.stockByStore[storeId] || 0;
+          const newStockByStore = { ...prod.stockByStore, [storeId]: currentStoreStock + qty };
+          const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+          const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+          updatedProducts.push(updated);
+          return updated;
+      }));
+
+      updatedProducts.forEach(p => {
+          saveToFirestore<Product>(COLLECTIONS.PRODUCTS, p)
+              .then(() => console.log('✅ Restocked after cancel:', p.id))
+              .catch((err) => console.error('❌ Failed to restock after cancel:', err));
+      });
+
       setSales(prev => prev.map(s => s.id === canceledSale.id ? canceledSale : s));
             saveToFirestore<Sale>(COLLECTIONS.SALES, canceledSale)
                 .then(() => console.log('✅ Sale canceled in Firestore:', canceledSale.id))
