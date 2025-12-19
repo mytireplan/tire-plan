@@ -949,6 +949,18 @@ const App: React.FC = () => {
             saveToFirestore<StoreAccount>(COLLECTIONS.STORES, newStore)
                 .then(() => console.log('✅ Store created in Firestore:', newStore.id))
                 .catch((err) => console.error('❌ Failed to create store in Firestore:', err));
+
+      // Create default staff using owner name to avoid empty POS staff list
+      const defaultStaff: Staff = {
+          id: `staff_${Date.now()}`,
+          name,
+          storeId: newStore.id,
+          isActive: true
+      };
+      setStaffList(prev => [...prev, defaultStaff]);
+      saveToFirestore<Staff>(COLLECTIONS.STAFF, defaultStaff)
+        .then(() => console.log('✅ Default staff created for new owner:', defaultStaff.id))
+        .catch((err) => console.error('❌ Failed to create default staff for new owner:', err));
       
       // Create User with joinDate
       setUsers(prev => [...prev, {
