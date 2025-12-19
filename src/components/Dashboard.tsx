@@ -584,38 +584,41 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       {/* Filter Header */}
-      <div className="flex flex-col bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-3">
-        <div className="flex flex-col gap-2">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-3">
+        <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 whitespace-nowrap">
                 <TrendingUp className="text-blue-600" />
                 매출 현황 대시보드
             </h2>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
             {/* Month Navigation */}
             <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1 border border-gray-200 w-full sm:w-auto">
                 <button onClick={prevMonth} className="p-1 hover:bg-white rounded shadow-sm transition-all text-gray-600">
                     <ChevronLeft size={20} />
                 </button>
-                <span className="text-sm font-bold text-gray-800 min-w-[100px] text-center">
+                <span className="text-sm font-bold text-gray-800 min-w-[110px] text-center">
                     {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
                 </span>
                 <button onClick={nextMonth} className="p-1 hover:bg-white rounded shadow-sm transition-all text-gray-600">
                     <ChevronRight size={20} />
                 </button>
             </div>
-        </div>
 
-        <div className="flex items-center gap-3 w-full">
-            <StoreIcon size={18} className="text-gray-500" />
-            <select 
-                value={selectedStoreId}
-                onChange={(e) => setSelectedStoreId(e.target.value)}
-                className={`bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 w-full sm:w-auto`}
-            >
-                <option value="ALL">전체 매장 통합</option>
-                {stores.map(store => (
-                    <option key={store.id} value={store.id}>{store.name}</option>
-                ))}
-            </select>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+                <StoreIcon size={18} className="text-gray-500" />
+                <select 
+                    value={selectedStoreId}
+                    onChange={(e) => setSelectedStoreId(e.target.value)}
+                    className={`bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 w-full sm:w-48 md:w-56`}
+                >
+                    <option value="ALL">전체 매장 통합</option>
+                    {stores.map(store => (
+                        <option key={store.id} value={store.id}>{store.name}</option>
+                    ))}
+                </select>
+            </div>
         </div>
       </div>
 
