@@ -272,7 +272,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
 
   const getDailyStats = (date: Date) => {
     const dateString = formatDateYMD(date);
-    const daySales = filteredSalesByStore.filter(s => s.date.startsWith(dateString));
+        const daySales = filteredSalesByStore.filter(s => s.date.startsWith(dateString) && !s.isCanceled);
     
     const revenue = daySales.reduce((sum, s) => sum + s.totalAmount, 0);
     const cash = daySales.filter(s => s.paymentMethod === PaymentMethod.CASH).reduce((sum, s) => sum + s.totalAmount, 0);
@@ -286,7 +286,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   
   // 1. Daily Sales
   const dailySales = useMemo(() => {
-      return filteredSalesByStore.filter(s => s.date.startsWith(boardDateStr));
+      return filteredSalesByStore.filter(s => s.date.startsWith(boardDateStr) && !s.isCanceled);
   }, [filteredSalesByStore, boardDateStr]);
 
   // 2. Daily Stock In (For current store)
