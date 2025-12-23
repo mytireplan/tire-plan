@@ -90,6 +90,7 @@ export interface Sale {
   isCanceled?: boolean; // Payment Cancelled
   cancelDate?: string; // When it was cancelled
   isEdited?: boolean; // If the sale details were modified after creation
+  inventoryAdjusted?: boolean; // Whether stock was deducted for this sale
 }
 
 export interface StockInRecord {

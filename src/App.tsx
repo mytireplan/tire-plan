@@ -1130,30 +1130,33 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to delete reservation in Firestore:', err));
     };
   
-  const handleSaleComplete = (newSale: Sale) => {
-    setSales(prev => [newSale, ...prev]);
-        saveToFirestore<Sale>(COLLECTIONS.SALES, newSale)
-            .then(() => console.log('✅ Sale saved to Firestore:', newSale.id))
-            .catch((err) => console.error('❌ Failed to save sale to Firestore:', err));
+    const handleSaleComplete = (newSale: Sale, options?: { adjustInventory?: boolean }) => {
+        const adjustInventory = options?.adjustInventory !== false;
+        const saleToSave: Sale = { ...newSale, inventoryAdjusted: adjustInventory };
+
+        setSales(prev => [saleToSave, ...prev]);
+        saveToFirestore<Sale>(COLLECTIONS.SALES, saleToSave)
+                        .then(() => console.log('✅ Sale saved to Firestore:', saleToSave.id))
+                        .catch((err) => console.error('❌ Failed to save sale to Firestore:', err));
     
     // Add New Customer if not exists (with Owner Scope)
-    if (newSale.customer && currentUser) {
-        const custPhone = newSale.customer.phoneNumber;
+    if (saleToSave.customer && currentUser) {
+        const custPhone = saleToSave.customer.phoneNumber;
         const existing = customers.find(c => c.phoneNumber === custPhone && c.ownerId === currentUser.id);
         
         if (!existing) {
             const newCustomer: Customer = {
                 id: `C-${Date.now()}`,
-                name: newSale.customer.name,
-                phoneNumber: newSale.customer.phoneNumber,
-                carModel: newSale.customer.carModel,
-                vehicleNumber: newSale.customer.vehicleNumber,
-                totalSpent: newSale.totalAmount,
-                lastVisitDate: newSale.date,
+                name: saleToSave.customer.name,
+                phoneNumber: saleToSave.customer.phoneNumber,
+                carModel: saleToSave.customer.carModel,
+                vehicleNumber: saleToSave.customer.vehicleNumber,
+                totalSpent: saleToSave.totalAmount,
+                lastVisitDate: saleToSave.date,
                 visitCount: 1,
-                businessNumber: newSale.customer.businessNumber,
-                companyName: newSale.customer.companyName,
-                email: newSale.customer.email,
+                businessNumber: saleToSave.customer.businessNumber,
+                companyName: saleToSave.customer.companyName,
+                email: saleToSave.customer.email,
                 ownerId: currentUser.id // Link to current Owner
             };
             setCustomers(prev => [...prev, newCustomer]);
@@ -1167,9 +1170,9 @@ const App: React.FC = () => {
                 if (c.phoneNumber === custPhone && c.ownerId === currentUser.id) {
                     const updated = {
                         ...c,
-                        totalSpent: c.totalSpent + newSale.totalAmount,
+                        totalSpent: c.totalSpent + saleToSave.totalAmount,
                         visitCount: c.visitCount + 1,
-                        lastVisitDate: newSale.date
+                        lastVisitDate: saleToSave.date
                     } as Customer;
                     updatedCustomer = updated;
                     return updated;
@@ -1184,21 +1187,23 @@ const App: React.FC = () => {
         }
     }
 
-    setProducts(prevProducts => {
-      return prevProducts.map(prod => {
-        const soldItem = newSale.items.find(item => item.productId === prod.id);
-        if (soldItem) {
-          if (prod.id === '99999') return prod;
-          const currentStoreStock = prod.stockByStore[newSale.storeId] || 0;
-          if (currentStoreStock > 900) return prod;
-          const newStoreStock = Math.max(0, currentStoreStock - soldItem.quantity);
-          const newStockByStore = { ...prod.stockByStore, [newSale.storeId]: newStoreStock };
-          const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-          return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+        if (adjustInventory) {
+            setProducts(prevProducts => {
+                return prevProducts.map(prod => {
+                    const soldItem = saleToSave.items.find(item => item.productId === prod.id);
+                    if (soldItem) {
+                        if (prod.id === '99999') return prod;
+                        const currentStoreStock = prod.stockByStore[saleToSave.storeId] || 0;
+                        if (currentStoreStock > 900) return prod;
+                        const newStoreStock = Math.max(0, currentStoreStock - soldItem.quantity);
+                        const newStockByStore = { ...prod.stockByStore, [saleToSave.storeId]: newStoreStock };
+                        const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                        return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+                    }
+                    return prod;
+                });
+            });
         }
-        return prod;
-      });
-    });
   };
 
   const handleUpdateSale = (updatedSale: Sale) => {
@@ -1211,28 +1216,33 @@ const App: React.FC = () => {
       .then(() => console.log('✅ Sale updated in Firestore:', updatedSale.id))
       .catch((err) => console.error('❌ Failed to update sale in Firestore:', err));
 
-      // If we have a previous sale, reconcile inventory differences
+      // If we have a previous sale, reconcile inventory differences when inventory is tracked
       if (prevSale) {
           const storeId = updatedSale.storeId;
-          const prevQtyMap: Record<string, number> = {};
-          prevSale.items.forEach(it => { prevQtyMap[it.productId] = (prevQtyMap[it.productId] || 0) + it.quantity; });
-          const newQtyMap: Record<string, number> = {};
-          updatedSale.items.forEach(it => { newQtyMap[it.productId] = (newQtyMap[it.productId] || 0) + it.quantity; });
+          const prevTracked = prevSale.inventoryAdjusted !== false;
+          const newTracked = updatedSale.inventoryAdjusted !== false;
 
-          const allProductIds = new Set<string>([...Object.keys(prevQtyMap), ...Object.keys(newQtyMap)]);
+          if (prevTracked || newTracked) {
+              const prevQtyMap: Record<string, number> = {};
+              prevSale.items.forEach(it => { prevQtyMap[it.productId] = (prevQtyMap[it.productId] || 0) + it.quantity; });
+              const newQtyMap: Record<string, number> = {};
+              updatedSale.items.forEach(it => { newQtyMap[it.productId] = (newQtyMap[it.productId] || 0) + it.quantity; });
 
-          setProducts(prevProducts => prevProducts.map(prod => {
-              if (!allProductIds.has(prod.id) || prod.id === '99999') return prod;
-              const oldQty = prevQtyMap[prod.id] || 0;
-              const newQty = newQtyMap[prod.id] || 0;
-              const delta = newQty - oldQty; // positive => more sold now -> reduce stock
+              const allProductIds = new Set<string>([...Object.keys(prevQtyMap), ...Object.keys(newQtyMap)]);
 
-              const currentStoreStock = prod.stockByStore[storeId] || 0;
-              const updatedStoreStock = Math.max(0, currentStoreStock - delta);
-              const newStockByStore = { ...prod.stockByStore, [storeId]: updatedStoreStock };
-              const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-              return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
-          }));
+              setProducts(prevProducts => prevProducts.map(prod => {
+                  if (!allProductIds.has(prod.id) || prod.id === '99999') return prod;
+                  const oldQty = prevTracked ? (prevQtyMap[prod.id] || 0) : 0;
+                  const newQty = newTracked ? (newQtyMap[prod.id] || 0) : 0;
+                  const delta = newQty - oldQty; // positive => more sold now -> reduce stock
+
+                  const currentStoreStock = prod.stockByStore[storeId] || 0;
+                  const updatedStoreStock = Math.max(0, currentStoreStock - delta);
+                  const newStockByStore = { ...prod.stockByStore, [storeId]: updatedStoreStock };
+                  const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                  return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+              }));
+          }
       }
   };
   const handleCancelSale = (saleId: string) => { 
@@ -1245,6 +1255,15 @@ const App: React.FC = () => {
       });
       const storeId = targetSale.storeId;
       const updatedProducts: Product[] = [];
+
+      const shouldRestock = targetSale.inventoryAdjusted !== false;
+      if (!shouldRestock) {
+          setSales(prev => prev.map(s => s.id === saleId ? canceledSale : s));
+          saveToFirestore<Sale>(COLLECTIONS.SALES, canceledSale)
+            .then(() => console.log('✅ Sale cancelled (no inventory restock):', saleId))
+            .catch((err) => console.error('❌ Failed to cancel sale:', err));
+          return;
+      }
 
       setProducts(prev => prev.map(prod => {
           const qty = qtyMap[prod.id];
@@ -1751,7 +1770,7 @@ const App: React.FC = () => {
                 sales={visibleSales} stores={visibleStores} products={products} filter={historyFilter} 
                 onBack={() => setActiveTab('dashboard')} currentUser={effectiveUser} currentStoreId={currentStoreId}
                 stockInHistory={visibleStockHistory} onSwapProduct={() => {/* swap logic */}}
-                onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onStockIn={handleStockIn}
+                onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
                 categories={categories} tireBrands={tireBrands} tireModels={TIRE_MODELS}
                 />
             )}

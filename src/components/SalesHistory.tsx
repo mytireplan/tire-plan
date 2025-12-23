@@ -17,6 +17,7 @@ interface SalesHistoryProps {
   onSwapProduct: (saleId: string, originalItemId: string, newProduct: Product) => void;
   onUpdateSale: (sale: Sale) => void;
   onCancelSale: (saleId: string) => void;
+    onQuickAddSale: (sale: Sale, options?: { adjustInventory?: boolean }) => void;
   onStockIn: (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => void;
   categories: string[];
   tireBrands: string[];
@@ -25,7 +26,7 @@ interface SalesHistoryProps {
 
 type ViewMode = 'daily' | 'weekly' | 'monthly' | 'staff';
 
-const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onStockIn, categories, tireBrands, tireModels }) => {
+const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels }) => {
   
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -35,6 +36,42 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const [searchTerm, setSearchTerm] = useState(''); // Vehicle or Phone
 
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+    const [quickSearchBrand, setQuickSearchBrand] = useState<string>('ALL');
+    const [quickSearchTerm, setQuickSearchTerm] = useState('');
+    const [quickSelectedProductId, setQuickSelectedProductId] = useState<string>('');
+      const toLocalInputValue = (date: Date) => {
+          const offsetMs = date.getTimezoneOffset() * 60000;
+          const local = new Date(date.getTime() - offsetMs);
+          return local.toISOString().slice(0,16);
+      };
+
+      const [quickAddForm, setQuickAddForm] = useState<{
+          datetime: string;
+          paymentMethod: PaymentMethod;
+          staffName: string;
+          storeId: string;
+          quantity: number;
+          totalAmount: number;
+          customerName: string;
+          customerPhone: string;
+          memo: string;
+          inventoryAdjust: boolean;
+      }>({
+          datetime: toLocalInputValue(new Date()),
+            paymentMethod: PaymentMethod.CARD,
+            staffName: '',
+            storeId: currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : (stores[0]?.id || ''),
+            quantity: 1,
+            totalAmount: 0,
+            customerName: '',
+            customerPhone: '',
+            memo: '',
+            inventoryAdjust: false
+    });
   
     // Inline memo editing removed (not used)
 
@@ -92,6 +129,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           setEditFormData(JSON.parse(JSON.stringify(selectedSale)));
           setLockedTotalAmount(selectedSale.totalAmount);
           setActiveEditField(null);
+          setHasUnsavedChanges(false);
+          setShowCloseConfirm(false);
+          setShowCancelConfirm(false);
       } else {
           setEditFormData(null);
       }
@@ -237,6 +277,33 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       default: return method;
     }
   };
+
+    const getDefaultQuickDateTime = () => {
+            const base = new Date(currentDate);
+            const now = new Date();
+            base.setHours(now.getHours(), now.getMinutes(), 0, 0);
+          return toLocalInputValue(base);
+    };
+
+    const openQuickAddForCurrentDate = () => {
+            const defaultStore = activeStoreId !== 'ALL' ? activeStoreId : (currentStoreId !== 'ALL' ? currentStoreId : (stores[0]?.id || ''));
+            setQuickAddForm(prev => ({
+                    ...prev,
+                    datetime: getDefaultQuickDateTime(),
+                    storeId: defaultStore,
+                    staffName: prev.staffName || currentUser.name
+            }));
+            setQuickSelectedProductId('');
+            setQuickSearchTerm('');
+            setQuickSearchBrand('ALL');
+            setIsQuickAddOpen(true);
+    };
+
+    const handleQuickNumberChange = (field: 'quantity' | 'totalAmount', val: string) => {
+            const raw = val.replace(/[^0-9]/g, '');
+            const num = raw === '' ? 0 : Number(raw);
+            setQuickAddForm(prev => ({ ...prev, [field]: num }));
+    };
   
   const getPaymentIcon = (method: PaymentMethod) => {
       switch (method) {
@@ -438,6 +505,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           newItems = recalculateUnitPrices(newItems, lockedTotalAmount);
 
           setEditFormData({ ...editFormData, items: newItems });
+          setHasUnsavedChanges(true);
           setIsSwapModalOpen(false);
           setSwapTarget(null);
       } else if (swapTarget.itemId) {
@@ -453,6 +521,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   // --- Click-to-Edit Logic ---
   const handleEditChange = (field: string, value: any, itemIndex?: number) => {
       if (!editFormData) return;
+      if (!selectedSale?.isCanceled) {
+          setHasUnsavedChanges(true);
+      }
 
       if (itemIndex !== undefined) {
           let newItems = [...editFormData.items];
@@ -565,6 +636,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       // Recalculate on Remove
       newItems = recalculateUnitPrices(newItems, lockedTotalAmount);
       setEditFormData({ ...editFormData, items: newItems });
+      setHasUnsavedChanges(true);
   };
 
   const renderEditableField = (
@@ -627,7 +699,22 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           setSelectedSale(null); // Close modal on save
           setEditFormData(null);
           setActiveEditField(null);
+          setHasUnsavedChanges(false);
       }
+  };
+
+  const requestCloseDetail = () => {
+      if (hasUnsavedChanges && !selectedSale?.isCanceled) {
+          setShowCloseConfirm(true);
+      } else {
+          setSelectedSale(null);
+      }
+  };
+
+  const discardChangesAndClose = () => {
+      setHasUnsavedChanges(false);
+      setSelectedSale(null);
+      setShowCloseConfirm(false);
   };
 
   const confirmCancelSale = () => {
@@ -650,6 +737,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     });
     return Array.from(brands).sort();
   }, [products]);
+
+    const quickSelectedProduct = useMemo(() => {
+            return products.find(p => p.id === quickSelectedProductId) || null;
+    }, [products, quickSelectedProductId]);
 
   const filteredSearchProducts = useMemo(() => {
     const term = productSearchTerm.trim().toLowerCase();
@@ -679,6 +770,86 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
         return nameMatch || specMatch || numericSpecMatch;
     });
   }, [products, productSearchTerm, swapSearchBrand]);
+
+  const quickFilteredProducts = useMemo(() => {
+      const term = quickSearchTerm.trim().toLowerCase();
+      const numericTerm = term.replace(/\D/g, '');
+
+      return products.filter(p => {
+          if (p.id === '99999') return false;
+          if (quickSearchBrand !== 'ALL' && p.brand !== quickSearchBrand) return false;
+          if (!term) return true;
+
+          const nameMatch = p.name.toLowerCase().includes(term);
+          const specMatch = p.specification?.toLowerCase().includes(term);
+          let numericSpecMatch = false;
+          if (!nameMatch && !specMatch && numericTerm.length >= 3 && p.specification) {
+              const productNumericSpec = p.specification.toLowerCase().replace(/\D/g, '');
+              if (productNumericSpec.includes(numericTerm)) numericSpecMatch = true;
+          }
+          return nameMatch || specMatch || numericSpecMatch;
+      });
+  }, [products, quickSearchTerm, quickSearchBrand]);
+
+  const quickUnitPrice = useMemo(() => {
+      return quickAddForm.quantity > 0 ? Math.round(quickAddForm.totalAmount / quickAddForm.quantity) : 0;
+  }, [quickAddForm.quantity, quickAddForm.totalAmount]);
+
+  const submitQuickAdd = () => {
+      const targetProduct = quickSelectedProduct;
+      if (!targetProduct) {
+          alert('상품을 선택해주세요.');
+          return;
+      }
+      if (!quickAddForm.quantity || quickAddForm.quantity <= 0) {
+          alert('수량을 입력해주세요.');
+          return;
+      }
+      if (!quickAddForm.totalAmount || quickAddForm.totalAmount <= 0) {
+          alert('총 결제 금액을 입력해주세요.');
+          return;
+      }
+
+      const storeId = quickAddForm.storeId && quickAddForm.storeId !== 'ALL'
+        ? quickAddForm.storeId
+        : (currentStoreId !== 'ALL' ? currentStoreId : (stores[0]?.id || ''));
+      if (!storeId) {
+          alert('지점을 선택해주세요.');
+          return;
+      }
+
+      const isoString = quickAddForm.datetime ? new Date(quickAddForm.datetime).toISOString() : new Date().toISOString();
+      const unitPrice = quickUnitPrice;
+      const customer = (quickAddForm.customerName || quickAddForm.customerPhone) ? {
+          name: quickAddForm.customerName,
+          phoneNumber: quickAddForm.customerPhone
+      } : undefined;
+
+      const quickSale: Sale = {
+          id: `Q-${Date.now()}`,
+          date: isoString,
+          storeId,
+          totalAmount: quickAddForm.totalAmount,
+          paymentMethod: quickAddForm.paymentMethod,
+          items: [{
+              productId: targetProduct.id,
+              productName: targetProduct.name,
+              specification: targetProduct.specification,
+              brand: targetProduct.brand,
+              quantity: quickAddForm.quantity,
+              priceAtSale: unitPrice
+          }],
+          staffName: quickAddForm.staffName || currentUser.name,
+          customer,
+          memo: quickAddForm.memo,
+          isEdited: false,
+          isCanceled: false,
+          inventoryAdjusted: quickAddForm.inventoryAdjust
+      };
+
+      onQuickAddSale(quickSale, { adjustInventory: quickAddForm.inventoryAdjust });
+      setIsQuickAddOpen(false);
+  };
 
   const isStoreSelected = activeStoreId !== 'ALL';
 
@@ -755,6 +926,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                         <MapPin size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     </div>
                  </div>
+            <button 
+                onClick={openQuickAddForCurrentDate}
+                className="w-full lg:w-auto bg-blue-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-sm hover:bg-blue-700 flex items-center justify-center gap-2"
+            >
+                <Plus size={16}/> 이 날짜에 판매 추가
+            </button>
             </div>
         </div>
       </div>
@@ -797,9 +974,15 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                 {/* Mobile Cards */}
                 <div className="md:hidden flex flex-col bg-white border border-gray-100 rounded-xl overflow-hidden">
                     {salesWithMetrics.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-                            <ShoppingBag size={32} className="opacity-20 mb-2" />
-                            <p className="text-sm">조회된 판매 내역이 없습니다.</p>
+                        <div className="flex flex-col items-center justify-center py-12 text-gray-500 space-y-3">
+                            <ShoppingBag size={32} className="opacity-20" />
+                            <div className="text-center text-sm leading-relaxed">
+                                <p>해당 날짜에 등록된 판매 내역이 없습니다.</p>
+                                <p>지금 바로 판매 내역을 추가할 수 있습니다.</p>
+                            </div>
+                            <button onClick={openQuickAddForCurrentDate} className="mt-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-sm shadow-sm hover:bg-blue-700 flex items-center gap-2">
+                                <Plus size={14}/> 판매 내역 추가
+                            </button>
                         </div>
                     ) : (
                         <div className="divide-y divide-gray-100">
@@ -869,7 +1052,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {salesWithMetrics.length === 0 ? (
-                                    <tr><td colSpan={isAdmin ? 7 : 6} className="px-6 py-12 text-center text-gray-400"><p>조회된 판매 내역이 없습니다.</p></td></tr>
+                                    <tr><td colSpan={isAdmin ? 7 : 6} className="px-6 py-12 text-center text-gray-500 space-y-3">
+                                        <p className="text-sm">해당 날짜에 등록된 판매 내역이 없습니다. 지금 바로 판매 내역을 추가할 수 있습니다.</p>
+                                        <div className="flex justify-center">
+                                            <button onClick={openQuickAddForCurrentDate} className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-sm shadow-sm hover:bg-blue-700 flex items-center gap-2">
+                                                <Plus size={14}/> 판매 내역 추가
+                                            </button>
+                                        </div>
+                                    </td></tr>
                                 ) : (
                                     salesWithMetrics.map((sale) => {
                                         const displayItem = getPrimaryItem(sale);
@@ -956,6 +1146,179 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
          )}
       </div>
 
+      {/* Quick Add Modal */}
+      {isQuickAddOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
+                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                      <div className="space-y-1">
+                          <div className="text-xs font-bold text-blue-600 uppercase">빠른 판매 등록</div>
+                          <h3 className="font-bold text-lg text-gray-800">선택한 날짜에 판매 추가</h3>
+                      </div>
+                      <button onClick={() => setIsQuickAddOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                  </div>
+
+                  <div className="p-5 space-y-4 overflow-y-auto">
+                      <div className="grid md:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">판매 날짜/시간</label>
+                              <input 
+                                type="datetime-local"
+                                value={quickAddForm.datetime}
+                                onChange={e => setQuickAddForm(prev => ({ ...prev, datetime: e.target.value }))}
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                              />
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">결제 수단</label>
+                              <select 
+                                value={quickAddForm.paymentMethod}
+                                onChange={e => setQuickAddForm(prev => ({ ...prev, paymentMethod: e.target.value as PaymentMethod }))}
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                              >
+                                <option value={PaymentMethod.CARD}>카드</option>
+                                <option value={PaymentMethod.CASH}>현금</option>
+                                <option value={PaymentMethod.TRANSFER}>이체</option>
+                              </select>
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">담당자</label>
+                              <input 
+                                type="text"
+                                value={quickAddForm.staffName}
+                                onChange={e => setQuickAddForm(prev => ({ ...prev, staffName: e.target.value }))}
+                                placeholder={currentUser.name}
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                              />
+                          </div>
+                      </div>
+
+                      <div className="grid md:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">지점</label>
+                              {currentUser.role === 'STAFF' ? (
+                                  <div className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-sm font-bold text-gray-700">
+                                      {stores.find(s => s.id === quickAddForm.storeId)?.name || '지점 미선택'}
+                                  </div>
+                              ) : (
+                                  <select 
+                                    value={quickAddForm.storeId}
+                                    onChange={e => setQuickAddForm(prev => ({ ...prev, storeId: e.target.value }))}
+                                    className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                  >
+                                    {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                  </select>
+                              )}
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">수량</label>
+                              <input 
+                                type="text"
+                                inputMode="numeric"
+                                value={quickAddForm.quantity ? formatNumber(quickAddForm.quantity) : ''}
+                                onChange={e => handleQuickNumberChange('quantity', e.target.value)}
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                placeholder="0"
+                              />
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">총 결제 금액</label>
+                              <input 
+                                type="text"
+                                inputMode="numeric"
+                                value={quickAddForm.totalAmount ? formatNumber(quickAddForm.totalAmount) : ''}
+                                onChange={e => handleQuickNumberChange('totalAmount', e.target.value)}
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                placeholder="0"
+                              />
+                              <div className="text-[11px] text-blue-600 font-semibold">단가 자동 계산: {formatCurrency(quickUnitPrice)}</div>
+                          </div>
+                      </div>
+
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                              <div className="text-sm font-bold text-gray-800 flex items-center gap-2"><ShoppingBag size={16}/> 구매 상품 (필수)</div>
+                              <div className="flex gap-2">
+                                  <button onClick={() => setQuickSearchBrand('ALL')} className={`px-3 py-1 text-xs rounded-lg font-bold border ${quickSearchBrand === 'ALL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>전체</button>
+                                  {uniqueBrands.map(brand => (
+                                      <button key={brand} onClick={() => setQuickSearchBrand(brand)} className={`px-3 py-1 text-xs rounded-lg font-bold border ${quickSearchBrand === brand ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>{brand}</button>
+                                  ))}
+                              </div>
+                          </div>
+                          <div className="relative">
+                              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <input 
+                                type="text"
+                                value={quickSearchTerm}
+                                onChange={e => setQuickSearchTerm(e.target.value)}
+                                placeholder="규격/브랜드/모델 검색"
+                                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              />
+                          </div>
+                          <div className="max-h-52 overflow-y-auto space-y-2">
+                              {quickFilteredProducts.length === 0 ? (
+                                  <div className="text-center text-sm text-gray-400 py-6">검색 결과가 없습니다.</div>
+                              ) : (
+                                  quickFilteredProducts.map(p => {
+                                      const isSelected = quickSelectedProductId === p.id;
+                                      return (
+                                          <button 
+                                            key={p.id}
+                                            onClick={() => setQuickSelectedProductId(p.id)}
+                                            className={`w-full text-left p-3 rounded-lg border ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300 hover:bg-white'} flex items-center justify-between`}
+                                          >
+                                              <div>
+                                                  <div className="text-xs font-bold text-blue-600">{p.specification}</div>
+                                                  <div className="text-sm font-bold text-gray-800">{p.brand} {p.name}</div>
+                                              </div>
+                                              <div className="text-right text-xs text-gray-500">
+                                                  재고: {p.stock > 900 ? '∞' : p.stock}
+                                              </div>
+                                          </button>
+                                      );
+                                  })
+                              )}
+                          </div>
+                      </div>
+
+                      <div className="grid md:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">고객명 (선택)</label>
+                              <input type="text" value={quickAddForm.customerName} onChange={e => setQuickAddForm(prev => ({ ...prev, customerName: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">연락처 (선택)</label>
+                              <input type="text" value={quickAddForm.customerPhone} onChange={e => setQuickAddForm(prev => ({ ...prev, customerPhone: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg text-sm" placeholder="010-1234-5678" />
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-600">관리자 메모</label>
+                              <input type="text" value={quickAddForm.memo} onChange={e => setQuickAddForm(prev => ({ ...prev, memo: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg text-sm" placeholder="특이사항 기록" />
+                          </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 bg-white border border-gray-200 rounded-xl p-3">
+                          <input 
+                            id="quick-inventory-adjust"
+                            type="checkbox"
+                            checked={quickAddForm.inventoryAdjust}
+                            onChange={e => setQuickAddForm(prev => ({ ...prev, inventoryAdjust: e.target.checked }))}
+                            className="mt-1"
+                          />
+                          <div className="space-y-1">
+                              <label htmlFor="quick-inventory-adjust" className="font-bold text-gray-800 text-sm">이 판매로 재고를 차감합니다</label>
+                              <p className="text-xs text-gray-500">기본값은 미차감입니다. 체크 시 현재 재고에서 해당 수량이 차감되며, 과거 보정 입력 시 주의하세요.</p>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-2">
+                      <button onClick={() => setIsQuickAddOpen(false)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-white">닫기</button>
+                      <button onClick={submitQuickAdd} className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 shadow">저장 후 리스트 반영</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Detail Edit Modal */}
       {selectedSale && editFormData && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 animate-fade-in">
@@ -971,7 +1334,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                               {selectedSale.isEdited && <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded">수정됨</span>}
                           </div>
                       </div>
-                      <button onClick={() => setSelectedSale(null)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg">
+                      <button onClick={requestCloseDetail} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg">
                           <X size={20} />
                       </button>
                   </div>
@@ -987,11 +1350,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
                       <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center">
                           <div>
-                              <div className="text-xs text-blue-500 font-bold uppercase mb-1">총 결제 금액 (고정)</div>
+                              <div className="text-xs text-blue-500 font-bold uppercase mb-1">결제 완료 금액 (변경 불가)</div>
                               <div className={`text-2xl font-bold ${selectedSale.isCanceled ? 'text-red-500 line-through' : 'text-blue-700'}`}>
                                   {formatCurrency(lockedTotalAmount)}
                               </div>
-                              <div className="text-[10px] text-blue-400 mt-1">수량/상품 변경 시 단가가 자동 조정됩니다.</div>
+                              <div className="text-[10px] text-blue-600 mt-1 font-semibold">상품/수량 변경 시 단가가 자동 조정됩니다.</div>
                           </div>
                          <div className="text-right">
                              <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold bg-white shadow-sm mb-1 ${selectedSale.paymentMethod === PaymentMethod.CARD ? 'text-blue-600' : selectedSale.paymentMethod === PaymentMethod.CASH ? 'text-emerald-600' : 'text-violet-600'}`}>
@@ -999,6 +1362,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                              </div>
                              <div className="text-xs text-gray-500">{new Date(selectedSale.date).toLocaleString()}</div>
                          </div>
+                      </div>
+
+                      <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm">
+                          <span className="text-gray-600 font-medium">재고 반영 상태</span>
+                          <span className={`font-bold ${selectedSale.inventoryAdjusted === false ? 'text-amber-700' : 'text-emerald-700'}`}>
+                              {selectedSale.inventoryAdjusted === false ? '미반영' : '반영됨'}
+                          </span>
                       </div>
                       
                       <div>
@@ -1100,6 +1470,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                         </button>
                                     </div>
                                   )}
+                                                                    <div className="mt-2 text-[11px] text-blue-600 font-semibold flex items-center gap-1">
+                                                                            <Lock size={12}/> 결제 금액 고정 • 수량/상품 변경 시 단가 자동 조정
+                                                                    </div>
                               </div>
                             ))}
                           </div>
@@ -1165,7 +1538,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                         {!selectedSale.isCanceled && (
                             <button 
                                 type="button"
-                                onClick={confirmCancelSale}
+                                onClick={() => setShowCancelConfirm(true)}
                                 className="px-4 py-3 bg-white border border-red-200 text-red-600 rounded-xl font-bold hover:bg-red-50 flex items-center gap-2 transition-colors"
                             >
                                 <Trash2 size={18}/> 결제 취소
@@ -1178,6 +1551,37 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                         >
                             <Save size={18} /> 변경사항 저장
                         </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {showCloseConfirm && (
+          <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
+                  <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
+                      <AlertTriangle size={18} className="text-amber-500" />
+                      변경사항을 저장하지 않고 닫을까요?
+                  </div>
+                  <p className="text-sm text-gray-600">저장하지 않으면 수정 내용이 모두 사라집니다.</p>
+                  <div className="flex gap-2 justify-end">
+                      <button onClick={() => setShowCloseConfirm(false)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50">계속 수정</button>
+                      <button onClick={discardChangesAndClose} className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700">닫기</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {showCancelConfirm && selectedSale && (
+          <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
+                  <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
+                      <Trash2 size={18} className="text-red-500" /> 결제 전체 취소
+                  </div>
+                  <p className="text-sm text-gray-600">해당 판매 건을 모두 취소하시겠습니까?</p>
+                  <div className="flex gap-2 justify-end">
+                      <button onClick={() => setShowCancelConfirm(false)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50">닫기</button>
+                      <button onClick={() => { setShowCancelConfirm(false); confirmCancelSale(); }} className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700">취소 진행</button>
                   </div>
               </div>
           </div>
