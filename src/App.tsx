@@ -453,25 +453,21 @@ const App: React.FC = () => {
   // Sidebar & Menu State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
-    const [forceMobileMode] = useState(() => {
-        if (typeof window === 'undefined') return false;
-        return localStorage.getItem('force-mobile-mode') === 'true';
-    });
 
     const [isMobileViewport, setIsMobileViewport] = useState(() => {
         if (typeof window === 'undefined') return false;
-        return forceMobileMode || window.innerWidth < 768;
+        return window.innerWidth < 768;
     });
 
     useEffect(() => {
         const handleResize = () => {
             if (typeof window === 'undefined') return;
-            setIsMobileViewport(forceMobileMode || window.innerWidth < 768);
+            setIsMobileViewport(window.innerWidth < 768);
         };
         handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, [forceMobileMode]);
+    }, []);
   
   const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>({
     viewInventory: true,
@@ -1491,7 +1487,7 @@ const App: React.FC = () => {
     return (
         <div className="flex h-screen bg-gray-100 overflow-hidden">
         {/* Mobile Menu */}
-        <div className={`fixed inset-0 z-50 ${forceMobileMode ? '' : 'md:hidden'} transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
             <div
                 className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -1577,7 +1573,7 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        <aside className={`${forceMobileMode ? 'hidden' : 'hidden md:flex'} ${isSidebarOpen ? 'xl:w-64 md:w-56' : 'w-20'} bg-slate-900 text-white transition-all duration-300 ease-in-out flex-col shadow-xl z-20`}>
+        <aside className={`hidden md:flex ${isSidebarOpen ? 'xl:w-64 md:w-56' : 'w-20'} bg-slate-900 text-white transition-all duration-300 ease-in-out flex-col shadow-xl z-20`}>
             <div className="p-5 flex items-center justify-center md:justify-between border-b border-slate-800 h-16">
             {isSidebarOpen && (
                 <div className="hidden md:flex items-center gap-2">
@@ -1585,7 +1581,7 @@ const App: React.FC = () => {
                 <h1 className="text-xl font-bold tracking-tight text-blue-400 truncate">{appTitle}</h1>
                 </div>
             )}
-            {!isSidebarOpen && !forceMobileMode && null}
+            {!isSidebarOpen && null}
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`p-1 hover:bg-slate-800 rounded-lg transition-colors ${isSidebarOpen ? 'ml-auto' : 'mx-auto'}`}>
                 {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -1667,7 +1663,7 @@ const App: React.FC = () => {
         <main className="flex-1 flex flex-col bg-gray-50 relative overflow-hidden">
             <header className="h-16 bg-white border-b border-gray-200 flex items-center px-4 md:px-8 justify-between relative md:sticky md:top-0 z-10 shadow-sm flex-shrink-0 print:hidden">
             <div className="flex items-center gap-3">
-                <button className={`${forceMobileMode ? '' : 'md:hidden'} p-2 -ml-2 hover:bg-gray-100 rounded-lg text-gray-600`} onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
+                <button className={`md:hidden p-2 -ml-2 hover:bg-gray-100 rounded-lg text-gray-600`} onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 truncate tracking-tight">{activeTab === 'history' ? '판매 내역' : navItems.find(i => i.id === activeTab)?.label}</h2>
             </div>
             <div className="flex items-center gap-4 text-xs md:text-sm text-gray-500 text-right">
