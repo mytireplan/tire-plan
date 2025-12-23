@@ -162,11 +162,20 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     const sortedProductNames = useMemo(() => {
         // Priority 1: Models from the selected brand in TIRE_MODELS
         const brandModels = tireModels[formData.brand] || [];
-        
-        // Priority 2: Existing history names (filtered by simple matching if possible, or just all)
-        // Here we prioritize the static list for the dropdown as requested.
-        return brandModels;
-    }, [tireModels, formData.brand]);
+
+        // Priority 2: Names seen in stock-in history
+        const historyNames = stockInHistory
+            .map(r => r.productName?.trim())
+            .filter((name): name is string => !!name);
+
+        // Priority 3: Existing product catalog names
+        const productNames = products
+            .map(p => p.name?.trim())
+            .filter((name): name is string => !!name);
+
+        // Deduplicate while preserving priority order
+        return Array.from(new Set([...brandModels, ...historyNames, ...productNames]));
+    }, [tireModels, formData.brand, stockInHistory, products]);
 
     const uniqueSpecs = useMemo(() => 
         Array.from(new Set(products.map(p => p.specification).filter(Boolean) as string[]))
