@@ -1599,7 +1599,6 @@ const App: React.FC = () => {
                                 {effectiveUser.role === 'STORE_ADMIN' ? <ShieldCheck size={18}/> : <UserCircle size={18}/>}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 truncate">{effectiveUser.name}</p>
                                 <p className="text-xs text-gray-500 truncate">{effectiveUser.role === 'STORE_ADMIN' ? (managerSession ? '점장 모드' : '사장님 모드') : '직원 모드'}</p>
                             </div>
                             {effectiveUser.role === 'STORE_ADMIN' ? (
@@ -1687,7 +1686,6 @@ const App: React.FC = () => {
                             <p className={`text-sm font-bold truncate ${effectiveUser.role === 'STORE_ADMIN' ? 'text-blue-400' : 'text-slate-300'}`}>
                                 {effectiveUser.role === 'STORE_ADMIN' ? (managerSession ? '점장 모드' : '사장님(Owner)') : '직원 모드'}
                             </p>
-                            <p className="text-xs text-slate-500 truncate">{effectiveUser.name}</p>
                         </div>
                     </div>
                     {effectiveUser.role === 'STORE_ADMIN' ? (
