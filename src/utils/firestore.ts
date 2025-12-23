@@ -6,6 +6,11 @@ import {
   getDocs, 
   deleteDoc,
   onSnapshot,
+  query,
+  orderBy,
+  limit,
+  startAfter,
+  type QueryConstraint,
   type QuerySnapshot,
   type DocumentData
 } from 'firebase/firestore';
@@ -14,6 +19,7 @@ import { db } from '../firebase';
 // Firestore 컬렉션 경로
 const COLLECTIONS = {
   STORES: 'stores',
+  OWNERS: 'owners',
   PRODUCTS: 'products',
   SALES: 'sales',
   STOCK_IN: 'stockInHistory',
@@ -85,6 +91,56 @@ export const getAllFromFirestore = async <T>(
     console.error(`Error getting all from ${collectionName}:`, error);
     throw error;
   }
+};
+
+// 컬렉션 페이지네이션 조회 (orderBy + limit + cursor)
+export const getCollectionPage = async <T>(
+  collectionName: string,
+  options: {
+    pageSize?: number;
+    orderByField?: string;
+    cursorValue?: unknown;
+    direction?: 'asc' | 'desc';
+  } = {}
+): Promise<{ data: T[]; nextCursor?: unknown; hasMore: boolean }> => {
+  const { pageSize = 50, orderByField = 'id', cursorValue, direction = 'asc' } = options;
+
+  try {
+    const baseQuery = [orderBy(orderByField, direction), limit(pageSize)];
+    const q = cursorValue
+      ? query(collection(db, collectionName), ...baseQuery, startAfter(cursorValue))
+      : query(collection(db, collectionName), ...baseQuery);
+
+    const snapshot = await getDocs(q);
+    const docs = snapshot.docs.map((d) => d.data() as T);
+    const hasMore = snapshot.size === pageSize;
+    const nextCursor = hasMore ? snapshot.docs[snapshot.docs.length - 1]?.get(orderByField) : undefined;
+
+    return { data: docs, nextCursor, hasMore };
+  } catch (error) {
+    console.error(`Error getting paged data from ${collectionName}:`, error);
+    throw error;
+  }
+};
+
+// 제한된 범위의 실시간 구독 (where/orderBy/limit 필수 구성 추천)
+export const subscribeToQuery = <T>(
+  collectionName: string,
+  constraints: QueryConstraint[],
+  callback: (data: T[]) => void
+) => {
+  const q = query(collection(db, collectionName), ...constraints);
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const data = snapshot.docs.map((d) => d.data() as T);
+      callback(data);
+    },
+    (error) => {
+      console.error(`Error subscribing to query on ${collectionName}:`, error);
+    }
+  );
+  return unsubscribe;
 };
 
 // 문서 삭제

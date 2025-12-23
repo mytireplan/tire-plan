@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { subscribeToCollection, COLLECTIONS } from '../utils/firestore';
 import type { Product, CartItem, Sale, Store, User, Customer, Staff } from '../types';
 import { formatCurrency } from '../utils/format';
 import { PaymentMethod } from '../types';
@@ -232,19 +231,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   // Admin Selection State
   const [adminSelectedStoreId, setAdminSelectedStoreId] = useState<string>(stores[0]?.id || '');
 
-  // 🔥 Firestore에서 상품 목록 구독
-    const [fireProducts, setFireProducts] = useState<Product[]>(products.map(normalizeProductCategory));
+    // 🔥 상품은 단발 조회 결과를 그대로 사용 (실시간 풀 리스트 구독 제거)
+        const [fireProducts, setFireProducts] = useState<Product[]>(products.map(normalizeProductCategory));
 
-  useEffect(() => {
-    const unsubscribe = subscribeToCollection<Product>(
-      COLLECTIONS.PRODUCTS,
-      (data) => {
-        // null 방지용 기본값
-                setFireProducts((data || []).map(normalizeProductCategory));
-      }
-    );
-    return () => unsubscribe();
-  }, []);
+    useEffect(() => {
+        setFireProducts(products.map(normalizeProductCategory));
+    }, [products]);
 
   // Logic: If Admin, use selected store. If Staff, strictly use currentStoreId.
   const activeStoreId = currentUser.role === 'STAFF' ? currentStoreId : adminSelectedStoreId;

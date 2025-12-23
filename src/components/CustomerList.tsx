@@ -5,11 +5,14 @@ import { Search, Users, Car, Phone, X, ShoppingBag } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
 interface CustomerListProps {
-  customers: Customer[];
-  sales: Sale[];
+    customers: Customer[];
+    sales: Sale[];
+    onLoadMoreCustomers?: () => void;
+    hasMoreCustomers?: boolean;
+    isLoadingMoreCustomers?: boolean;
 }
 
-const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
+const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, onLoadMoreCustomers, hasMoreCustomers, isLoadingMoreCustomers }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
@@ -149,6 +152,23 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
                  ))
              )}
          </div>
+
+         {onLoadMoreCustomers && (
+            <div className="bg-white border-t border-gray-100 p-4 flex justify-center">
+                <button
+                    type="button"
+                    onClick={onLoadMoreCustomers}
+                    disabled={!hasMoreCustomers || isLoadingMoreCustomers}
+                    className={`px-4 py-2 rounded-lg border text-sm font-medium shadow-sm flex items-center gap-2 ${
+                        hasMoreCustomers && !isLoadingMoreCustomers
+                            ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100'
+                            : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                    }`}
+                >
+                    {isLoadingMoreCustomers ? '불러오는 중...' : hasMoreCustomers ? '더 불러오기' : '모든 고객을 불러왔습니다'}
+                </button>
+            </div>
+         )}
       </div>
 
       {/* Customer Sales History Modal */}

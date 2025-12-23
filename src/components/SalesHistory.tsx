@@ -22,11 +22,14 @@ interface SalesHistoryProps {
   categories: string[];
   tireBrands: string[];
   tireModels: Record<string, string[]>;
+    onLoadMoreSales?: () => void;
+    hasMoreSales?: boolean;
+    isLoadingMoreSales?: boolean;
 }
 
 type ViewMode = 'daily' | 'weekly' | 'monthly' | 'staff';
 
-const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels }) => {
+const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, onLoadMoreSales, hasMoreSales, isLoadingMoreSales }) => {
   
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -1141,6 +1144,22 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                              )}
                         </div>
                     </div>
+                    {onLoadMoreSales && (
+                        <div className="bg-white border-t border-gray-100 p-4 flex justify-center">
+                            <button
+                                type="button"
+                                onClick={onLoadMoreSales}
+                                disabled={!hasMoreSales || isLoadingMoreSales}
+                                className={`px-4 py-2 rounded-lg border text-sm font-medium shadow-sm flex items-center gap-2 ${
+                                    hasMoreSales && !isLoadingMoreSales
+                                        ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100'
+                                        : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                                }`}
+                            >
+                                {isLoadingMoreSales ? '불러오는 중...' : hasMoreSales ? '더 불러오기' : '더 불러올 데이터가 없습니다'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </>
          )}

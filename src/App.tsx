@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
+import { orderBy, where, limit, type QueryConstraint } from 'firebase/firestore';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
 
@@ -7,7 +8,7 @@ import { PaymentMethod } from './types';
 import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter } from './types';
 
 // Firebase imports
-import { saveBulkToFirestore, getAllFromFirestore, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToCollection } from './utils/firestore'; 
+import { saveBulkToFirestore, getCollectionPage, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery } from './utils/firestore'; 
 // (뒤에 더 있는 것들도 여기에 다 넣어주세요)
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -48,6 +49,8 @@ const INITIAL_STAFF: Staff[] = [
   { id: 'staff_2', name: '박매니저', storeId: 'ST-1', isActive: true },
   { id: 'staff_3', name: '최신입', storeId: 'ST-2', isActive: true },
 ];
+
+const SALES_PAGE_SIZE = 200; // Firestore 읽기 제한을 위한 기본 페이지 크기
 
 const INITIAL_TIRE_BRANDS = ['한국', '금호', '넥센', '미쉐린', '콘티넨탈', '피렐리', '굿이어', '라우펜', '기타'];
 const TIRE_MODELS: Record<string, string[]> = {
@@ -471,6 +474,37 @@ const App: React.FC = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    // 예약 화면 전용 실시간 구독 (지점 단위 + 최근 날짜 제한)
+    useEffect(() => {
+        // 탭이 예약이 아니면 구독 해제
+        if (activeTab !== 'reservation') {
+            reservationUnsubRef.current?.();
+            reservationUnsubRef.current = null;
+            return;
+        }
+
+        // 현재 지점이 없으면 구독 생략
+        const storeFilter = currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : null;
+
+        const today = new Date();
+        const todayISO = today.toISOString().slice(0, 10); // YYYY-MM-DD
+
+        const constraints: QueryConstraint[] = [orderBy('date', 'desc'), limit(50), where('date', '>=', todayISO)];
+        if (storeFilter) {
+            constraints.push(where('storeId', '==', storeFilter));
+        }
+
+        const unsub = subscribeToQuery<Reservation>(COLLECTIONS.RESERVATIONS, constraints, (data) => {
+            setReservations(data);
+        });
+        reservationUnsubRef.current = unsub;
+
+        return () => {
+            unsub?.();
+            reservationUnsubRef.current = null;
+        };
+    }, [activeTab, currentStoreId]);
   
   const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>({
     viewInventory: true,
@@ -482,13 +516,21 @@ const App: React.FC = () => {
     const [tireBrands, setTireBrands] = useState<string[]>(INITIAL_TIRE_BRANDS);
   
   // Initialize Users with Join Date
-  const [users, setUsers] = useState<{id: string, name: string, role: UserRole, storeId?: string, password: string, ownerPin?: string, phoneNumber?: string, joinDate: string}[]>(
-      MOCK_AUTH_USERS.map(u => ({...u, joinDate: u.joinDate || '2025.01.01', ownerPin: u.ownerPin || u.password }))
-  );
+        type OwnerAccount = {id: string, name: string, role: UserRole, storeId?: string, password: string, ownerPin?: string, phoneNumber?: string, joinDate: string};
+
+        const [users, setUsers] = useState<OwnerAccount[]>(
+            MOCK_AUTH_USERS.map(u => ({...u, joinDate: u.joinDate || '2025.01.01', ownerPin: u.ownerPin || u.password }))
+    );
   
   const [staffList, setStaffList] = useState<Staff[]>(INITIAL_STAFF); // Manage Staff Entities
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [sales, setSales] = useState<Sale[]>(INITIAL_SALES);
+    const [salesCursor, setSalesCursor] = useState<unknown | null>(null);
+    const [salesHasMore, setSalesHasMore] = useState(false);
+    const [isLoadingMoreSales, setIsLoadingMoreSales] = useState(false);
+    const [customersCursor, setCustomersCursor] = useState<unknown | null>(null);
+    const [customersHasMore, setCustomersHasMore] = useState(false);
+    const [isLoadingMoreCustomers, setIsLoadingMoreCustomers] = useState(false);
   const [categories, setCategories] = useState<string[]>(INITIAL_CATEGORIES);
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [stockInHistory, setStockInHistory] = useState<StockInRecord[]>(INITIAL_STOCK_HISTORY);
@@ -498,6 +540,7 @@ const App: React.FC = () => {
   const [historyFilter, setHistoryFilter] = useState<SalesFilter>({ type: 'ALL', value: '', label: '전체 판매 내역' });
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
   const [reservations, setReservations] = useState<Reservation[]>(INITIAL_RESERVATIONS);
+    const reservationUnsubRef = useRef<(() => void) | null>(null);
 
   // Admin auto-timeout (5 minutes of inactivity)
   useEffect(() => {
@@ -583,134 +626,76 @@ const App: React.FC = () => {
                     localStorage.setItem('firestore-migrated', 'true');
                 }
 
-                // Firestore에서 데이터 로드
+                // Firestore에서 데이터 로드 (페이지네이션 적용, 1회 조회)
+                const PAGE_SIZE = SALES_PAGE_SIZE;
+
                 const [
                     firestoreStores,
-                    firestoreProducts,
-                    firestoreSales,
-                    firestoreCustomers,
-                    firestoreStockIn,
-                    firestoreExpenses,
+                    firestoreProductsPage,
+                    firestoreSalesPage,
+                    firestoreCustomersPage,
+                    firestoreStockInPage,
+                    firestoreExpensesPage,
                     firestoreFixedCosts,
-                    firestoreLeaveRequests,
-                    firestoreReservations,
-                    firestoreTransfers,
-                    firestoreStaff
+                    firestoreLeaveRequestsPage,
+                    firestoreReservationsPage,
+                    firestoreTransfersPage,
+                    firestoreStaffPage
                 ] = await Promise.all([
-                    getAllFromFirestore<StoreAccount>(COLLECTIONS.STORES),
-                    getAllFromFirestore<Product>(COLLECTIONS.PRODUCTS),
-                    getAllFromFirestore<Sale>(COLLECTIONS.SALES),
-                    getAllFromFirestore<Customer>(COLLECTIONS.CUSTOMERS),
-                    getAllFromFirestore<StockInRecord>(COLLECTIONS.STOCK_IN),
-                    getAllFromFirestore<ExpenseRecord>(COLLECTIONS.EXPENSES),
-                    getAllFromFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS),
-                    getAllFromFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS),
-                    getAllFromFirestore<Reservation>(COLLECTIONS.RESERVATIONS),
-                    getAllFromFirestore<StockTransferRecord>(COLLECTIONS.TRANSFERS),
-                    getAllFromFirestore<Staff>(COLLECTIONS.STAFF)
+                    getCollectionPage<StoreAccount>(COLLECTIONS.STORES, { pageSize: PAGE_SIZE }),
+                    getCollectionPage<Product>(COLLECTIONS.PRODUCTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
+                    getCollectionPage<Sale>(COLLECTIONS.SALES, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
+                    getCollectionPage<Customer>(COLLECTIONS.CUSTOMERS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
+                    getCollectionPage<StockInRecord>(COLLECTIONS.STOCK_IN, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
+                    getCollectionPage<ExpenseRecord>(COLLECTIONS.EXPENSES, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
+                    getCollectionPage<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
+                    getCollectionPage<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, { pageSize: PAGE_SIZE, orderByField: 'createdAt', direction: 'desc' }),
+                    getCollectionPage<Reservation>(COLLECTIONS.RESERVATIONS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
+                    getCollectionPage<StockTransferRecord>(COLLECTIONS.TRANSFERS, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
+                    getCollectionPage<Staff>(COLLECTIONS.STAFF, { pageSize: PAGE_SIZE, orderByField: 'id' })
                 ]);
 
-                const normalizedFetchedProducts = normalizeProducts(firestoreProducts);
+                const normalizedFetchedProducts = normalizeProducts(firestoreProductsPage.data);
+                setSalesCursor(firestoreSalesPage.nextCursor ?? null);
+                setSalesHasMore(firestoreSalesPage.hasMore);
+                setCustomersCursor(firestoreCustomersPage.nextCursor ?? null);
+                setCustomersHasMore(firestoreCustomersPage.hasMore);
 
                 if (SHOULD_SEED_DEMO) {
                     // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
-                    await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores, INITIAL_STORE_ACCOUNTS, setStores);
+                    await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores.data, INITIAL_STORE_ACCOUNTS, setStores);
                     await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
-                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSales, INITIAL_SALES, setSales);
-                    await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomers, INITIAL_CUSTOMERS, setCustomers);
-                    await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockIn, INITIAL_STOCK_HISTORY, setStockInHistory);
-                    await seedIfEmpty<ExpenseRecord>('expenses', COLLECTIONS.EXPENSES, firestoreExpenses, INITIAL_EXPENSES, setExpenses);
-                    await seedIfEmpty<FixedCostConfig>('fixed costs', COLLECTIONS.FIXED_COSTS, firestoreFixedCosts, INITIAL_FIXED_COSTS, setFixedCosts);
-                    await seedIfEmpty<LeaveRequest>('leave requests', COLLECTIONS.LEAVE_REQUESTS, firestoreLeaveRequests, INITIAL_LEAVE_REQUESTS, setLeaveRequests);
-                    await seedIfEmpty<Reservation>('reservations', COLLECTIONS.RESERVATIONS, firestoreReservations, INITIAL_RESERVATIONS, setReservations);
-                    await seedIfEmpty<StockTransferRecord>('stock transfers', COLLECTIONS.TRANSFERS, firestoreTransfers, INITIAL_TRANSFER_HISTORY || [], setTransferHistory);
-                    await seedIfEmpty<Staff>('staff', COLLECTIONS.STAFF, firestoreStaff, INITIAL_STAFF, setStaffList);
+                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesPage.data, INITIAL_SALES, setSales);
+                    await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomersPage.data, INITIAL_CUSTOMERS, setCustomers);
+                    await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockInPage.data, INITIAL_STOCK_HISTORY, setStockInHistory);
+                    await seedIfEmpty<ExpenseRecord>('expenses', COLLECTIONS.EXPENSES, firestoreExpensesPage.data, INITIAL_EXPENSES, setExpenses);
+                    await seedIfEmpty<FixedCostConfig>('fixed costs', COLLECTIONS.FIXED_COSTS, firestoreFixedCosts.data, INITIAL_FIXED_COSTS, setFixedCosts);
+                    await seedIfEmpty<LeaveRequest>('leave requests', COLLECTIONS.LEAVE_REQUESTS, firestoreLeaveRequestsPage.data, INITIAL_LEAVE_REQUESTS, setLeaveRequests);
+                    await seedIfEmpty<Reservation>('reservations', COLLECTIONS.RESERVATIONS, firestoreReservationsPage.data, INITIAL_RESERVATIONS, setReservations);
+                    await seedIfEmpty<StockTransferRecord>('stock transfers', COLLECTIONS.TRANSFERS, firestoreTransfersPage.data, INITIAL_TRANSFER_HISTORY || [], setTransferHistory);
+                    await seedIfEmpty<Staff>('staff', COLLECTIONS.STAFF, firestoreStaffPage.data, INITIAL_STAFF, setStaffList);
                 } else {
                     // 프로덕션에서는 Firestore 값만 사용 (비어 있어도 시드하지 않음)
-                    setStores(firestoreStores);
+                    setStores(firestoreStores.data);
                     setProducts(normalizedFetchedProducts);
-                    setSales(firestoreSales);
-                    setCustomers(firestoreCustomers);
-                    setStockInHistory(firestoreStockIn);
-                    setExpenses(firestoreExpenses);
-                    setFixedCosts(firestoreFixedCosts);
-                    setLeaveRequests(firestoreLeaveRequests);
-                    setReservations(firestoreReservations);
-                    setTransferHistory(firestoreTransfers);
-                    setStaffList(firestoreStaff);
+                    setSales(firestoreSalesPage.data);
+                    setCustomers(firestoreCustomersPage.data);
+                    setStockInHistory(firestoreStockInPage.data);
+                    setExpenses(firestoreExpensesPage.data);
+                    setFixedCosts(firestoreFixedCosts.data);
+                    setLeaveRequests(firestoreLeaveRequestsPage.data);
+                    setReservations(firestoreReservationsPage.data);
+                    setTransferHistory(firestoreTransfersPage.data);
+                    setStaffList(firestoreStaffPage.data);
                 }
 
-                console.log('✅ Initial data loaded (with seeding for empty collections)');
+                console.log('✅ Initial data loaded (paged, one-time fetch)');
             } catch (error) {
                 console.error('❌ Error loading/seeding data from Firestore:', error);
             }
         };
 
         initializeData();
-    }, []);
-
-    // 실시간 구독: 주요 엔티티 변경 시 자동 갱신
-    useEffect(() => {
-        console.log('🔔 Subscribing to Firestore collections...');
-        const unsubStores = subscribeToCollection<StoreAccount>(COLLECTIONS.STORES, (data) => {
-            console.log('📥 Stores updated from Firestore:', data.length);
-            setStores(data);
-        });
-        const unsubProducts = subscribeToCollection<Product>(COLLECTIONS.PRODUCTS, (data) => {
-            console.log('📥 Products updated from Firestore:', data.length);
-            setProducts(data);
-        });
-        const unsubSales = subscribeToCollection<Sale>(COLLECTIONS.SALES, (data) => {
-            console.log('📥 Sales updated from Firestore:', data.length);
-            setSales(data);
-        });
-        const unsubCustomers = subscribeToCollection<Customer>(COLLECTIONS.CUSTOMERS, (data) => {
-            console.log('📥 Customers updated from Firestore:', data.length);
-            setCustomers(data);
-        });
-        const unsubStockIn = subscribeToCollection<StockInRecord>(COLLECTIONS.STOCK_IN, (data) => {
-            console.log('📥 Stock-in history updated from Firestore:', data.length);
-            setStockInHistory(data);
-        });
-        const unsubExpenses = subscribeToCollection<ExpenseRecord>(COLLECTIONS.EXPENSES, (data) => {
-            console.log('📥 Expenses updated from Firestore:', data.length);
-            setExpenses(data);
-        });
-        const unsubFixedCosts = subscribeToCollection<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, (data) => {
-            console.log('📥 Fixed costs updated from Firestore:', data.length);
-            setFixedCosts(data);
-        });
-        const unsubLeaveRequests = subscribeToCollection<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, (data) => {
-            console.log('📥 Leave requests updated from Firestore:', data.length);
-            setLeaveRequests(data);
-        });
-        const unsubReservations = subscribeToCollection<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-            console.log('📥 Reservations updated from Firestore:', data.length);
-            setReservations(data);
-        });
-        const unsubTransfers = subscribeToCollection<StockTransferRecord>(COLLECTIONS.TRANSFERS, (data) => {
-            console.log('📥 Transfers updated from Firestore:', data.length);
-            setTransferHistory(data);
-        });
-        const unsubStaff = subscribeToCollection<Staff>(COLLECTIONS.STAFF, (data) => {
-            console.log('📥 Staff updated from Firestore:', data.length);
-            setStaffList(data);
-        });
-
-        return () => {
-            console.log('🔕 Unsubscribing Firestore collections');
-            unsubStores?.();
-            unsubProducts?.();
-            unsubSales?.();
-            unsubCustomers?.();
-            unsubStockIn?.();
-            unsubExpenses?.();
-            unsubFixedCosts?.();
-            unsubLeaveRequests?.();
-            unsubReservations?.();
-            unsubTransfers?.();
-            unsubStaff?.();
-        };
     }, []);
 
   // 데이터 변경 시 Firestore 자동 저장
@@ -920,6 +905,12 @@ const App: React.FC = () => {
   };
 
   // --- Super Admin Actions ---
+
+    const persistOwner = (owner: OwnerAccount) => {
+            return saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, owner)
+                .then(() => console.log('✅ Owner saved in Firestore:', owner.id))
+                .catch((err) => console.error('❌ Failed to save owner in Firestore:', err));
+    };
   
   // 1. Create New Owner (with initial store)
   const handleCreateOwner = (name: string, region: string, phoneNumber: string, branchName: string) => {
@@ -977,7 +968,7 @@ const App: React.FC = () => {
         .catch((err) => console.error('❌ Failed to create default staff for new owner:', err));
       
       // Create User with joinDate
-      setUsers(prev => [...prev, {
+      const newOwner: OwnerAccount = {
           id: newOwnerId,
           name: name,
           role: 'STORE_ADMIN',
@@ -986,7 +977,9 @@ const App: React.FC = () => {
           ownerPin: '1234',
           phoneNumber: phoneNumber,
           joinDate: joinDate
-      }]);
+      };
+      setUsers(prev => [...prev, newOwner]);
+      persistOwner(newOwner);
 
       // Init Stock (Empty for new store)
       setProducts(prev => prev.map(p => ({
@@ -1142,6 +1135,45 @@ const App: React.FC = () => {
             deleteFromFirestore(COLLECTIONS.RESERVATIONS, id)
                 .then(() => console.log('✅ Reservation deleted in Firestore:', id))
                 .catch((err) => console.error('❌ Failed to delete reservation in Firestore:', err));
+    };
+
+    const handleLoadMoreSales = async () => {
+        if (isLoadingMoreSales || !salesHasMore) return;
+        setIsLoadingMoreSales(true);
+        try {
+            const nextPage = await getCollectionPage<Sale>(COLLECTIONS.SALES, {
+                pageSize: SALES_PAGE_SIZE,
+                orderByField: 'date',
+                direction: 'desc',
+                cursorValue: salesCursor || undefined
+            });
+            setSales(prev => [...prev, ...nextPage.data]);
+            setSalesCursor(nextPage.nextCursor ?? null);
+            setSalesHasMore(nextPage.hasMore);
+        } catch (error) {
+            console.error('❌ Failed to load more sales:', error);
+        } finally {
+            setIsLoadingMoreSales(false);
+        }
+    };
+
+    const handleLoadMoreCustomers = async () => {
+        if (isLoadingMoreCustomers || !customersHasMore) return;
+        setIsLoadingMoreCustomers(true);
+        try {
+            const nextPage = await getCollectionPage<Customer>(COLLECTIONS.CUSTOMERS, {
+                pageSize: SALES_PAGE_SIZE,
+                orderByField: 'id',
+                cursorValue: customersCursor || undefined
+            });
+            setCustomers(prev => [...prev, ...nextPage.data]);
+            setCustomersCursor(nextPage.nextCursor ?? null);
+            setCustomersHasMore(nextPage.hasMore);
+        } catch (error) {
+            console.error('❌ Failed to load more customers:', error);
+        } finally {
+            setIsLoadingMoreCustomers(false);
+        }
     };
   
     const handleSaleComplete = (newSale: Sale, options?: { adjustInventory?: boolean }) => {
@@ -1786,6 +1818,7 @@ const App: React.FC = () => {
                 stockInHistory={visibleStockHistory} onSwapProduct={() => {/* swap logic */}}
                 onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
                 categories={categories} tireBrands={tireBrands} tireModels={TIRE_MODELS}
+                onLoadMoreSales={handleLoadMoreSales} hasMoreSales={salesHasMore} isLoadingMoreSales={isLoadingMoreSales}
                 />
             )}
             {(activeTab === 'financials') && (
@@ -1799,7 +1832,13 @@ const App: React.FC = () => {
                 />
             )}
             {(activeTab === 'customers' && effectiveUser.role === 'STORE_ADMIN') && (
-                <CustomerList customers={visibleCustomers} sales={visibleSales} />
+                <CustomerList 
+                    customers={visibleCustomers} 
+                    sales={visibleSales}
+                    onLoadMoreCustomers={handleLoadMoreCustomers}
+                    hasMoreCustomers={customersHasMore}
+                    isLoadingMoreCustomers={isLoadingMoreCustomers}
+                />
             )}
             {activeTab === 'settings' && effectiveUser.role === 'STORE_ADMIN' && (
                 <Settings
