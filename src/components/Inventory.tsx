@@ -185,8 +185,8 @@ const handleSave = async (e: React.FormEvent) => {
   };
 
   const handleStoreStockChange = (storeId: string, val: number) => {
-      // Only Admin can modify stock directly here
-      if (currentUser.role !== 'STORE_ADMIN') return;
+      // 사장/슈퍼어드민은 직접 조정 가능, 직원은 불가
+      if (currentUser.role === 'STAFF') return;
 
       setEditingProduct(prev => ({
           ...prev,
@@ -494,8 +494,6 @@ const handleSave = async (e: React.FormEvent) => {
                             지점별 재고 관리 
                             {currentUser.role === 'STAFF' ? (
                                 <span className="text-xs text-red-500 font-normal">(직원은 수정 불가)</span>
-                            ) : editingProduct.id ? (
-                                <span className="text-xs text-red-500 font-normal">(수정 불가 - 입고/이동 메뉴 이용)</span>
                             ) : null}
                         </label>
                         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
@@ -505,7 +503,7 @@ const handleSave = async (e: React.FormEvent) => {
                                     <div className="flex items-center gap-2">
                                         <button 
                                             type="button"
-                                            disabled={currentUser.role === 'STAFF' || !!editingProduct.id}
+                                            disabled={currentUser.role === 'STAFF'}
                                             onClick={() => {
                                                 const current = editingProduct.stockByStore?.[store.id] || 0;
                                                 handleStoreStockChange(store.id, Math.max(0, current - 1));
@@ -516,14 +514,14 @@ const handleSave = async (e: React.FormEvent) => {
                                         </button>
                                         <input 
                                             type="number" 
-                                            disabled={currentUser.role === 'STAFF' || !!editingProduct.id}
+                                            disabled={currentUser.role === 'STAFF'}
                                             className="w-16 text-center p-1 border border-gray-300 rounded disabled:bg-gray-100"
                                             value={editingProduct.stockByStore?.[store.id] || 0}
                                             onChange={e => handleStoreStockChange(store.id, Number(e.target.value))}
                                         />
                                         <button 
                                             type="button"
-                                            disabled={currentUser.role === 'STAFF' || !!editingProduct.id}
+                                            disabled={currentUser.role === 'STAFF'}
                                             onClick={() => {
                                                 const current = editingProduct.stockByStore?.[store.id] || 0;
                                                 handleStoreStockChange(store.id, current + 1);

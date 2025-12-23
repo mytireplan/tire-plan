@@ -423,6 +423,9 @@ const INITIAL_TRANSFER_HISTORY: StockTransferRecord[] = [
     }
 ];
 
+// Demo seeding guard: only seed mock data when explicitly enabled.
+const SHOULD_SEED_DEMO = import.meta.env.VITE_SEED_DEMO === 'true';
+
 type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin';
 
 type ViewState = 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
@@ -609,18 +612,33 @@ const App: React.FC = () => {
 
                 const normalizedFetchedProducts = normalizeProducts(firestoreProducts);
 
-                // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
-                await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores, INITIAL_STORE_ACCOUNTS, setStores);
-                await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
-                await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSales, INITIAL_SALES, setSales);
-                await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomers, INITIAL_CUSTOMERS, setCustomers);
-                await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockIn, INITIAL_STOCK_HISTORY, setStockInHistory);
-                await seedIfEmpty<ExpenseRecord>('expenses', COLLECTIONS.EXPENSES, firestoreExpenses, INITIAL_EXPENSES, setExpenses);
-                await seedIfEmpty<FixedCostConfig>('fixed costs', COLLECTIONS.FIXED_COSTS, firestoreFixedCosts, INITIAL_FIXED_COSTS, setFixedCosts);
-                await seedIfEmpty<LeaveRequest>('leave requests', COLLECTIONS.LEAVE_REQUESTS, firestoreLeaveRequests, INITIAL_LEAVE_REQUESTS, setLeaveRequests);
-                await seedIfEmpty<Reservation>('reservations', COLLECTIONS.RESERVATIONS, firestoreReservations, INITIAL_RESERVATIONS, setReservations);
-                await seedIfEmpty<StockTransferRecord>('stock transfers', COLLECTIONS.TRANSFERS, firestoreTransfers, INITIAL_TRANSFER_HISTORY || [], setTransferHistory);
-                await seedIfEmpty<Staff>('staff', COLLECTIONS.STAFF, firestoreStaff, INITIAL_STAFF, setStaffList);
+                if (SHOULD_SEED_DEMO) {
+                    // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
+                    await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores, INITIAL_STORE_ACCOUNTS, setStores);
+                    await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
+                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSales, INITIAL_SALES, setSales);
+                    await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomers, INITIAL_CUSTOMERS, setCustomers);
+                    await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockIn, INITIAL_STOCK_HISTORY, setStockInHistory);
+                    await seedIfEmpty<ExpenseRecord>('expenses', COLLECTIONS.EXPENSES, firestoreExpenses, INITIAL_EXPENSES, setExpenses);
+                    await seedIfEmpty<FixedCostConfig>('fixed costs', COLLECTIONS.FIXED_COSTS, firestoreFixedCosts, INITIAL_FIXED_COSTS, setFixedCosts);
+                    await seedIfEmpty<LeaveRequest>('leave requests', COLLECTIONS.LEAVE_REQUESTS, firestoreLeaveRequests, INITIAL_LEAVE_REQUESTS, setLeaveRequests);
+                    await seedIfEmpty<Reservation>('reservations', COLLECTIONS.RESERVATIONS, firestoreReservations, INITIAL_RESERVATIONS, setReservations);
+                    await seedIfEmpty<StockTransferRecord>('stock transfers', COLLECTIONS.TRANSFERS, firestoreTransfers, INITIAL_TRANSFER_HISTORY || [], setTransferHistory);
+                    await seedIfEmpty<Staff>('staff', COLLECTIONS.STAFF, firestoreStaff, INITIAL_STAFF, setStaffList);
+                } else {
+                    // 프로덕션에서는 Firestore 값만 사용 (비어 있어도 시드하지 않음)
+                    setStores(firestoreStores);
+                    setProducts(normalizedFetchedProducts);
+                    setSales(firestoreSales);
+                    setCustomers(firestoreCustomers);
+                    setStockInHistory(firestoreStockIn);
+                    setExpenses(firestoreExpenses);
+                    setFixedCosts(firestoreFixedCosts);
+                    setLeaveRequests(firestoreLeaveRequests);
+                    setReservations(firestoreReservations);
+                    setTransferHistory(firestoreTransfers);
+                    setStaffList(firestoreStaff);
+                }
 
                 console.log('✅ Initial data loaded (with seeding for empty collections)');
             } catch (error) {
