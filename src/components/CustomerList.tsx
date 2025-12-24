@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Customer, Sale } from '../types';
 import { Search, Users, Car, Phone, X, ShoppingBag } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
@@ -7,20 +7,32 @@ import { formatCurrency } from '../utils/format';
 interface CustomerListProps {
     customers: Customer[];
     sales: Sale[];
-    onLoadMoreCustomers?: () => void;
-    hasMoreCustomers?: boolean;
-    isLoadingMoreCustomers?: boolean;
 }
 
-const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, onLoadMoreCustomers, hasMoreCustomers, isLoadingMoreCustomers }) => {
+const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 15;
 
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.phoneNumber.includes(searchTerm) ||
-    c.carModel?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    // 검색 변경 시 페이지를 처음으로 리셋
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    const filteredCustomers = customers.filter(c => 
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        c.phoneNumber.includes(searchTerm) ||
+        c.carModel?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / PAGE_SIZE));
+    const pagedCustomers = filteredCustomers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    startPage = Math.max(1, endPage - 4);
+    const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, idx) => startPage + idx);
 
   // Filter sales for the selected customer
   const customerSales = selectedCustomer 
@@ -75,7 +87,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, onLoadMor
                             </td>
                         </tr>
                     ) : (
-                        filteredCustomers.map(customer => (
+                        pagedCustomers.map(customer => (
                             <tr 
                                 key={customer.id} 
                                 onClick={() => setSelectedCustomer(customer)}
@@ -122,7 +134,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, onLoadMor
                     <p>등록된 고객 정보가 없습니다.</p>
                  </div>
              ) : (
-                 filteredCustomers.map(customer => (
+                 pagedCustomers.map(customer => (
                      <div 
                         key={customer.id} 
                         onClick={() => setSelectedCustomer(customer)}
@@ -153,22 +165,38 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, onLoadMor
              )}
          </div>
 
-         {onLoadMoreCustomers && (
-            <div className="bg-white border-t border-gray-100 p-4 flex justify-center">
+         <div className="bg-white border-t border-gray-100 p-4 flex items-center justify-between text-sm text-gray-600">
+            <span>총 {filteredCustomers.length}명 / {totalPages}페이지</span>
+            <div className="flex items-center gap-2">
                 <button
                     type="button"
-                    onClick={onLoadMoreCustomers}
-                    disabled={!hasMoreCustomers || isLoadingMoreCustomers}
-                    className={`px-4 py-2 rounded-lg border text-sm font-medium shadow-sm flex items-center gap-2 ${
-                        hasMoreCustomers && !isLoadingMoreCustomers
-                            ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100'
-                            : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
-                    }`}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-1.5 rounded-lg border ${currentPage === 1 ? 'text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed' : 'text-gray-700 border-gray-200 hover:bg-gray-50'}`}
                 >
-                    {isLoadingMoreCustomers ? '불러오는 중...' : hasMoreCustomers ? '더 불러오기' : '모든 고객을 불러왔습니다'}
+                    이전
+                </button>
+                <div className="flex items-center gap-1">
+                    {pageNumbers.map(page => (
+                        <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`w-8 h-8 rounded-lg text-sm font-semibold ${page === currentPage ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                            {page}
+                        </button>
+                    ))}
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-1.5 rounded-lg border ${currentPage === totalPages ? 'text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed' : 'text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+                >
+                    다음
                 </button>
             </div>
-         )}
+         </div>
       </div>
 
       {/* Customer Sales History Modal */}

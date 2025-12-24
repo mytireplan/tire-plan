@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
-import { orderBy, where, limit, type QueryConstraint } from 'firebase/firestore';
+import { orderBy, where, limit, collection, query, getDocs, type QueryConstraint } from 'firebase/firestore';
+import { db } from './firebase';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
 
@@ -8,7 +9,7 @@ import { PaymentMethod } from './types';
 import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter } from './types';
 
 // Firebase imports
-import { saveBulkToFirestore, getCollectionPage, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery } from './utils/firestore'; 
+import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery } from './utils/firestore'; 
 // (뒤에 더 있는 것들도 여기에 다 넣어주세요)
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -525,12 +526,6 @@ const App: React.FC = () => {
   const [staffList, setStaffList] = useState<Staff[]>(INITIAL_STAFF); // Manage Staff Entities
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [sales, setSales] = useState<Sale[]>(INITIAL_SALES);
-    const [salesCursor, setSalesCursor] = useState<unknown | null>(null);
-    const [salesHasMore, setSalesHasMore] = useState(false);
-    const [isLoadingMoreSales, setIsLoadingMoreSales] = useState(false);
-    const [customersCursor, setCustomersCursor] = useState<unknown | null>(null);
-    const [customersHasMore, setCustomersHasMore] = useState(false);
-    const [isLoadingMoreCustomers, setIsLoadingMoreCustomers] = useState(false);
   const [categories, setCategories] = useState<string[]>(INITIAL_CATEGORIES);
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [stockInHistory, setStockInHistory] = useState<StockInRecord[]>(INITIAL_STOCK_HISTORY);
@@ -626,47 +621,57 @@ const App: React.FC = () => {
                     localStorage.setItem('firestore-migrated', 'true');
                 }
 
-                // Firestore에서 데이터 로드 (페이지네이션 적용, 1회 조회)
+                // Firestore에서 데이터 로드 (판매: 당일만, 고객: 전체)
                 const PAGE_SIZE = SALES_PAGE_SIZE;
+
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+                const todayEnd = new Date();
+                todayEnd.setHours(23, 59, 59, 999);
+
+                const todaySalesPromise = getDocs(
+                    query(
+                        collection(db, COLLECTIONS.SALES),
+                        orderBy('date', 'desc'),
+                        where('date', '>=', todayStart.toISOString()),
+                        where('date', '<=', todayEnd.toISOString())
+                    )
+                ).then(snapshot => snapshot.docs.map(d => d.data() as Sale));
 
                 const [
                     firestoreStores,
                     firestoreProductsPage,
-                    firestoreSalesPage,
-                    firestoreCustomersPage,
                     firestoreStockInPage,
                     firestoreExpensesPage,
                     firestoreFixedCosts,
                     firestoreLeaveRequestsPage,
                     firestoreReservationsPage,
                     firestoreTransfersPage,
-                    firestoreStaffPage
+                    firestoreStaffPage,
+                    firestoreSalesToday,
+                    firestoreCustomersAll
                 ] = await Promise.all([
                     getCollectionPage<StoreAccount>(COLLECTIONS.STORES, { pageSize: PAGE_SIZE }),
                     getCollectionPage<Product>(COLLECTIONS.PRODUCTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
-                    getCollectionPage<Sale>(COLLECTIONS.SALES, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
-                    getCollectionPage<Customer>(COLLECTIONS.CUSTOMERS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StockInRecord>(COLLECTIONS.STOCK_IN, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<ExpenseRecord>(COLLECTIONS.EXPENSES, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, { pageSize: PAGE_SIZE, orderByField: 'createdAt', direction: 'desc' }),
                     getCollectionPage<Reservation>(COLLECTIONS.RESERVATIONS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StockTransferRecord>(COLLECTIONS.TRANSFERS, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
-                    getCollectionPage<Staff>(COLLECTIONS.STAFF, { pageSize: PAGE_SIZE, orderByField: 'id' })
+                    getCollectionPage<Staff>(COLLECTIONS.STAFF, { pageSize: PAGE_SIZE, orderByField: 'id' }),
+                    todaySalesPromise,
+                    getAllFromFirestore<Customer>(COLLECTIONS.CUSTOMERS)
                 ]);
 
                 const normalizedFetchedProducts = normalizeProducts(firestoreProductsPage.data);
-                setSalesCursor(firestoreSalesPage.nextCursor ?? null);
-                setSalesHasMore(firestoreSalesPage.hasMore);
-                setCustomersCursor(firestoreCustomersPage.nextCursor ?? null);
-                setCustomersHasMore(firestoreCustomersPage.hasMore);
 
                 if (SHOULD_SEED_DEMO) {
                     // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
                     await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores.data, INITIAL_STORE_ACCOUNTS, setStores);
                     await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
-                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesPage.data, INITIAL_SALES, setSales);
-                    await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomersPage.data, INITIAL_CUSTOMERS, setCustomers);
+                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesToday, INITIAL_SALES, setSales);
+                    await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomersAll, INITIAL_CUSTOMERS, setCustomers);
                     await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockInPage.data, INITIAL_STOCK_HISTORY, setStockInHistory);
                     await seedIfEmpty<ExpenseRecord>('expenses', COLLECTIONS.EXPENSES, firestoreExpensesPage.data, INITIAL_EXPENSES, setExpenses);
                     await seedIfEmpty<FixedCostConfig>('fixed costs', COLLECTIONS.FIXED_COSTS, firestoreFixedCosts.data, INITIAL_FIXED_COSTS, setFixedCosts);
@@ -678,8 +683,8 @@ const App: React.FC = () => {
                     // 프로덕션에서는 Firestore 값만 사용 (비어 있어도 시드하지 않음)
                     setStores(firestoreStores.data);
                     setProducts(normalizedFetchedProducts);
-                    setSales(firestoreSalesPage.data);
-                    setCustomers(firestoreCustomersPage.data);
+                    setSales(firestoreSalesToday.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                    setCustomers(firestoreCustomersAll);
                     setStockInHistory(firestoreStockInPage.data);
                     setExpenses(firestoreExpensesPage.data);
                     setFixedCosts(firestoreFixedCosts.data);
@@ -1137,45 +1142,6 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to delete reservation in Firestore:', err));
     };
 
-    const handleLoadMoreSales = async () => {
-        if (isLoadingMoreSales || !salesHasMore) return;
-        setIsLoadingMoreSales(true);
-        try {
-            const nextPage = await getCollectionPage<Sale>(COLLECTIONS.SALES, {
-                pageSize: SALES_PAGE_SIZE,
-                orderByField: 'date',
-                direction: 'desc',
-                cursorValue: salesCursor || undefined
-            });
-            setSales(prev => [...prev, ...nextPage.data]);
-            setSalesCursor(nextPage.nextCursor ?? null);
-            setSalesHasMore(nextPage.hasMore);
-        } catch (error) {
-            console.error('❌ Failed to load more sales:', error);
-        } finally {
-            setIsLoadingMoreSales(false);
-        }
-    };
-
-    const handleLoadMoreCustomers = async () => {
-        if (isLoadingMoreCustomers || !customersHasMore) return;
-        setIsLoadingMoreCustomers(true);
-        try {
-            const nextPage = await getCollectionPage<Customer>(COLLECTIONS.CUSTOMERS, {
-                pageSize: SALES_PAGE_SIZE,
-                orderByField: 'id',
-                cursorValue: customersCursor || undefined
-            });
-            setCustomers(prev => [...prev, ...nextPage.data]);
-            setCustomersCursor(nextPage.nextCursor ?? null);
-            setCustomersHasMore(nextPage.hasMore);
-        } catch (error) {
-            console.error('❌ Failed to load more customers:', error);
-        } finally {
-            setIsLoadingMoreCustomers(false);
-        }
-    };
-  
     const handleSaleComplete = (newSale: Sale, options?: { adjustInventory?: boolean }) => {
         const adjustInventory = options?.adjustInventory !== false;
         const saleToSave: Sale = { ...newSale, inventoryAdjusted: adjustInventory };
@@ -1816,7 +1782,6 @@ const App: React.FC = () => {
                 stockInHistory={visibleStockHistory} onSwapProduct={() => {/* swap logic */}}
                 onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
                 categories={categories} tireBrands={tireBrands} tireModels={TIRE_MODELS}
-                onLoadMoreSales={handleLoadMoreSales} hasMoreSales={salesHasMore} isLoadingMoreSales={isLoadingMoreSales}
                 />
             )}
             {(activeTab === 'financials') && (
@@ -1833,9 +1798,6 @@ const App: React.FC = () => {
                 <CustomerList 
                     customers={visibleCustomers} 
                     sales={visibleSales}
-                    onLoadMoreCustomers={handleLoadMoreCustomers}
-                    hasMoreCustomers={customersHasMore}
-                    isLoadingMoreCustomers={isLoadingMoreCustomers}
                 />
             )}
             {activeTab === 'settings' && effectiveUser.role === 'STORE_ADMIN' && (
