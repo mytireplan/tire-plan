@@ -106,20 +106,25 @@ const handleSave = async (e: React.FormEvent) => {
   if (!editingProduct.name || editingProduct.price === undefined) return;
 
   // Calculate total stock from store inputs
-  const stockByStore: Record<string, number> = editingProduct.stockByStore || {};
-  stores.forEach(s => {
-    if (stockByStore[s.id] === undefined) stockByStore[s.id] = 0;
-  });
-  const totalStock = (Object.values(stockByStore) as number[]).reduce((a, b) => a + b, 0);
+    const rawStockByStore: Record<string, number> = editingProduct.stockByStore || {};
+    const stockByStore: Record<string, number> = {};
+    stores.forEach(s => {
+        const val = rawStockByStore[s.id];
+        stockByStore[s.id] = Number.isFinite(val) ? Number(val) : 0;
+    });
+    const totalStock = (Object.values(stockByStore) as number[]).reduce((a, b) => a + b, 0);
+
+    const price = Number(editingProduct.price ?? 0);
+    const specification = editingProduct.specification ?? '';
 
   const productToSave: Product = {
     id: editingProduct.id || Date.now().toString(),
     name: editingProduct.name,
-    price: Number(editingProduct.price),
+        price,
     stock: totalStock,
     stockByStore: stockByStore,
     category: editingProduct.category || categories[0],
-    specification: editingProduct.specification
+        specification
   };
 
   try {
