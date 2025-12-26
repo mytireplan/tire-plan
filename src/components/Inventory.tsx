@@ -433,7 +433,7 @@ const handleSave = async (e: React.FormEvent) => {
                                 required
                                 type="number" 
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                value={editingProduct.price || ''}
+                                value={editingProduct.price ?? ''}
                                 onChange={e => setEditingProduct({...editingProduct, price: Number(e.target.value)})}
                             />
                         </div>
