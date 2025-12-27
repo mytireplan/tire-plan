@@ -6,7 +6,7 @@ import { db } from './firebase';
 import { PaymentMethod } from './types';
 
 // 2. 설계도(Type)인 친구들은 type을 붙여서 가져옵니다.
-import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter } from './types';
+import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift } from './types';
 
 // Firebase imports
 import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery } from './utils/firestore'; 
@@ -20,7 +20,7 @@ import Settings from './components/Settings';
 import CustomerList from './components/CustomerList';
 import StockIn from './components/StockIn';
 import Financials from './components/Financials';
-import LeaveManagement from './components/LeaveManagement';
+import ScheduleAndLeave from './components/ScheduleAndLeave';
 import ReservationSystem from './components/ReservationSystem';
 import LoginScreen from './components/LoginScreen';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
@@ -53,7 +53,21 @@ const INITIAL_STAFF: Staff[] = [
 
 const SALES_PAGE_SIZE = 200; // Firestore 읽기 제한을 위한 기본 페이지 크기
 
-const INITIAL_TIRE_BRANDS = ['한국', '금호', '넥센', '미쉐린', '콘티넨탈', '피렐리', '굿이어', '라우펜', '기타'];
+const INITIAL_TIRE_BRANDS = [
+    '한국타이어',
+    '금호타이어',
+    '넥센타이어',
+    '미쉐린',
+    '콘티넨탈',
+    '피렐리',
+    '굿이어',
+    '브리지스톤',
+    '요코하마',
+    '토요타이어',
+    '타이어테크',
+    '라우펜',
+    '기타'
+];
 const TIRE_MODELS: Record<string, string[]> = {
   '한국': [
     '벤투스 S1 에보3 (K127)', '벤투스 S2 AS (H462)', '키너지 EX (H308)', '키너지 GT (H436)', '다이나프로 HL3 (RA45)',
@@ -120,6 +134,7 @@ const TIRE_SPECS = [
 
 // Normalize legacy categories (merge '부품/수리' into '기타')
 const normalizeCategory = (category: string) => category === '부품/수리' ? '기타' : category;
+const DEFAULT_OWNER_ID = '250001';
 const normalizeProducts = (list: Product[]) => list.map(p => ({ ...p, category: normalizeCategory(p.category) }));
 
 const generateInitialProducts = (): Product[] => {
@@ -133,7 +148,8 @@ const generateInitialProducts = (): Product[] => {
         price: 0,
         stock: 9999, 
         stockByStore: { 'ST-1': 9999, 'ST-2': 9999, 'ST-3': 9999 },
-        specification: '규격미정'
+        specification: '규격미정',
+        ownerId: DEFAULT_OWNER_ID
     });
     Object.entries(TIRE_MODELS).forEach(([brand, models]) => {
         models.slice(0, 5).forEach(modelName => {
@@ -145,15 +161,16 @@ const generateInitialProducts = (): Product[] => {
                 stock: 20 + Math.floor(Math.random() * 30),
                 category: '타이어',
                 stockByStore: { 'ST-1': 10 + Math.floor(Math.random() * 15), 'ST-2': 10 + Math.floor(Math.random() * 15), 'ST-3': 5 },
-                specification: TIRE_SPECS[Math.floor(Math.random() * TIRE_SPECS.length)]
+                specification: TIRE_SPECS[Math.floor(Math.random() * TIRE_SPECS.length)],
+                ownerId: DEFAULT_OWNER_ID
             });
         });
     });
     products.push(
-        { id: '101', brand: '기타', name: '엔진오일 교환 (합성유)', price: 80000, stock: 100, category: '기타', stockByStore: { 'ST-1': 50, 'ST-2': 50, 'ST-3': 0 } }, 
-        { id: '102', brand: '기타', name: '브레이크 패드 교체 (전륜)', price: 120000, stock: 15, category: '기타', stockByStore: { 'ST-1': 10, 'ST-2': 5, 'ST-3': 0 } },
-        { id: '103', brand: '기타', name: '와이퍼 세트 (Premium)', price: 35000, stock: 50, category: '기타', stockByStore: { 'ST-1': 25, 'ST-2': 25, 'ST-3': 0 } },
-        { id: '104', brand: '기타', name: '휠 밸런스 조정', price: 20000, stock: 999, category: '기타', stockByStore: { 'ST-1': 999, 'ST-2': 999, 'ST-3': 999 } }
+        { id: '101', brand: '기타', name: '엔진오일 교환 (합성유)', price: 80000, stock: 100, category: '기타', stockByStore: { 'ST-1': 50, 'ST-2': 50, 'ST-3': 0 }, ownerId: DEFAULT_OWNER_ID }, 
+        { id: '102', brand: '기타', name: '브레이크 패드 교체 (전륜)', price: 120000, stock: 15, category: '기타', stockByStore: { 'ST-1': 10, 'ST-2': 5, 'ST-3': 0 }, ownerId: DEFAULT_OWNER_ID },
+        { id: '103', brand: '기타', name: '와이퍼 세트 (Premium)', price: 35000, stock: 50, category: '기타', stockByStore: { 'ST-1': 25, 'ST-2': 25, 'ST-3': 0 }, ownerId: DEFAULT_OWNER_ID },
+        { id: '104', brand: '기타', name: '휠 밸런스 조정', price: 20000, stock: 999, category: '기타', stockByStore: { 'ST-1': 999, 'ST-2': 999, 'ST-3': 999 }, ownerId: DEFAULT_OWNER_ID }
     );
     return products;
 };
@@ -530,6 +547,7 @@ const App: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [stockInHistory, setStockInHistory] = useState<StockInRecord[]>(INITIAL_STOCK_HISTORY);
   const [transferHistory, setTransferHistory] = useState<StockTransferRecord[]>([]);
+    const [shifts, setShifts] = useState<Shift[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>(INITIAL_EXPENSES);
   const [fixedCosts, setFixedCosts] = useState<FixedCostConfig[]>(INITIAL_FIXED_COSTS);
   const [historyFilter, setHistoryFilter] = useState<SalesFilter>({ type: 'ALL', value: '', label: '전체 판매 내역' });
@@ -765,6 +783,14 @@ const App: React.FC = () => {
       // But customers are shared per Owner.
       return customers.filter(c => c.ownerId === currentUser?.id);
   }, [customers, currentUser]);
+
+  const visibleProducts = useMemo(() => {
+      if (currentUser?.role === 'SUPER_ADMIN') return products;
+      const ownerId = currentUser?.id;
+      if (!ownerId) return [];
+      // Show only products for this owner; allow legacy records without ownerId for compatibility
+      return products.filter(p => !p.ownerId || p.ownerId === ownerId);
+  }, [products, currentUser]);
 
   const visibleStockHistory = useMemo(() => {
       if (currentUser?.role === 'SUPER_ADMIN') return stockInHistory;
@@ -1111,18 +1137,6 @@ const App: React.FC = () => {
         .catch((err) => console.error('❌ Failed to delete staff in Firestore:', err));
   };
 
-    const handleAddLeaveRequest = (req: LeaveRequest) => {
-            setLeaveRequests(prev => [...prev, req]);
-            saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, req)
-                .then(() => console.log('✅ Leave request saved to Firestore:', req.id))
-                .catch((err) => console.error('❌ Failed to save leave request to Firestore:', err));
-    };
-    const handleRemoveLeaveRequest = (id: string) => {
-            setLeaveRequests(prev => prev.filter(r => r.id !== id));
-            deleteFromFirestore(COLLECTIONS.LEAVE_REQUESTS, id)
-                .then(() => console.log('✅ Leave request deleted in Firestore:', id))
-                .catch((err) => console.error('❌ Failed to delete leave request in Firestore:', err));
-    };
     const handleAddReservation = (r: Reservation) => {
             setReservations(prev => [...prev, r]);
             saveToFirestore<Reservation>(COLLECTIONS.RESERVATIONS, r)
@@ -1308,6 +1322,7 @@ const App: React.FC = () => {
       if (record.brand && record.brand.trim() !== '') {
           setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
       }
+      const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || '';
       setProducts(prev => {
         const existingProductIndex = prev.findIndex(p => {
             if (forceProductId) return p.id === forceProductId;
@@ -1320,8 +1335,8 @@ const App: React.FC = () => {
             const currentStoreStock = product.stockByStore[record.storeId] || 0;
             const newStockByStore = { ...product.stockByStore, [record.storeId]: currentStoreStock + record.quantity };
             const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-            updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock };
-                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+            updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId };
+                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId } as Product;
                         saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
                             .then(() => console.log('✅ Product stock updated in Firestore:', updatedProduct.id))
                             .catch((err) => console.error('❌ Failed to update product stock in Firestore:', err));
@@ -1338,7 +1353,8 @@ const App: React.FC = () => {
                 stockByStore: newStockByStore,
                 category: record.category,
                 brand: record.brand,
-                specification: record.specification
+                specification: record.specification,
+                ownerId: recordOwnerId
             };
                         saveToFirestore<Product>(COLLECTIONS.PRODUCTS, newProduct)
                             .then(() => console.log('✅ New product saved in Firestore:', newProduct.id))
@@ -1427,6 +1443,17 @@ const App: React.FC = () => {
                 .then(() => console.log('✅ Fixed costs saved to Firestore:', c.length))
                 .catch((err) => console.error('❌ Failed to save fixed costs in Firestore:', err));
     };
+
+    // Shift handlers (local only for now)
+    const handleAddShift = (shift: Shift) => {
+        setShifts(prev => [...prev, shift]);
+    };
+    const handleUpdateShift = (shift: Shift) => {
+        setShifts(prev => prev.map(s => s.id === shift.id ? shift : s));
+    };
+    const handleRemoveShift = (id: string) => {
+        setShifts(prev => prev.filter(s => s.id !== id));
+    };
   
   // Navigation & Permissions Logic
   const navItems = useMemo(() => {
@@ -1446,7 +1473,7 @@ const App: React.FC = () => {
       { id: 'stockIn', label: '입고 관리', icon: Truck, show: true, type: 'CORE' }, 
       { id: 'financials', label: isAdmin ? '재무/결산' : '지출', icon: PieChart, show: true, type: 'CORE' }, // Dynamic Label
       { id: 'DIVIDER_2', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
-      { id: 'leave', label: '휴무 신청', icon: Calendar, show: true, type: 'CORE' },
+    { id: 'leave', label: '근무표', icon: Calendar, show: true, type: 'CORE' },
       // Settings: Show only if isAdmin
             { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin && !managerSession, type: 'ADMIN' } 
     ];
@@ -1737,7 +1764,7 @@ const App: React.FC = () => {
             )}
             {activeTab === 'pos' && (
                 <POS 
-                products={products} stores={visibleStores} categories={categories} tireBrands={tireBrands}
+                products={visibleProducts} stores={visibleStores} categories={categories} tireBrands={tireBrands}
                 currentUser={effectiveUser} currentStoreId={currentStoreId}
                 staffList={staffList.filter(s => s.storeId === currentStoreId || currentStoreId === 'ALL')} 
                 customers={visibleCustomers} tireModels={TIRE_MODELS}
@@ -1747,27 +1774,35 @@ const App: React.FC = () => {
             {activeTab === 'reservation' && (
                 <ReservationSystem
                     reservations={reservations} onAddReservation={handleAddReservation} onUpdateReservation={handleUpdateReservation} onRemoveReservation={handleRemoveReservation}
-                    products={products} currentStoreId={currentStoreId} currentUser={effectiveUser} stores={visibleStores} tireBrands={tireBrands} tireModels={TIRE_MODELS}
+                    products={visibleProducts} currentStoreId={currentStoreId} currentUser={effectiveUser} stores={visibleStores} tireBrands={tireBrands} tireModels={TIRE_MODELS}
                     isMobile={isMobileViewport}
                 />
             )}
             {activeTab === 'leave' && (
-                <LeaveManagement 
-                    staffList={staffList.filter(s => s.storeId === currentStoreId || currentStoreId === 'ALL')} 
-                    leaveRequests={leaveRequests} onAddRequest={handleAddLeaveRequest} onRemoveRequest={handleRemoveLeaveRequest} currentUser={effectiveUser} 
+                <ScheduleAndLeave
+                    staffList={staffList.filter(s => visibleStoreIds.includes(s.storeId))}
+                    leaveRequests={leaveRequests}
+                    stores={visibleStores}
+                    shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
+                    currentStoreId={currentStoreId}
+                    onAddShift={handleAddShift}
+                    onUpdateShift={handleUpdateShift}
+                    onRemoveShift={handleRemoveShift}
                 />
             )}
             {activeTab === 'stockIn' && (
                 <StockIn
-                    stores={visibleStores} categories={categories} tireBrands={tireBrands} products={products}
+                    stores={visibleStores} categories={categories} tireBrands={tireBrands} products={visibleProducts}
                     onStockIn={handleStockIn} currentUser={effectiveUser} stockInHistory={visibleStockHistory} currentStoreId={currentStoreId} onUpdateStockInRecord={handleUpdateStockInRecord} tireModels={TIRE_MODELS}
                 />
             )}
             {(activeTab === 'inventory') && (
                 <Inventory 
-                products={products} stores={visibleStores} categories={categories}
+                products={visibleProducts} stores={visibleStores} categories={categories}
+                tireBrands={tireBrands}
                 onUpdate={(p) => setProducts(products.map(old => old.id === p.id ? p : old))} 
                 onAdd={(p) => setProducts([...products, p])} 
+                onDelete={(productId) => setProducts(products.filter(p => p.id !== productId))}
                 onAddCategory={(c) => setCategories([...categories, c])}
                 currentUser={effectiveUser} currentStoreId={currentStoreId} onStockTransfer={handleStockTransfer}
                 />
@@ -1777,7 +1812,7 @@ const App: React.FC = () => {
             }
             {(activeTab === 'history') && (
                 <SalesHistory 
-                sales={visibleSales} stores={visibleStores} products={products} filter={historyFilter} 
+                sales={visibleSales} stores={visibleStores} products={visibleProducts} filter={historyFilter} 
                 onBack={() => setActiveTab('dashboard')} currentUser={effectiveUser} currentStoreId={currentStoreId}
                 stockInHistory={visibleStockHistory} onSwapProduct={() => {/* swap logic */}}
                 onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}

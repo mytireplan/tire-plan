@@ -215,17 +215,24 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
 const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = [], currentUser, currentStoreId, staffList, customers, onSaleComplete }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+      const [selectedCategory, setSelectedCategory] = useState<string | null>('기타');
   const [selectedBrand, setSelectedBrand] = useState<string>('All');
     const [forceShowBrandTabs, setForceShowBrandTabs] = useState(false);
     const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
-    const normalizedCategories = useMemo(() => Array.from(new Set(categories.map(normalizeCategory))), [categories]);
+        const normalizedCategories = useMemo(() => {
+                const uniq = Array.from(new Set(categories.map(normalizeCategory)));
+                // Surface '기타' first for initial view clarity
+                if (uniq.includes('기타')) {
+                        return ['기타', ...uniq.filter(c => c !== '기타')];
+                }
+                return uniq;
+        }, [categories]);
 
 
   useEffect(() => {
-      if (selectedCategory !== 'All' && !normalizedCategories.includes(selectedCategory)) {
-          setSelectedCategory('All');
-      }
+          if (selectedCategory && !normalizedCategories.includes(selectedCategory)) {
+              setSelectedCategory(normalizedCategories[0] || null);
+          }
   }, [selectedCategory, normalizedCategories]);
   
   // Admin Selection State
@@ -357,11 +364,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         
         const matchesSearch = nameMatch || specMatch || brandMatch;
         
-        if (selectedCategory === 'All' && !searchTerm && p.category === '타이어') {
-            return false;
-        }
-
-        const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+        const matchesCategory = !selectedCategory || p.category === selectedCategory;
         const matchesBrand = selectedBrand === 'All' || p.brand === selectedBrand;
         
         return matchesSearch && matchesCategory && matchesBrand;
@@ -407,7 +410,10 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 }
             }
 
-            const priceToUse = overridePrice !== undefined ? overridePrice : product.price;
+            // Default tire items to 0 so cashier can type the actual selling price each time
+            const isTire = product.category === '타이어';
+            const basePrice = product.price;
+            const priceToUse = overridePrice !== undefined ? overridePrice : (isTire ? 0 : basePrice);
             const nameToUse = overrideName || product.name;
             // Generate a unique cart item ID
             const newCartItemId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -669,7 +675,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                         <button 
                             onClick={() => {
                                 setForceShowBrandTabs(false);
-                                setSelectedCategory('All');
+                                setSelectedCategory(null);
                                 setSelectedBrand('All');
                             }} 
                             className="flex-shrink-0 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200 flex items-center justify-center"
@@ -684,9 +690,14 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                     </div>
                 ) : (
                     <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                        <button onClick={() => setSelectedCategory('All')} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === 'All' ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>전체</button>
                         {normalizedCategories.map(cat => (
-                            <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{cat}</button>
+                            <button 
+                                key={cat} 
+                                onClick={() => setSelectedCategory(prev => prev === cat ? null : cat)} 
+                                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            >
+                                {cat}
+                            </button>
                         ))}
                     </div>
                 )}
@@ -721,33 +732,29 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         {qtyInCart}개
                                     </div>
                                 )}
-                                <div className="w-full mt-1">
-                                    <div className="text-xs md:text-sm font-semibold text-gray-400 mb-1 text-left">{product.category}</div>
-                                    <h4 className="font-bold text-base md:text-lg text-gray-800 w-full text-left mb-2 pr-6 truncate" title={product.name} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h4>
-                                    {(product.specification || (product.brand && product.brand !== '기타')) && (
-                                        <div className="flex items-center justify-between gap-2 mt-1">
-                                            {product.specification && (
-                                                <span className="text-sm text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded inline-block">
-                                                    {product.specification}
-                                                </span>
-                                            )}
-                                            {product.brand && product.brand !== '기타' && (
-                                                <span className="inline-flex items-center text-[10px] font-bold px-2 py-1 bg-gray-100 rounded text-gray-600 whitespace-nowrap">
-                                                    {product.brand}
-                                                </span>
-                                            )}
-                                        </div>
+                                <div className="w-full mt-1 flex items-center gap-2 mb-2 pr-8">
+                                    <div className="text-xs md:text-sm font-semibold text-gray-400 text-left">{product.category}</div>
+                                    {product.brand && product.brand !== '기타' && (
+                                        <span className="inline-flex items-center text-[11px] md:text-xs font-bold px-2.5 py-1 bg-gray-100 rounded text-gray-600 whitespace-nowrap">
+                                            {product.brand}
+                                        </span>
                                     )}
                                 </div>
-                                
-                                                                <div className="w-full mt-4 pt-3 border-t border-gray-50 flex flex-col items-end gap-0.5">
-                                                                        {!isService && (
-                                                                            <span className={`text-[10px] md:text-xs font-medium px-2 py-0.5 rounded-full ${isLowStock ? 'bg-[#EF4444] text-white' : 'bg-green-100 text-green-700'}`}>
-                                                                                재고 {stock}개
-                                                                            </span>
-                                                                        )}
-                                                                        <span className="text-lg md:text-xl font-bold text-gray-900">{formatCurrency(product.price)}</span>
-                                                                </div>
+                                <h4 className="font-bold text-base md:text-lg text-gray-800 w-full text-left mb-2 pr-6 truncate" title={product.name} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h4>
+                                {product.specification && (
+                                    <div className="w-full text-left">
+                                        <span className="text-base md:text-lg font-bold text-blue-600 leading-tight">{product.specification}</span>
+                                    </div>
+                                )}
+
+                                <div className="w-full mt-4 pt-3 flex items-center gap-2">
+                                    <div className="flex-1 border-t border-dashed border-gray-200" aria-hidden />
+                                    {!isService && (
+                                        <span className={`text-xs md:text-sm font-semibold px-3 py-1.5 rounded-full shadow-sm ${isLowStock ? 'bg-[#EF4444] text-white' : 'bg-green-100 text-green-700'}`}>
+                                            재고 {stock}개
+                                        </span>
+                                    )}
+                                </div>
                             </button>
                         );
                     })}

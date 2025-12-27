@@ -17,7 +17,7 @@ interface StockInProps {
     tireModels: Record<string, string[]>;
 }
 
-const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, products, onStockIn, currentUser, stockInHistory, currentStoreId, onUpdateStockInRecord, tireModels }) => {
+const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, products, onStockIn, currentUser, stockInHistory, currentStoreId, onUpdateStockInRecord, tireModels: _unusedTireModels }) => {
     // --- Form State ---
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -45,6 +45,17 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
 
     const [verificationImage, setVerificationImage] = useState<string | null>(null);
     const [isComparing, setIsComparing] = useState(false);
+
+    // Lookup for previously entered factory prices by (name + spec)
+    const factoryPriceLookup = useMemo(() => {
+        const map = new Map<string, number>();
+        stockInHistory.forEach(r => {
+            if (!r.productName || !r.specification || !r.factoryPrice) return;
+            const key = `${r.productName.trim().toLowerCase()}|${r.specification.trim().toLowerCase()}`;
+            map.set(key, r.factoryPrice);
+        });
+        return map;
+    }, [stockInHistory]);
 
     // Update storeId if currentStoreId changes (e.g. on login) or stores load
     useEffect(() => {
@@ -81,6 +92,25 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
 
         setIsNewProduct(!existing);
     }, [formData.productName, formData.specification, products]);
+
+    // Autofill factory price when model + spec matches previous entry
+    useEffect(() => {
+        const name = formData.productName.trim();
+        const spec = formData.specification.trim();
+        if (!name || !spec) return;
+
+        const key = `${name.toLowerCase()}|${spec.toLowerCase()}`;
+        const storedPrice = factoryPriceLookup.get(key);
+        if (!storedPrice) return;
+
+        // Only auto-fill when user hasn't typed a price yet
+        const currentRaw = inputs.factoryPrice.replace(/[^0-9]/g, '');
+        if (currentRaw) return;
+
+        const formatted = formatNumber(String(storedPrice));
+        setInputs(prev => ({ ...prev, factoryPrice: formatted }));
+        setFormData(prev => ({ ...prev, factoryPrice: storedPrice }));
+    }, [formData.productName, formData.specification, factoryPriceLookup, inputs.factoryPrice]);
 
 
 
@@ -160,22 +190,17 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     , [stockInHistory]);
 
     const sortedProductNames = useMemo(() => {
-        // Priority 1: Models from the selected brand in TIRE_MODELS
-        const brandModels = tireModels[formData.brand] || [];
-
-        // Priority 2: Names seen in stock-in history
+        // Only names that have been used/registered (history + catalog)
         const historyNames = stockInHistory
             .map(r => r.productName?.trim())
             .filter((name): name is string => !!name);
 
-        // Priority 3: Existing product catalog names
         const productNames = products
             .map(p => p.name?.trim())
             .filter((name): name is string => !!name);
 
-        // Deduplicate while preserving priority order
-        return Array.from(new Set([...brandModels, ...historyNames, ...productNames]));
-    }, [tireModels, formData.brand, stockInHistory, products]);
+        return Array.from(new Set([...historyNames, ...productNames]));
+    }, [stockInHistory, products]);
 
     const uniqueSpecs = useMemo(() => 
         Array.from(new Set(products.map(p => p.specification).filter(Boolean) as string[]))

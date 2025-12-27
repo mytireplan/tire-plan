@@ -2,6 +2,7 @@
 export interface Store {
   id: string;
   name: string;
+  ownerId?: string; // Owning account ID (for scoping)
 }
 
 // Store Account for Login (Owners)
@@ -29,6 +30,7 @@ export interface Product {
   stock: number; // Total Stock (calculated)
   stockByStore: Record<string, number>; // { 'store_1': 10, 'store_2': 5 }
   category: string;
+  ownerId?: string; // Owning account for multitenancy
   brand?: string; // Brand name (e.g., '한국', '금호')
   barcode?: string;
   specification?: string; // e.g., 245/45R18
@@ -190,6 +192,20 @@ export interface LeaveRequest {
   type: LeaveType;
   reason?: string;
   createdAt: string;
+}
+
+// Shift schedule
+export interface Shift {
+  id: string;
+  groupId?: string; // Same drag-range group
+  staffId: string;
+  staffName: string;
+  storeId: string;
+  start: string; // ISO string
+  end: string; // ISO string
+  role?: string;
+  memo?: string;
+  shiftType?: 'REGULAR' | 'NIGHT' | 'OFF' | 'VACATION';
 }
 
 // Reservation Types

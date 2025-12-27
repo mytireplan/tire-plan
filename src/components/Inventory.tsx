@@ -1,23 +1,25 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Product, Store, User } from '../types';
-import { Search, Plus, Edit2, Save, X, AlertTriangle, MapPin, ArrowRightLeft, Disc } from 'lucide-react';
+import { Search, Plus, Edit2, Save, X, AlertTriangle, MapPin, ArrowRightLeft, Disc, Trash2 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
-import { saveToFirestore, COLLECTIONS } from '../utils/firestore';
+import { saveToFirestore, deleteFromFirestore, COLLECTIONS } from '../utils/firestore';
 
 interface InventoryProps {
   products: Product[];
   stores: Store[];
   categories: string[];
+    tireBrands: string[];
   onUpdate: (product: Product) => void;
   onAdd: (product: Product) => void;
+    onDelete: (productId: string) => void;
   onAddCategory: (category: string) => void;
   currentUser: User;
   currentStoreId: string;
   onStockTransfer: (productId: string, fromStoreId: string, toStoreId: string, quantity: number) => void;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onUpdate, onAdd, onAddCategory, currentUser, currentStoreId, onStockTransfer }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tireBrands, onUpdate, onAdd, onDelete, onAddCategory, currentUser, currentStoreId, onStockTransfer }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({});
@@ -41,6 +43,14 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
       quantity: 1
   });
 
+  const ownerIdForProduct = useMemo(() => {
+      if (currentUser.role === 'SUPER_ADMIN') {
+          const owner = stores.find(s => s.id === currentStoreId)?.ownerId;
+          return owner || currentUser.id || '';
+      }
+      return currentUser.id;
+  }, [currentUser, stores, currentStoreId]);
+
   // Calculate Total Tire Stock for the current view context
     const totalTireStock = useMemo(() => {
         return products.reduce((sum, p) => {
@@ -61,6 +71,15 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, onU
     if (currentStoreId === 'ALL' || !currentStoreId) return '전체 매장';
     return stores.find(s => s.id === currentStoreId)?.name || '해당 지점';
   }, [currentStoreId, stores]);
+
+        const uniqueBrands = useMemo(() => {
+            const fromProducts = products
+                .map(p => p.brand?.trim())
+                .filter((b): b is string => !!b && b.length > 0);
+            const base = tireBrands || [];
+            const all = [...base, ...fromProducts, '기타'];
+            return Array.from(new Set(all));
+        }, [products, tireBrands]);
 
     const filteredProducts = products.map(p => ({ ...p, category: normalizeCategory(p.category) })).filter(p => {
     const lowerTerm = searchTerm.toLowerCase();
@@ -124,7 +143,9 @@ const handleSave = async (e: React.FormEvent) => {
     stock: totalStock,
     stockByStore: stockByStore,
     category: editingProduct.category || categories[0],
-        specification
+        specification,
+        brand: (editingProduct.brand || '기타')?.trim(),
+        ownerId: editingProduct.ownerId || ownerIdForProduct
   };
 
   try {
@@ -162,7 +183,8 @@ const handleSave = async (e: React.FormEvent) => {
   const openAdd = () => {
       const initialStockByStore: Record<string, number> = {};
       stores.forEach(s => initialStockByStore[s.id] = 0);
-      setEditingProduct({ category: categories[0], stock: 0, stockByStore: initialStockByStore });
+      // Keep brand empty so the datalist shows all options instead of filtering to '기타'
+      setEditingProduct({ category: categories[0], stock: 0, stockByStore: initialStockByStore, ownerId: ownerIdForProduct, brand: '' });
       setIsModalOpen(true);
   };
 
@@ -187,6 +209,20 @@ const handleSave = async (e: React.FormEvent) => {
       }
       onStockTransfer(transferData.productId, transferData.fromStoreId, transferData.toStoreId, transferData.quantity);
       setTransferModalOpen(false);
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+      if (currentUser.role === 'STAFF') return;
+      const confirmed = window.confirm(`'${product.name}' 상품을 삭제하시겠습니까? 삭제해도 기존 매출 기록은 유지됩니다.`);
+      if (!confirmed) return;
+
+      try {
+          await deleteFromFirestore(COLLECTIONS.PRODUCTS, product.id);
+          onDelete(product.id);
+      } catch (error) {
+          console.error('❌ Firestore 삭제 중 오류:', error);
+          alert('상품 삭제 중 오류가 발생했어요. 콘솔을 확인해주세요.');
+      }
   };
 
   const handleStoreStockChange = (storeId: string, val: number) => {
@@ -312,12 +348,24 @@ const handleSave = async (e: React.FormEvent) => {
                         `}
                     >
                         {/* Mobile: Edit Button Positioned Absolute */}
-                        <button 
-                            onClick={() => openEdit(product)}
-                            className="md:hidden absolute top-3 right-3 p-2 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-lg"
-                        >
-                            <Edit2 size={16} />
-                        </button>
+                        <div className="md:hidden absolute top-2 right-2 flex gap-1">
+                            <button 
+                                onClick={() => openEdit(product)}
+                                className="p-2 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-lg"
+                                title="수정"
+                            >
+                                <Edit2 size={16} />
+                            </button>
+                            {currentUser.role !== 'STAFF' && (
+                                <button 
+                                    onClick={() => handleDeleteProduct(product)}
+                                    className="p-2 text-gray-400 hover:text-rose-600 bg-gray-50 rounded-lg"
+                                    title="삭제"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            )}
+                        </div>
 
                         {/* Name & Spec */}
                         <div className="md:col-span-3 pr-2">
@@ -328,7 +376,9 @@ const handleSave = async (e: React.FormEvent) => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 mt-1">
-                                {product.brand && <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-medium">{product.brand}</span>}
+                                {product.brand && product.brand !== '기타' && (
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-medium">{product.brand}</span>
+                                )}
                                 {product.specification && <div className="text-sm md:text-xs text-blue-600 font-bold">{product.specification}</div>}
                             </div>
                         </div>
@@ -375,13 +425,23 @@ const handleSave = async (e: React.FormEvent) => {
                         </div>
 
                         {/* Actions (Desktop) */}
-                        <div className="hidden md:block md:col-span-1 text-right">
+                        <div className="hidden md:flex md:col-span-1 justify-end gap-1">
                             <button 
                                 onClick={() => openEdit(product)}
                                 className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="수정"
                             >
                                 <Edit2 size={16} />
                             </button>
+                            {currentUser.role !== 'STAFF' && (
+                                <button 
+                                    onClick={() => handleDeleteProduct(product)}
+                                    className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                    title="삭제"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            )}
                         </div>
                     </div>
                 );
@@ -442,6 +502,22 @@ const handleSave = async (e: React.FormEvent) => {
                                 onChange={e => setEditingProduct({...editingProduct, price: Number(e.target.value)})}
                             />
                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">브랜드</label>
+                        <input
+                            list="brand-list"
+                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="브랜드 선택 또는 입력"
+                            value={editingProduct.brand || ''}
+                            onChange={e => setEditingProduct({...editingProduct, brand: e.target.value})}
+                        />
+                        <datalist id="brand-list">
+                            {uniqueBrands.map(b => (
+                                <option key={b} value={b} />
+                            ))}
+                        </datalist>
                     </div>
 
                     <div>
