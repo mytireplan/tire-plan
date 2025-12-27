@@ -523,6 +523,7 @@ const App: React.FC = () => {
             reservationUnsubRef.current = null;
         };
     }, [activeTab, currentStoreId]);
+
   
   const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>({
     viewInventory: true,
@@ -548,12 +549,20 @@ const App: React.FC = () => {
   const [stockInHistory, setStockInHistory] = useState<StockInRecord[]>(INITIAL_STOCK_HISTORY);
   const [transferHistory, setTransferHistory] = useState<StockTransferRecord[]>([]);
     const [shifts, setShifts] = useState<Shift[]>([]);
+    const [shiftRange, setShiftRange] = useState<{ start: string; end: string }>(() => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        end.setHours(23, 59, 59, 999);
+        return { start: start.toISOString(), end: end.toISOString() };
+    });
   const [expenses, setExpenses] = useState<ExpenseRecord[]>(INITIAL_EXPENSES);
   const [fixedCosts, setFixedCosts] = useState<FixedCostConfig[]>(INITIAL_FIXED_COSTS);
   const [historyFilter, setHistoryFilter] = useState<SalesFilter>({ type: 'ALL', value: '', label: '전체 판매 내역' });
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
   const [reservations, setReservations] = useState<Reservation[]>(INITIAL_RESERVATIONS);
     const reservationUnsubRef = useRef<(() => void) | null>(null);
+    const shiftsUnsubRef = useRef<(() => void) | null>(null);
 
   // Admin auto-timeout (5 minutes of inactivity)
   useEffect(() => {
@@ -796,6 +805,34 @@ const App: React.FC = () => {
       if (currentUser?.role === 'SUPER_ADMIN') return stockInHistory;
       return stockInHistory.filter(r => visibleStoreIds.includes(r.storeId));
   }, [stockInHistory, visibleStoreIds, currentUser]);
+
+  // 근무표 실시간 구독 (월 범위 + 지점 필터)
+  useEffect(() => {
+      if (shiftsUnsubRef.current) {
+          shiftsUnsubRef.current();
+          shiftsUnsubRef.current = null;
+      }
+
+      const storeFilter = visibleStoreIds.length && visibleStoreIds.length <= 10 ? [...visibleStoreIds] : null;
+      const constraints: QueryConstraint[] = [
+          orderBy('start', 'desc'),
+          where('start', '>=', shiftRange.start),
+          where('start', '<=', shiftRange.end),
+      ];
+      if (storeFilter) {
+          constraints.push(where('storeId', 'in', storeFilter));
+      }
+
+      const unsub = subscribeToQuery<Shift>(COLLECTIONS.SHIFTS, constraints, (data) => {
+          const sorted = [...data].sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+          setShifts(sorted);
+      });
+      shiftsUnsubRef.current = unsub;
+      return () => {
+          unsub?.();
+          shiftsUnsubRef.current = null;
+      };
+  }, [shiftRange.start, shiftRange.end, visibleStoreIds]);
 
 
   // --- Auth Handlers ---
@@ -1444,15 +1481,30 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to save fixed costs in Firestore:', err));
     };
 
-    // Shift handlers (local only for now)
-    const handleAddShift = (shift: Shift) => {
+    // Shift handlers (Firestore + local)
+    const handleAddShift = async (shift: Shift) => {
         setShifts(prev => [...prev, shift]);
+        try {
+            await saveToFirestore<Shift>(COLLECTIONS.SHIFTS, shift);
+        } catch (err) {
+            console.error('❌ Failed to save shift in Firestore:', err);
+        }
     };
-    const handleUpdateShift = (shift: Shift) => {
+    const handleUpdateShift = async (shift: Shift) => {
         setShifts(prev => prev.map(s => s.id === shift.id ? shift : s));
+        try {
+            await saveToFirestore<Shift>(COLLECTIONS.SHIFTS, shift);
+        } catch (err) {
+            console.error('❌ Failed to update shift in Firestore:', err);
+        }
     };
-    const handleRemoveShift = (id: string) => {
+    const handleRemoveShift = async (id: string) => {
         setShifts(prev => prev.filter(s => s.id !== id));
+        try {
+            await deleteFromFirestore(COLLECTIONS.SHIFTS, id);
+        } catch (err) {
+            console.error('❌ Failed to delete shift in Firestore:', err);
+        }
     };
   
   // Navigation & Permissions Logic
@@ -1785,6 +1837,7 @@ const App: React.FC = () => {
                     stores={visibleStores}
                     shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
                     currentStoreId={currentStoreId}
+                    onShiftRangeChange={(start, end) => setShiftRange({ start, end })}
                     onAddShift={handleAddShift}
                     onUpdateShift={handleUpdateShift}
                     onRemoveShift={handleRemoveShift}

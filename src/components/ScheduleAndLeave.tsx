@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { LeaveRequest, Staff, Store, Shift } from '../types';
 import { ChevronLeft, ChevronRight, Calendar, Plus, Search, ToggleLeft, ToggleRight, X } from 'lucide-react';
 
@@ -11,6 +11,7 @@ interface ScheduleAndLeaveProps {
   onRemoveShift: (id: string) => void;
   stores: Store[];
   currentStoreId?: string;
+  onShiftRangeChange?: (start: string, end: string) => void;
 }
 
 // Simple utility: get start of week (Mon-based)
@@ -25,7 +26,7 @@ const startOfWeek = (date: Date) => {
 
 const formatDateLabel = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
-const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId }) => {
+const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId, onShiftRangeChange }) => {
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedStoreId, setSelectedStoreId] = useState<string>(stores[0]?.id || '');
   const [search, setSearch] = useState('');
@@ -128,6 +129,17 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
   const getGroupId = (shift: Shift) => shift.groupId || deriveGroupIdFromId(shift.id);
 
   const resolveStoreId = () => selectedStoreId || currentStoreId || shiftDraft.storeId || stores[0]?.id || '';
+
+  useEffect(() => {
+    if (!onShiftRangeChange) return;
+    const year = anchorDate.getFullYear();
+    const month = anchorDate.getMonth();
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    const startStr = monthStart.toISOString();
+    const endStr = new Date(monthEnd.setHours(23, 59, 59, 999)).toISOString();
+    onShiftRangeChange(startStr, endStr);
+  }, [anchorDate, onShiftRangeChange]);
 
   const submitShift = () => {
     if (!shiftDraft.staffId || !shiftDraft.storeId) return;

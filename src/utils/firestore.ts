@@ -30,7 +30,8 @@ const COLLECTIONS = {
   LEAVE_REQUESTS: 'leaveRequests',
   RESERVATIONS: 'reservations',
   TRANSFERS: 'stockTransfers',
-  SETTINGS: 'settings'
+  SETTINGS: 'settings',
+  SHIFTS: 'shifts'
 };
 
 // 데이터 저장
