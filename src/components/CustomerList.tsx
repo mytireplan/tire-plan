@@ -66,6 +66,16 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
         setCurrentPage(1);
     };
 
+    const renderSortIndicator = (key: 'lastVisitDate' | 'visitCount' | 'totalSpent') => {
+        const isActive = sortConfig.key === key;
+        const symbol = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕';
+        return (
+            <span className="ml-1 text-[10px] text-gray-400" aria-hidden>
+                {symbol}
+            </span>
+        );
+    };
+
     let startPage = Math.max(1, currentPage - 2);
     let endPage = Math.min(totalPages, startPage + 4);
     startPage = Math.max(1, endPage - 4);
@@ -113,27 +123,21 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
                             onClick={() => handleSort('visitCount')}
                         >
                             방문 횟수
-                            {sortConfig.key === 'visitCount' && (
-                                <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction === 'asc' ? 'ASC' : 'DESC'}</span>
-                            )}
+                            {renderSortIndicator('visitCount')}
                         </th>
                         <th 
                             className="px-6 py-4 text-right cursor-pointer select-none"
                             onClick={() => handleSort('totalSpent')}
                         >
                             총 이용 금액
-                            {sortConfig.key === 'totalSpent' && (
-                                <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction === 'asc' ? 'ASC' : 'DESC'}</span>
-                            )}
+                            {renderSortIndicator('totalSpent')}
                         </th>
                         <th 
                             className="px-6 py-4 cursor-pointer select-none"
                             onClick={() => handleSort('lastVisitDate')}
                         >
                             최근 방문일
-                            {sortConfig.key === 'lastVisitDate' && (
-                                <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction === 'asc' ? 'ASC' : 'DESC'}</span>
-                            )}
+                            {renderSortIndicator('lastVisitDate')}
                         </th>
                     </tr>
                 </thead>
