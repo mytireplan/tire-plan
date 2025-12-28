@@ -19,6 +19,7 @@ interface StockInProps {
 }
 
 const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, products, onStockIn, currentUser, stockInHistory, currentStoreId, onUpdateStockInRecord, onDeleteStockInRecord, tireModels: _unusedTireModels }) => {
+    const isAdminView = currentUser.role === 'STORE_ADMIN' || currentUser.role === 'SUPER_ADMIN';
     // --- Form State ---
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -426,7 +427,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                         </div>
 
                         {/* Store Filter (Admin Only) */}
-                        {currentUser.role === 'STORE_ADMIN' && (
+                        {isAdminView && (
                             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
                                 <StoreIcon size={16} className="text-gray-500" />
                                 <select
@@ -435,9 +436,9 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                     className="text-sm font-bold text-gray-700 outline-none bg-transparent cursor-pointer appearance-none pr-4"
                                 >
                                     <option value="ALL">전체 지점</option>
-                                    {stores.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
+                                        {stores.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
                                 </select>
                             </div>
                         )}
@@ -509,7 +510,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                         <th className="px-4 py-3 whitespace-nowrap bg-gray-50">거래처</th>
                                         <th className="px-4 py-3 whitespace-nowrap bg-gray-50">상품</th>
                                         <th className="px-4 py-3 text-center whitespace-nowrap bg-gray-50">입고수량</th>
-                                        {currentUser.role === 'STORE_ADMIN' && (
+                                        {isAdminView && (
                                             <>
                                                 <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-right">공장도가</th>
                                                 <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-center">매입가(입력)</th>
@@ -522,7 +523,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredHistory.length === 0 ? (
                                         <tr>
-                                            <td colSpan={currentUser.role === 'STORE_ADMIN' ? 8 : 4} className="px-6 py-12 text-center text-gray-400">
+                                            <td colSpan={isAdminView ? 8 : 4} className="px-6 py-12 text-center text-gray-400">
                                                 <Search size={32} className="mx-auto mb-2 opacity-20" />
                                                 {selectedMonth} 내역이 없습니다.
                                             </td>
@@ -543,7 +544,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                                 <td className="px-4 py-3 text-center font-bold text-blue-600 align-middle whitespace-nowrap">
                                                     +{record.quantity}
                                                 </td>
-                                                {currentUser.role === 'STORE_ADMIN' && (
+                                                {isAdminView && (
                                                     <>
                                                         <td className="px-4 py-3 text-right text-gray-500 whitespace-nowrap align-middle">
                                                             {formatCurrency(record.factoryPrice || 0)}
@@ -591,7 +592,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                             <span className="text-xs font-bold text-gray-500 uppercase">{selectedMonth} 합계</span>
                             <div className="text-right">
                                 <div className="text-sm text-gray-700">총 입고 수량: <span className="font-bold text-blue-600">{monthlyTotals.qty}개</span></div>
-                                {currentUser.role === 'STORE_ADMIN' && (
+                                {isAdminView && (
                                     <div className="text-sm text-rose-600">총 매입: <span className="font-bold">{formatCurrency(monthlyTotals.cost)}</span></div>
                                 )}
                             </div>
