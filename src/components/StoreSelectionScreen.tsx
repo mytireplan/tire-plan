@@ -8,10 +8,10 @@ interface StoreSelectionScreenProps {
     onSelectStore: (storeId: string, role: UserRole) => void;
     currentUser: User;
     onLogout: () => void;
-    validatePassword: (password: string) => boolean;
+    validateOwnerPin: (pin: string) => boolean;
 }
 
-const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onSelectStore, onLogout, validatePassword }) => {
+const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onSelectStore, onLogout, validateOwnerPin }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [error, setError] = useState('');
@@ -24,12 +24,12 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      if (validatePassword(passwordInput)) {
-          // Admin Login Successful -> Go to All Stores View as STORE_ADMIN
+      if (validateOwnerPin(passwordInput)) {
+          // Owner PIN login -> All stores as STORE_ADMIN
           setShowPasswordModal(false);
           onSelectStore('ALL', 'STORE_ADMIN');
       } else {
-          setError('비밀번호가 일치하지 않습니다.');
+          setError('사장님 PIN이 일치하지 않습니다.');
       }
   };
 
@@ -59,7 +59,7 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                     className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all shadow-sm bg-white text-slate-600 border border-gray-200 hover:bg-gray-50 hover:text-blue-600 hover:border-blue-200"
                  >
                      <Lock size={16} />
-                     관리자 로그인
+                     사장님 PIN 로그인
                  </button>
 
                  <div className="w-px h-6 mx-1 bg-gray-300"></div>
@@ -135,27 +135,29 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                       <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
                           <ShieldCheck size={32} />
                       </div>
-                      <h3 className="text-xl font-bold text-gray-900">통합 관리자 인증</h3>
-                      <p className="text-sm text-gray-500 mt-1">모든 지점을 관리하려면 비밀번호를 입력하세요.</p>
+                      <h3 className="text-xl font-bold text-gray-900">사장님 PIN 인증</h3>
+                      <p className="text-sm text-gray-500 mt-1">사장님 PIN으로 로그인하면 전체 지점(사장님 모드)으로 접속합니다.</p>
                   </div>
 
                   <form onSubmit={handlePasswordSubmit}>
-                      <input 
-                        autoFocus
-                        type="password" 
-                        placeholder="비밀번호" 
-                        className="w-full p-3 border border-gray-300 rounded-xl mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg"
-                        value={passwordInput}
-                        onChange={(e) => setPasswordInput(e.target.value)}
-                      />
-                      {error && <p className="text-xs text-red-500 text-center mb-3 font-bold">{error}</p>}
+                                            <input 
+                                                autoFocus
+                                                type="password" 
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                placeholder="사장님 PIN (숫자)" 
+                                                className="w-full p-3 border border-gray-300 rounded-xl mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg"
+                                                value={passwordInput}
+                                                onChange={(e) => setPasswordInput(e.target.value)}
+                                            />
+                                            {error && <p className="text-xs text-red-500 text-center mb-3 font-bold">{error}</p>}
                       
                       <button 
                         type="submit"
                         className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg flex items-center justify-center gap-2"
                       >
                           <Lock size={16} />
-                          관리자 모드 진입
+                          사장님 모드 진입
                       </button>
                   </form>
               </div>

@@ -892,9 +892,11 @@ const App: React.FC = () => {
       });
   };
 
-  const handleValidatePassword = (password: string): boolean => {
+  const handleValidateOwnerPin = (pin: string): boolean => {
       const userAccount = users.find(u => u.id === currentUser?.id);
-      return userAccount ? userAccount.password === password : false;
+      if (!userAccount) return false;
+      const normalizedPin = pin.trim();
+      return normalizedPin !== '' && (userAccount.ownerPin || userAccount.password) === normalizedPin;
   };
 
   const handlePinSubmit = (e: React.FormEvent) => {
@@ -1589,7 +1591,7 @@ const App: React.FC = () => {
             onSelectStore={handleSelectStore} 
             currentUser={currentUser} 
             onLogout={handleFullLogout} 
-            validatePassword={handleValidatePassword}
+            validateOwnerPin={handleValidateOwnerPin}
         />
       );
   }
