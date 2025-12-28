@@ -663,6 +663,7 @@ const App: React.FC = () => {
                 ).then(snapshot => snapshot.docs.map(d => d.data() as Sale));
 
                 const [
+                    firestoreOwners,
                     firestoreStores,
                     firestoreProductsPage,
                     firestoreStockInPage,
@@ -675,6 +676,7 @@ const App: React.FC = () => {
                     firestoreSalesToday,
                     firestoreCustomersAll
                 ] = await Promise.all([
+                    getCollectionPage<OwnerAccount>(COLLECTIONS.OWNERS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StoreAccount>(COLLECTIONS.STORES, { pageSize: PAGE_SIZE }),
                     getCollectionPage<Product>(COLLECTIONS.PRODUCTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StockInRecord>(COLLECTIONS.STOCK_IN, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
@@ -692,6 +694,7 @@ const App: React.FC = () => {
 
                 if (SHOULD_SEED_DEMO) {
                     // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
+                    await seedIfEmpty<OwnerAccount>('owners', COLLECTIONS.OWNERS, firestoreOwners.data, users, setUsers);
                     await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores.data, INITIAL_STORE_ACCOUNTS, setStores);
                     await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
                     await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesToday, INITIAL_SALES, setSales);
@@ -705,6 +708,7 @@ const App: React.FC = () => {
                     await seedIfEmpty<Staff>('staff', COLLECTIONS.STAFF, firestoreStaffPage.data, INITIAL_STAFF, setStaffList);
                 } else {
                     // 프로덕션에서는 Firestore 값만 사용 (비어 있어도 시드하지 않음)
+                    setUsers(firestoreOwners.data);
                     setStores(firestoreStores.data);
                     setProducts(normalizedFetchedProducts);
                     setSales(firestoreSalesToday.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
