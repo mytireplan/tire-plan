@@ -13,6 +13,10 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
+        const [sortConfig, setSortConfig] = useState<{ key: 'lastVisitDate' | 'visitCount' | 'totalSpent'; direction: 'asc' | 'desc';}>({
+                key: 'lastVisitDate',
+                direction: 'desc'
+        });
     const PAGE_SIZE = 15;
 
     // 검색 변경 시 페이지를 처음으로 리셋
@@ -26,8 +30,41 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
         c.carModel?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / PAGE_SIZE));
-    const pagedCustomers = filteredCustomers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+        const getDate = (value: string) => {
+            const time = new Date(value).getTime();
+            return Number.isNaN(time) ? 0 : time;
+        };
+
+        let compare = 0;
+
+        if (sortConfig.key === 'visitCount') {
+            compare = a.visitCount - b.visitCount;
+        } else if (sortConfig.key === 'totalSpent') {
+            compare = a.totalSpent - b.totalSpent;
+        } else {
+            compare = getDate(a.lastVisitDate) - getDate(b.lastVisitDate);
+        }
+
+        if (compare === 0) {
+            compare = getDate(b.lastVisitDate) - getDate(a.lastVisitDate);
+        }
+
+        return sortConfig.direction === 'asc' ? compare : -compare;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(sortedCustomers.length / PAGE_SIZE));
+    const pagedCustomers = sortedCustomers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    const handleSort = (key: 'lastVisitDate' | 'visitCount' | 'totalSpent') => {
+        setSortConfig(prev => {
+            if (prev.key === key) {
+                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+        setCurrentPage(1);
+    };
 
     let startPage = Math.max(1, currentPage - 2);
     let endPage = Math.min(totalPages, startPage + 4);
@@ -71,9 +108,33 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
                         <th className="px-6 py-4">고객명</th>
                         <th className="px-6 py-4">연락처</th>
                         <th className="px-6 py-4">차종</th>
-                        <th className="px-6 py-4 text-center">방문 횟수</th>
-                        <th className="px-6 py-4 text-right">총 이용 금액</th>
-                        <th className="px-6 py-4">최근 방문일</th>
+                        <th 
+                            className="px-6 py-4 text-center cursor-pointer select-none"
+                            onClick={() => handleSort('visitCount')}
+                        >
+                            방문 횟수
+                            {sortConfig.key === 'visitCount' && (
+                                <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction === 'asc' ? 'ASC' : 'DESC'}</span>
+                            )}
+                        </th>
+                        <th 
+                            className="px-6 py-4 text-right cursor-pointer select-none"
+                            onClick={() => handleSort('totalSpent')}
+                        >
+                            총 이용 금액
+                            {sortConfig.key === 'totalSpent' && (
+                                <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction === 'asc' ? 'ASC' : 'DESC'}</span>
+                            )}
+                        </th>
+                        <th 
+                            className="px-6 py-4 cursor-pointer select-none"
+                            onClick={() => handleSort('lastVisitDate')}
+                        >
+                            최근 방문일
+                            {sortConfig.key === 'lastVisitDate' && (
+                                <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction === 'asc' ? 'ASC' : 'DESC'}</span>
+                            )}
+                        </th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
