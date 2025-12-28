@@ -48,7 +48,7 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                     지점 선택
                 </h1>
                 <p className="mt-1 text-slate-500">
-                    접속할 매장을 선택해주세요 (직원 모드)
+                    접속할 매장을 선택해주세요.
                 </p>
             </div>
             
@@ -59,7 +59,7 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                     className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all shadow-sm bg-white text-slate-600 border border-gray-200 hover:bg-gray-50 hover:text-blue-600 hover:border-blue-200"
                  >
                      <Lock size={16} />
-                     사장님 PIN 로그인
+                     통합 로그인
                  </button>
 
                  <div className="w-px h-6 mx-1 bg-gray-300"></div>
@@ -105,7 +105,7 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                     </div>
 
                     <div className="relative z-10 flex items-center text-sm font-bold mt-auto pt-4 border-t transition-colors border-gray-50 text-slate-400 group-hover:text-blue-600">
-                        직원으로 접속하기
+                        접속하기
                         <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform"/>
                     </div>
                 </button>
@@ -135,8 +135,8 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                       <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
                           <ShieldCheck size={32} />
                       </div>
-                      <h3 className="text-xl font-bold text-gray-900">사장님 PIN 인증</h3>
-                      <p className="text-sm text-gray-500 mt-1">사장님 PIN으로 로그인하면 전체 지점(사장님 모드)으로 접속합니다.</p>
+                      <h3 className="text-xl font-bold text-gray-900">PIN 인증</h3>
+                      <p className="text-sm text-gray-500 mt-1">PIN으로 로그인하면 전체 지점으로 접속합니다.</p>
                   </div>
 
                   <form onSubmit={handlePasswordSubmit}>
@@ -157,7 +157,7 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                         className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg flex items-center justify-center gap-2"
                       >
                           <Lock size={16} />
-                          사장님 모드 진입
+                          통합 로그인 진입
                       </button>
                   </form>
               </div>
