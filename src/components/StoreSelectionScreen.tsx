@@ -29,7 +29,7 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
           setShowPasswordModal(false);
           onSelectStore('ALL', 'STORE_ADMIN');
       } else {
-          setError('사장님 PIN이 일치하지 않습니다.');
+          setError('PIN이 일치하지 않습니다.');
       }
   };
 
@@ -145,7 +145,7 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                                                 type="password" 
                                                 inputMode="numeric"
                                                 pattern="[0-9]*"
-                                                placeholder="사장님 PIN (숫자)" 
+                                                placeholder="PIN" 
                                                 className="w-full p-3 border border-gray-300 rounded-xl mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg"
                                                 value={passwordInput}
                                                 onChange={(e) => setPasswordInput(e.target.value)}
