@@ -80,12 +80,8 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
   }, [anchorDate]);
 
   const filteredStaff = useMemo(() => {
-    return staffList.filter(s => {
-      const matchesStore = !selectedStoreId || s.storeId === selectedStoreId;
-      const matchesText = s.name.toLowerCase().includes(search.toLowerCase());
-      return matchesStore && matchesText;
-    });
-  }, [staffList, selectedStoreId, search]);
+    return staffList.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
+  }, [staffList, search]);
 
   const moveWeek = (delta: number) => {
     const next = new Date(anchorDate);

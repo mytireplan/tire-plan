@@ -1183,18 +1183,17 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to delete store in Firestore:', err));
     };
   
-  const handleAddStaff = (name: string) => { 
-      const newStaff: Staff = {
-          id: `staff_${Date.now()}`,
-          name,
-          storeId: currentStoreId,
-          isActive: true
-      };
-      setStaffList([...staffList, newStaff]);
-      saveToFirestore<Staff>(COLLECTIONS.STAFF, newStaff)
-        .then(() => console.log('✅ Staff saved to Firestore:', newStaff.id))
-        .catch((err) => console.error('❌ Failed to save staff to Firestore:', err));
-  };
+    const handleAddStaff = (name: string) => { 
+            const newStaff: Staff = {
+                    id: `staff_${Date.now()}`,
+                    name,
+                    isActive: true
+            };
+            setStaffList([...staffList, newStaff]);
+            saveToFirestore<Staff>(COLLECTIONS.STAFF, newStaff)
+                .then(() => console.log('✅ Staff saved to Firestore:', newStaff.id))
+                .catch((err) => console.error('❌ Failed to save staff to Firestore:', err));
+    };
   const handleRemoveStaff = (id: string) => { 
       setStaffList(staffList.filter(s => s.id !== id));
       deleteFromFirestore(COLLECTIONS.STAFF, id)
@@ -1852,7 +1851,7 @@ const App: React.FC = () => {
                 <POS 
                 products={visibleProducts} stores={visibleStores} categories={categories} tireBrands={tireBrands}
                 currentUser={effectiveUser} currentStoreId={currentStoreId}
-                staffList={staffList.filter(s => s.storeId === currentStoreId || currentStoreId === 'ALL')} 
+                staffList={staffList}
                 customers={visibleCustomers} tireModels={TIRE_MODELS}
                 onSaleComplete={handleSaleComplete} onAddCategory={(c) => setCategories([...categories, c])}
                 />
@@ -1866,7 +1865,7 @@ const App: React.FC = () => {
             )}
             {activeTab === 'leave' && (
                 <ScheduleAndLeave
-                    staffList={staffList.filter(s => visibleStoreIds.includes(s.storeId))}
+                    staffList={staffList}
                     leaveRequests={leaveRequests}
                     stores={visibleStores}
                     shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}

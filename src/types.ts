@@ -19,7 +19,7 @@ export interface StoreAccount extends Store {
 export interface Staff {
   id: string;
   name: string;
-  storeId: string;
+  storeId?: string; // Optional: staff can work across stores
   isActive: boolean;
 }
 
