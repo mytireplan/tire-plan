@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import type { StockInRecord, Store, Product, User } from '../types';
-import { Truck, Calendar, Save, AlertCircle, FileUp, Split, Filter, Tag, Store as StoreIcon, Eye, X, Search } from 'lucide-react';
+import { Truck, Calendar, Save, AlertCircle, FileUp, Split, Filter, Tag, Store as StoreIcon, Eye, X, Search, Trash2 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 
 interface StockInProps {
@@ -14,10 +14,11 @@ interface StockInProps {
     stockInHistory: StockInRecord[];
     currentStoreId: string;
     onUpdateStockInRecord: (record: StockInRecord) => void;
+    onDeleteStockInRecord: (id: string) => void;
     tireModels: Record<string, string[]>;
 }
 
-const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, products, onStockIn, currentUser, stockInHistory, currentStoreId, onUpdateStockInRecord, tireModels: _unusedTireModels }) => {
+const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, products, onStockIn, currentUser, stockInHistory, currentStoreId, onUpdateStockInRecord, onDeleteStockInRecord, tireModels: _unusedTireModels }) => {
     // --- Form State ---
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -513,6 +514,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                                 <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-right">공장도가</th>
                                                 <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-center">매입가(입력)</th>
                                                 <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-right">총 매입가</th>
+                                                <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-center">관리</th>
                                             </>
                                         )}
                                     </tr>
@@ -520,7 +522,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredHistory.length === 0 ? (
                                         <tr>
-                                            <td colSpan={currentUser.role === 'STORE_ADMIN' ? 7 : 4} className="px-6 py-12 text-center text-gray-400">
+                                            <td colSpan={currentUser.role === 'STORE_ADMIN' ? 8 : 4} className="px-6 py-12 text-center text-gray-400">
                                                 <Search size={32} className="mx-auto mb-2 opacity-20" />
                                                 {selectedMonth} 내역이 없습니다.
                                             </td>
@@ -561,6 +563,19 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                                         </td>
                                                         <td className="px-4 py-3 text-right font-bold text-gray-800 whitespace-nowrap align-middle">
                                                             {formatCurrency((record.purchasePrice || 0) * record.quantity)}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center whitespace-nowrap align-middle">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const confirmed = window.confirm('이 입고 내역을 삭제하시겠습니까? 재고는 자동으로 조정되지 않습니다.');
+                                                                    if (!confirmed) return;
+                                                                    onDeleteStockInRecord(record.id);
+                                                                }}
+                                                                className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                                                title="입고 내역 삭제"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
                                                         </td>
                                                     </>
                                                 )}

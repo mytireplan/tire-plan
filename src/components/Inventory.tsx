@@ -320,7 +320,7 @@ const handleSave = async (e: React.FormEvent) => {
       <div className="hidden md:grid grid-cols-12 bg-gray-50 px-6 py-3 text-xs font-bold text-gray-500 border-b border-gray-100">
         <div className="col-span-3">상품 정보</div>
         <div className="col-span-2">카테고리</div>
-        <div className="col-span-2">단가</div>
+        <div className="col-span-2">공장도가</div>
         <div className="col-span-4">지점별 재고</div>
         <div className="col-span-1 text-right">관리</div>
       </div>
@@ -391,7 +391,7 @@ const handleSave = async (e: React.FormEvent) => {
 
                         {/* Price */}
                         <div className="md:col-span-2 text-sm font-medium text-gray-900 flex items-center gap-2 md:block">
-                             <span className="md:hidden text-xs text-gray-400">단가:</span>
+                             <span className="md:hidden text-xs text-gray-400">공장도가:</span>
                             {formatCurrency(product.price)}
                         </div>
 
@@ -493,7 +493,7 @@ const handleSave = async (e: React.FormEvent) => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">단가 (₩)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">공장도가 (₩)</label>
                             <input 
                                 required
                                 type="number" 

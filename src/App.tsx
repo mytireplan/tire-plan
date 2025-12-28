@@ -54,17 +54,14 @@ const INITIAL_STAFF: Staff[] = [
 const SALES_PAGE_SIZE = 200; // Firestore 읽기 제한을 위한 기본 페이지 크기
 
 const INITIAL_TIRE_BRANDS = [
-    '한국타이어',
-    '금호타이어',
-    '넥센타이어',
+    '한국',
+    '금호',
+    '넥센',
     '미쉐린',
     '콘티넨탈',
     '피렐리',
     '굿이어',
     '브리지스톤',
-    '요코하마',
-    '토요타이어',
-    '타이어테크',
     '라우펜',
     '기타'
 ];
@@ -794,11 +791,18 @@ const App: React.FC = () => {
   }, [customers, currentUser]);
 
   const visibleProducts = useMemo(() => {
-      if (currentUser?.role === 'SUPER_ADMIN') return products;
-      const ownerId = currentUser?.id;
-      if (!ownerId) return [];
-      // Show only products for this owner; allow legacy records without ownerId for compatibility
-      return products.filter(p => !p.ownerId || p.ownerId === ownerId);
+      if (!currentUser) return [];
+
+      const isSeedProduct = (product: Product) => product.ownerId === DEFAULT_OWNER_ID;
+
+      if (currentUser.role === 'SUPER_ADMIN') {
+          // Super admin: show user-added products only, never seeded demo items
+          return products.filter(p => !isSeedProduct(p));
+      }
+
+      const ownerId = currentUser.id;
+      // Owner/staff: see their own products (legacy ownerless included), hide seeded demo items
+      return products.filter(p => !isSeedProduct(p) && (!p.ownerId || p.ownerId === ownerId));
   }, [products, currentUser]);
 
   const visibleStockHistory = useMemo(() => {
@@ -858,12 +862,30 @@ const App: React.FC = () => {
 
   const handleUpdatePassword = (newPass: string) => {
       if(!currentUser) return;
-      setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, password: newPass } : u));
+      setUsers(prev => {
+          const next = prev.map(u => u.id === currentUser.id ? { ...u, password: newPass } : u);
+          const owner = next.find(u => u.id === currentUser.id);
+          if (owner) {
+              saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, owner)
+                  .then(() => console.log('✅ Password updated in Firestore for owner:', owner.id))
+                  .catch((err) => console.error('❌ Failed to update owner password in Firestore:', err));
+          }
+          return next;
+      });
   };
 
   const handleUpdateOwnerPin = (newPin: string) => {
       if(!currentUser) return;
-      setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, ownerPin: newPin } : u));
+      setUsers(prev => {
+          const next = prev.map(u => u.id === currentUser.id ? { ...u, ownerPin: newPin } : u);
+          const owner = next.find(u => u.id === currentUser.id);
+          if (owner) {
+              saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, owner)
+                  .then(() => console.log('✅ Owner PIN updated in Firestore:', owner.id))
+                  .catch((err) => console.error('❌ Failed to update owner PIN in Firestore:', err));
+          }
+          return next;
+      });
   };
 
   const handleValidatePassword = (password: string): boolean => {
@@ -1407,6 +1429,12 @@ const App: React.FC = () => {
                 .then(() => console.log('✅ Stock-in record updated in Firestore:', r.id))
                 .catch((err) => console.error('❌ Failed to update stock-in record in Firestore:', err));
     };
+        const handleDeleteStockInRecord = (id: string) => {
+            setStockInHistory(prev => prev.filter(r => r.id !== id));
+            deleteFromFirestore(COLLECTIONS.STOCK_IN, id)
+                .then(() => console.log('🗑️ Stock-in record deleted:', id))
+                .catch((err) => console.error('❌ Failed to delete stock-in record:', err));
+        };
   const handleStockTransfer = (pid: string, from: string, to: string, qty: number) => {
       if (!pid || !from || !to) return;
       if (from === to) return;
@@ -1846,7 +1874,7 @@ const App: React.FC = () => {
             {activeTab === 'stockIn' && (
                 <StockIn
                     stores={visibleStores} categories={categories} tireBrands={tireBrands} products={visibleProducts}
-                    onStockIn={handleStockIn} currentUser={effectiveUser} stockInHistory={visibleStockHistory} currentStoreId={currentStoreId} onUpdateStockInRecord={handleUpdateStockInRecord} tireModels={TIRE_MODELS}
+                    onStockIn={handleStockIn} currentUser={effectiveUser} stockInHistory={visibleStockHistory} currentStoreId={currentStoreId} onUpdateStockInRecord={handleUpdateStockInRecord} onDeleteStockInRecord={handleDeleteStockInRecord} tireModels={TIRE_MODELS}
                 />
             )}
             {(activeTab === 'inventory') && (
