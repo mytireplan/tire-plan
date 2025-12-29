@@ -35,6 +35,7 @@ interface CustomerForm {
 interface CheckoutForm {
     staffId: string;
     vehicleNumber: string;
+    discount: number;
 }
 
 interface CartItemRowProps {
@@ -299,7 +300,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   // Checkout Form Data (Vehicle, Staff, Customer)
   const [checkoutForm, setCheckoutForm] = useState<CheckoutForm>({
       staffId: '', // Default to empty, force selection
-      vehicleNumber: ''
+      vehicleNumber: '',
+      discount: 0
   });
 
   const [customerForm, setCustomerForm] = useState<CustomerForm>({
@@ -522,7 +524,9 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     setCart(prev => prev.filter(item => item.cartItemId !== cartItemId));
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const discount = Math.max(0, Math.min(checkoutForm.discount || 0, cartTotal));
+    const payableTotal = Math.max(0, cartTotal - discount);
   const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
   const uniqueCount = cart.length;
   const cartQtyMap = useMemo(() => {
@@ -552,7 +556,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       setCustomerForm(prev => ({ ...prev, phoneNumber: formatted }));
   };
 
-  const processCheckout = () => {
+    const processCheckout = () => {
     if (!confirmation.method) return;
     
     // Ensure Staff is selected
@@ -560,6 +564,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         alert('담당 직원을 선택해주세요.');
         return;
     }
+
+        // Validate discount range
+        if (checkoutForm.discount < 0 || checkoutForm.discount > cartTotal) {
+                alert('할인 금액이 올바르지 않습니다. (0 이상, 합계를 초과할 수 없습니다)');
+                return;
+        }
 
     // Validate Privacy Agreement if customer data is entered
     if ((customerForm.name || customerForm.phoneNumber) && !customerForm.agreedToPrivacy) {
@@ -590,11 +600,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         .join(', ');
 
     setTimeout(() => {
-      const newSale: Sale = {
+            const newSale: Sale = {
         id: `S-${Date.now().toString().slice(-6)}`,
         date: new Date().toISOString(),
         storeId: activeStoreId,
-        totalAmount: cartTotal,
+                totalAmount: payableTotal,
+                discountAmount: discount,
         paymentMethod: method,
         staffName: salesStaff ? salesStaff.name : '미지정', // Save selected staff name
         vehicleNumber: checkoutForm.vehicleNumber, // Save vehicle number
@@ -629,7 +640,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
           name: '', phoneNumber: '', carModel: '', agreedToPrivacy: false, requestTaxInvoice: false,
           businessNumber: '', companyName: '', email: ''
       });
-      setCheckoutForm({ staffId: '', vehicleNumber: '' });
+    setCheckoutForm({ staffId: '', vehicleNumber: '', discount: 0 });
       setIsProcessing(false);
       alert('결제가 완료되었습니다!');
     }, 800);
@@ -1006,11 +1017,21 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                             <CreditCard size={32} />
                         </div>
                         <h3 className="text-xl font-bold text-gray-900 mb-1">결제 확인</h3>
-                        <p className="text-gray-500 mb-6">
-                            총 결제금액: <span className="text-blue-600 font-bold text-lg">{formatCurrency(cartTotal)}</span>
-                            <br/>
-                            <span className="text-sm bg-gray-100 px-2 py-0.5 rounded mt-1 inline-block">{getPaymentMethodName(confirmation.method)}</span>
-                        </p>
+                        <div className="text-gray-500 mb-6 space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                                <span>상품 합계</span>
+                                <span className="font-semibold text-gray-700">{formatCurrency(cartTotal)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="flex items-center gap-1 text-gray-600">- 할인</span>
+                                <span className="font-semibold text-red-500">-{formatCurrency(discount)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-base font-bold text-gray-900">
+                                <span>최종 결제금액</span>
+                                <span className="text-blue-600">{formatCurrency(payableTotal)}</span>
+                            </div>
+                            <div className="text-xs bg-gray-100 px-2 py-0.5 rounded mt-2 inline-block">{getPaymentMethodName(confirmation.method)}</div>
+                        </div>
                         
                         <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left space-y-3 border border-gray-100">
                              {/* Sales Staff Selection - Use Staff List */}
@@ -1029,6 +1050,30 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
                                 </select>
+                             </div>
+
+                             {/* Discount Input */}
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">할인 (원)</label>
+                                <div className="flex items-center gap-2">
+                                    <span className="px-2 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500">-</span>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:border-blue-500"
+                                        value={checkoutForm.discount.toLocaleString()}
+                                        onChange={(e) => {
+                                            const raw = e.target.value.replace(/[^0-9]/g, '');
+                                            const num = raw ? Number(raw) : 0;
+                                            setCheckoutForm(prev => ({ ...prev, discount: num }));
+                                        }}
+                                        placeholder="0"
+                                    />
+                                </div>
+                                {checkoutForm.discount > cartTotal && (
+                                    <p className="text-xs text-red-500 mt-1">할인 금액이 합계를 초과할 수 없습니다.</p>
+                                )}
                              </div>
 
                              {/* Customer Information Section */}

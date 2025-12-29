@@ -74,6 +74,7 @@ export interface Sale {
   date: string; // ISO String
   storeId: string; // Where the sale happened
   totalAmount: number;
+  discountAmount?: number; // Optional discount applied to the sale
   paymentMethod: PaymentMethod;
   items: SalesItem[];
   staffName: string; // The staff member selected at checkout
