@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Product, CartItem, Sale, Store, User, Customer, Staff } from '../types';
+import type { Product, CartItem, Sale, Store, User, Customer, Staff, Shift } from '../types';
 import { formatCurrency } from '../utils/format';
 import { PaymentMethod } from '../types';
 import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, ShoppingCart, User as UserIcon, Pencil, X, ChevronLeft, MapPin, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
@@ -13,6 +13,7 @@ interface POSProps {
   currentUser: User;
   currentStoreId: string;
   staffList: Staff[]; // Use Staff entities 
+    shifts: Shift[];
   customers: Customer[];
   onSaleComplete: (sale: Sale) => void;
     // onAddProduct: (product: Product) => void; // No longer used for immediate sale stock-in
@@ -212,7 +213,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
     );
 };
 
-const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = [], currentUser, currentStoreId, staffList, customers, onSaleComplete }) => {
+const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = [], currentUser, currentStoreId, staffList, shifts, customers, onSaleComplete }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
       const [selectedCategory, setSelectedCategory] = useState<string | null>('기타');
@@ -247,6 +248,31 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
   // Logic: If Admin, use selected store. If Staff, strictly use currentStoreId.
   const activeStoreId = currentUser.role === 'STAFF' ? currentStoreId : adminSelectedStoreId;
+
+  const isoToLocalDate = (iso: string) => {
+      const d = new Date(iso);
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 10);
+  };
+
+  const todayKey = useMemo(() => {
+      const now = new Date();
+      const local = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return local.toISOString().slice(0, 10);
+  }, []);
+
+  const scheduledStaffIds = useMemo(() => {
+      return new Set(
+          shifts
+              .filter(s => s.storeId === activeStoreId && isoToLocalDate(s.start) === todayKey)
+              .map(s => s.staffId)
+      );
+  }, [shifts, activeStoreId, todayKey]);
+
+  const scheduledStaff = useMemo(() => {
+      const list = staffList.filter(s => scheduledStaffIds.has(s.id));
+      return list;
+  }, [staffList, scheduledStaffIds]);
 
   useEffect(() => {
       if(currentUser.role === 'STORE_ADMIN' && !adminSelectedStoreId && stores.length > 0) {
@@ -291,12 +317,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     const [mobilePriceEditId, setMobilePriceEditId] = useState<string | null>(null);
     const [mobilePriceValue, setMobilePriceValue] = useState('');
 
-  // Set default staff if list has items and only one option
+  // Set default staff if only one scheduled staff is available
   useEffect(() => {
-      if (confirmation.isOpen && staffList.length === 1) {
-          setCheckoutForm(prev => ({ ...prev, staffId: staffList[0].id }));
+      if (confirmation.isOpen && scheduledStaff.length === 1) {
+          setCheckoutForm(prev => ({ ...prev, staffId: scheduledStaff[0].id }));
       }
-  }, [confirmation.isOpen, staffList]);
+  }, [confirmation.isOpen, scheduledStaff]);
 
   // Customer Search Logic
   const filteredCustomers = useMemo(() => {
@@ -996,7 +1022,10 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                     onChange={(e) => setCheckoutForm({...checkoutForm, staffId: e.target.value})}
                                 >
                                     <option value="">직원 선택</option>
-                                    {staffList.map(s => (
+                                    {scheduledStaff.length === 0 && (
+                                        <option value="" disabled>근무표에 등록된 직원 없음</option>
+                                    )}
+                                    {scheduledStaff.map(s => (
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
                                 </select>

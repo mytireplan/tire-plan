@@ -219,7 +219,7 @@ const Settings: React.FC<SettingsProps> = ({
       }
   };
 
-  const currentStoreStaff = staffList.filter(s => s.storeId === currentStoreId);
+    const currentStoreStaff = staffList; // Global staff list (not bound to a store)
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto pb-10 relative">

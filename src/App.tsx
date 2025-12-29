@@ -46,9 +46,9 @@ const MOCK_AUTH_USERS: { id: string; password: string; ownerPin?: string; name: 
 
 // Staff Database (Entities, NOT Login Users)
 const INITIAL_STAFF: Staff[] = [
-  { id: 'staff_1', name: '이정비', storeId: 'ST-1', isActive: true },
-  { id: 'staff_2', name: '박매니저', storeId: 'ST-1', isActive: true },
-  { id: 'staff_3', name: '최신입', storeId: 'ST-2', isActive: true },
+    { id: 'staff_1', name: '이정비', isActive: true },
+    { id: 'staff_2', name: '박매니저', isActive: true },
+    { id: 'staff_3', name: '최신입', isActive: true },
 ];
 
 const SALES_PAGE_SIZE = 200; // Firestore 읽기 제한을 위한 기본 페이지 크기
@@ -1183,17 +1183,17 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to delete store in Firestore:', err));
     };
   
-    const handleAddStaff = (name: string) => { 
-            const newStaff: Staff = {
-                    id: `staff_${Date.now()}`,
-                    name,
-                    isActive: true
-            };
-            setStaffList([...staffList, newStaff]);
-            saveToFirestore<Staff>(COLLECTIONS.STAFF, newStaff)
-                .then(() => console.log('✅ Staff saved to Firestore:', newStaff.id))
-                .catch((err) => console.error('❌ Failed to save staff to Firestore:', err));
-    };
+  const handleAddStaff = (name: string) => { 
+      const newStaff: Staff = {
+          id: `staff_${Date.now()}`,
+          name,
+          isActive: true
+      };
+      setStaffList([...staffList, newStaff]);
+      saveToFirestore<Staff>(COLLECTIONS.STAFF, newStaff)
+        .then(() => console.log('✅ Staff saved to Firestore:', newStaff.id))
+        .catch((err) => console.error('❌ Failed to save staff to Firestore:', err));
+  };
   const handleRemoveStaff = (id: string) => { 
       setStaffList(staffList.filter(s => s.id !== id));
       deleteFromFirestore(COLLECTIONS.STAFF, id)
@@ -1852,6 +1852,7 @@ const App: React.FC = () => {
                 products={visibleProducts} stores={visibleStores} categories={categories} tireBrands={tireBrands}
                 currentUser={effectiveUser} currentStoreId={currentStoreId}
                 staffList={staffList}
+                shifts={shifts}
                 customers={visibleCustomers} tireModels={TIRE_MODELS}
                 onSaleComplete={handleSaleComplete} onAddCategory={(c) => setCategories([...categories, c])}
                 />
