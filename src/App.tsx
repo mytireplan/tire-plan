@@ -702,19 +702,13 @@ const App: React.FC = () => {
                 // Firestore에서 데이터 로드 (판매: 당일만, 고객: 전체)
                 const PAGE_SIZE = SALES_PAGE_SIZE;
 
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-                const todayEnd = new Date();
-                todayEnd.setHours(23, 59, 59, 999);
+                const salesQuery = query(
+                    collection(db, COLLECTIONS.SALES),
+                    orderBy('date', 'desc'),
+                    limit(PAGE_SIZE)
+                );
 
-                const todaySalesPromise = getDocs(
-                    query(
-                        collection(db, COLLECTIONS.SALES),
-                        orderBy('date', 'desc'),
-                        where('date', '>=', todayStart.toISOString()),
-                        where('date', '<=', todayEnd.toISOString())
-                    )
-                ).then(snapshot => snapshot.docs.map(d => d.data() as Sale));
+                const salesPagePromise = getDocs(salesQuery).then(snapshot => snapshot.docs.map(d => d.data() as Sale));
 
                 const [
                     firestoreOwners,
@@ -727,7 +721,7 @@ const App: React.FC = () => {
                     firestoreReservationsPage,
                     firestoreTransfersPage,
                     firestoreStaffPage,
-                    firestoreSalesToday,
+                    firestoreSalesPage,
                     firestoreCustomersAll
                 ] = await Promise.all([
                     getCollectionPage<OwnerAccount>(COLLECTIONS.OWNERS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
@@ -740,7 +734,7 @@ const App: React.FC = () => {
                     getCollectionPage<Reservation>(COLLECTIONS.RESERVATIONS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StockTransferRecord>(COLLECTIONS.TRANSFERS, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<Staff>(COLLECTIONS.STAFF, { pageSize: PAGE_SIZE, orderByField: 'id' }),
-                    todaySalesPromise,
+                    salesPagePromise,
                     getAllFromFirestore<Customer>(COLLECTIONS.CUSTOMERS)
                 ]);
 
@@ -752,7 +746,7 @@ const App: React.FC = () => {
                     await seedIfEmpty<OwnerAccount>('owners', COLLECTIONS.OWNERS, ownersWithDefaults, DEFAULT_OWNER_ACCOUNTS, setUsers);
                     await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores.data, INITIAL_STORE_ACCOUNTS, setStores);
                     await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
-                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesToday, INITIAL_SALES, setSales);
+                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesPage, INITIAL_SALES, setSales);
                     await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomersAll, INITIAL_CUSTOMERS, setCustomers);
                     await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockInPage.data, INITIAL_STOCK_HISTORY, setStockInHistory);
                     await seedIfEmpty<ExpenseRecord>('expenses', COLLECTIONS.EXPENSES, firestoreExpensesPage.data, INITIAL_EXPENSES, setExpenses);
@@ -766,7 +760,7 @@ const App: React.FC = () => {
                     setUsers(ownersWithDefaults);
                     setStores(firestoreStores.data);
                     setProducts(normalizedFetchedProducts);
-                    setSales(firestoreSalesToday.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                    setSales(firestoreSalesPage.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
                     setCustomers(firestoreCustomersAll);
                     setStockInHistory(firestoreStockInPage.data);
                     setExpenses(firestoreExpensesPage.data);
