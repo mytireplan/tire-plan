@@ -1323,22 +1323,31 @@ const App: React.FC = () => {
         const custPhone = saleToSave.customer.phoneNumber;
         const ownerScopeId = stores.find(s => s.id === saleToSave.storeId)?.ownerId || currentUser.id;
         const existing = customers.find(c => c.phoneNumber === custPhone && c.ownerId === ownerScopeId);
-        
-        if (!existing) {
-            const newCustomer: Customer = {
+        const buildCustomerRecord = () => {
+            const base: Customer = {
                 id: `C-${Date.now()}`,
-                name: saleToSave.customer.name,
-                phoneNumber: saleToSave.customer.phoneNumber,
-                carModel: saleToSave.customer.carModel,
-                vehicleNumber: saleToSave.customer.vehicleNumber,
+                name: saleToSave.customer!.name,
+                phoneNumber: saleToSave.customer!.phoneNumber,
+                carModel: saleToSave.customer!.carModel || undefined,
+                vehicleNumber: saleToSave.customer!.vehicleNumber || undefined,
                 totalSpent: saleToSave.totalAmount,
                 lastVisitDate: saleToSave.date,
                 visitCount: 1,
-                businessNumber: saleToSave.customer.businessNumber,
-                companyName: saleToSave.customer.companyName,
-                email: saleToSave.customer.email,
-                ownerId: ownerScopeId // Link to owning account
+                ownerId: ownerScopeId
             };
+            const optionalFields: Array<keyof Pick<Customer, 'businessNumber' | 'companyName' | 'email'>> = ['businessNumber', 'companyName', 'email'];
+            const optionalData = optionalFields.reduce((acc, field) => {
+                const value = saleToSave.customer![field];
+                if (value) {
+                    acc[field] = value;
+                }
+                return acc;
+            }, {} as Partial<Pick<Customer, 'businessNumber' | 'companyName' | 'email'>>);
+            return { ...base, ...optionalData };
+        };
+        
+        if (!existing) {
+            const newCustomer = buildCustomerRecord();
             setCustomers(prev => [...prev, newCustomer]);
             saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, newCustomer)
               .then(() => console.log('✅ Customer saved to Firestore:', newCustomer.id))
@@ -1347,7 +1356,7 @@ const App: React.FC = () => {
             // Update existing customer stats
             let updatedCustomer: Customer | null = null;
             setCustomers(prev => prev.map(c => {
-                if (c.phoneNumber === custPhone && c.ownerId === currentUser.id) {
+                if (c.phoneNumber === custPhone && c.ownerId === ownerScopeId) {
                     const updated = {
                         ...c,
                         totalSpent: c.totalSpent + saleToSave.totalAmount,
