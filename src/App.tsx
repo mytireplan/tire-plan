@@ -848,6 +848,7 @@ const App: React.FC = () => {
 
       const normalizeOwnerId = (ownerId?: string) => ownerId && ownerId !== 'null' ? ownerId : undefined;
       const isSeedProduct = (product: Product) => product.ownerId === DEFAULT_OWNER_ID;
+      const shouldHideSeedProducts = currentUser.id !== DEFAULT_OWNER_ID;
 
       if (currentUser.role === 'SUPER_ADMIN') {
           // Super admin: show user-added products only, never seeded demo items
@@ -856,7 +857,7 @@ const App: React.FC = () => {
 
       const ownerId = currentUser.id;
       return products.filter(p => {
-          if (isSeedProduct(p)) return false;
+          if (shouldHideSeedProducts && isSeedProduct(p)) return false;
           const productOwnerId = normalizeOwnerId(p.ownerId);
           return !productOwnerId || productOwnerId === ownerId;
       });
