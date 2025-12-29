@@ -421,6 +421,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           quantity: 1,
           factoryPrice: 0
       });
+      setQuickAddForm(prev => ({ ...prev, inventoryAdjust: true }));
   };
 
   // --- Unit Price Redistribution Logic ---
