@@ -609,36 +609,38 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         .map(item => item.id === '99999' ? item.memo : `[${item.name}]: ${item.memo}`)
         .join(', ');
 
-    setTimeout(() => {
+        setTimeout(() => {
+            const customerPayload = (customerForm.name || checkoutForm.vehicleNumber) ? {
+                name: customerForm.name || '방문고객',
+                phoneNumber: customerForm.phoneNumber || '',
+                carModel: customerForm.carModel || '',
+                vehicleNumber: checkoutForm.vehicleNumber || '',
+                businessNumber: customerForm.businessNumber || '',
+                companyName: customerForm.companyName || '',
+                email: customerForm.email || ''
+            } : undefined;
+
             const newSale: Sale = {
-        id: `S-${Date.now().toString().slice(-6)}`,
-        date: new Date().toISOString(),
-        storeId: activeStoreId,
+                id: `S-${Date.now().toString().slice(-6)}`,
+                date: new Date().toISOString(),
+                storeId: activeStoreId,
                 totalAmount: payableTotal,
                 discountAmount: discount,
-        paymentMethod: method,
-        staffName: salesStaff ? salesStaff.name : '미지정', // Save selected staff name
-        vehicleNumber: checkoutForm.vehicleNumber, // Save vehicle number
-        memo: itemMemos, // Save aggregated memo
-        isTaxInvoiceRequested: customerForm.requestTaxInvoice,
-        customer: (customerForm.name || checkoutForm.vehicleNumber) ? {
-            name: customerForm.name || '방문고객',
-            phoneNumber: customerForm.phoneNumber,
-            carModel: customerForm.carModel,
-            vehicleNumber: checkoutForm.vehicleNumber, // Include vehicle number in customer info
-            businessNumber: customerForm.businessNumber,
-            companyName: customerForm.companyName,
-            email: customerForm.email
-        } : undefined,
-        items: cart.map(item => ({
-          productId: item.id,
-          productName: item.name,
-          quantity: item.quantity,
-          priceAtSale: item.price,
-          specification: item.specification,
-          brand: item.brand
-        }))
-      };
+                paymentMethod: method,
+                staffName: salesStaff ? salesStaff.name : '미지정', // Save selected staff name
+                vehicleNumber: checkoutForm.vehicleNumber, // Save vehicle number
+                memo: itemMemos, // Save aggregated memo
+                isTaxInvoiceRequested: customerForm.requestTaxInvoice,
+                items: cart.map(item => ({
+                    productId: item.id,
+                    productName: item.name,
+                    quantity: item.quantity,
+                    priceAtSale: item.price,
+                    specification: item.specification,
+                    brand: item.brand
+                })),
+                ...(customerPayload ? { customer: customerPayload } : {})
+            };
 
     // If any cart item is a new product being sold immediately, do NOT increase its stock in inventory
     // (Assume parent App handles inventory update; here, we just avoid calling onAddProduct for immediate sale)
