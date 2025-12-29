@@ -91,6 +91,8 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
       return localDate.toISOString().split('T')[0];
   };
 
+    const getSaleLocalDate = (sale: Sale) => formatDateYMD(new Date(sale.date));
+
   const boardDateStr = formatDateYMD(boardDate);
 
   // Check if the displayed month is the current calendar month
@@ -207,7 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
         const dateKey = formatDateYMD(d);
         const displayDate = `${d.getMonth() + 1}/${d.getDate()}`;
 
-        const daySales = filteredSalesByStore.filter(s => s.date.startsWith(dateKey));
+        const daySales = filteredSalesByStore.filter(s => getSaleLocalDate(s) === dateKey);
         
         const card = daySales.filter(s => s.paymentMethod === PaymentMethod.CARD).reduce((a, b) => a + b.totalAmount, 0);
         const cash = daySales.filter(s => s.paymentMethod === PaymentMethod.CASH).reduce((a, b) => a + b.totalAmount, 0);
@@ -272,7 +274,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
 
   const getDailyStats = (date: Date) => {
     const dateString = formatDateYMD(date);
-        const daySales = filteredSalesByStore.filter(s => s.date.startsWith(dateString) && !s.isCanceled);
+        const daySales = filteredSalesByStore.filter(s => getSaleLocalDate(s) === dateString && !s.isCanceled);
     
     const revenue = daySales.reduce((sum, s) => sum + s.totalAmount, 0);
     const cash = daySales.filter(s => s.paymentMethod === PaymentMethod.CASH).reduce((sum, s) => sum + s.totalAmount, 0);
@@ -286,7 +288,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   
   // 1. Daily Sales
   const dailySales = useMemo(() => {
-      return filteredSalesByStore.filter(s => s.date.startsWith(boardDateStr) && !s.isCanceled);
+      return filteredSalesByStore.filter(s => getSaleLocalDate(s) === boardDateStr && !s.isCanceled);
   }, [filteredSalesByStore, boardDateStr]);
 
   // 2. Daily Stock In (For current store)

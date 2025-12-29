@@ -20,9 +20,14 @@ interface StockInProps {
 
 const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, products, onStockIn, currentUser, stockInHistory, currentStoreId, onUpdateStockInRecord, onDeleteStockInRecord, tireModels: _unusedTireModels }) => {
     const isAdminView = currentUser.role === 'STORE_ADMIN' || currentUser.role === 'SUPER_ADMIN';
+    const getTodayLocal = () => {
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        return new Date(now.getTime() - offset).toISOString().split('T')[0];
+    };
     // --- Form State ---
     const [formData, setFormData] = useState({
-        date: new Date().toISOString().split('T')[0],
+        date: getTodayLocal(),
         storeId: (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : (stores[0]?.id || ''),
         supplier: '',
         category: '타이어',
