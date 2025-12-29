@@ -85,11 +85,8 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   };
 
   // Helper: Format Date to YYYY-MM-DD (Local)
-  const formatDateYMD = (date: Date) => {
-      const offset = date.getTimezoneOffset() * 60000;
-      const localDate = new Date(date.getTime() - offset);
-      return localDate.toISOString().split('T')[0];
-  };
+    const pad = (value: number) => value.toString().padStart(2, '0');
+    const formatDateYMD = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
     const getSaleLocalDate = (sale: Sale) => formatDateYMD(new Date(sale.date));
 
