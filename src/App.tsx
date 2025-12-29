@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
 import { orderBy, where, limit, collection, query, getDocs, type QueryConstraint } from 'firebase/firestore';
 import { db } from './firebase';
@@ -26,16 +26,13 @@ import LoginScreen from './components/LoginScreen';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 import StoreSelectionScreen from './components/StoreSelectionScreen';
 
+// Owner account persisted in Firestore
+type OwnerAccount = { id: string; name: string; role: UserRole; storeId?: string; password: string; ownerPin?: string; phoneNumber?: string; joinDate: string };
+
 // Mock Password Hash Utility (Simple Simulation)
 const mockHash = (pwd: string) => btoa(pwd); // Base64 encoding for demo purposes
 const DEFAULT_MANAGER_PIN = '4567';
-
-// Initial Stores linked to Owner IDs (Updated IDs to 25xxxx format)
-const INITIAL_STORE_ACCOUNTS: StoreAccount[] = [
-    { id: 'ST-1', code: '250001', name: '서울 강남 본점', region: '01', regionName: '서울', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
-    { id: 'ST-2', code: '250001', name: '경기 수원점', region: '02', regionName: '경기', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
-    { id: 'ST-3', code: '250001', name: '인천 송도점', region: '03', regionName: '인천', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
-];
+const DEFAULT_OWNER_ID = '250001';
 
 // Auth Database (Mock) - Owners and Master ONLY
 const MOCK_AUTH_USERS: { id: string; password: string; ownerPin?: string; name: string; role: UserRole; storeId?: string; phoneNumber?: string; joinDate: string }[] = [
@@ -44,11 +41,25 @@ const MOCK_AUTH_USERS: { id: string; password: string; ownerPin?: string; name: 
     { id: '999999', password: '1234', ownerPin: '1234', name: 'Master', role: 'SUPER_ADMIN', joinDate: '2025.01.01' },
 ];
 
+// Normalized owner list used for initial seeds and to backfill missing docs
+const DEFAULT_OWNER_ACCOUNTS: OwnerAccount[] = MOCK_AUTH_USERS.map((u) => ({
+    ...u,
+    joinDate: u.joinDate || '2025.01.01',
+    ownerPin: u.ownerPin || u.password,
+}));
+
+// Initial Stores linked to Owner IDs (Updated IDs to 25xxxx format)
+const INITIAL_STORE_ACCOUNTS: StoreAccount[] = [
+    { id: 'ST-1', code: '250001', name: '서울 강남 본점', region: '01', regionName: '서울', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
+    { id: 'ST-2', code: '250001', name: '경기 수원점', region: '02', regionName: '경기', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
+    { id: 'ST-3', code: '250001', name: '인천 송도점', region: '03', regionName: '인천', passwordHash: mockHash('4567'), isActive: true, ownerId: '250001' },
+];
+
 // Staff Database (Entities, NOT Login Users)
 const INITIAL_STAFF: Staff[] = [
-    { id: 'staff_1', name: '이정비', isActive: true },
-    { id: 'staff_2', name: '박매니저', isActive: true },
-    { id: 'staff_3', name: '최신입', isActive: true },
+    { id: 'staff_1', name: '이정비', isActive: true, ownerId: DEFAULT_OWNER_ID },
+    { id: 'staff_2', name: '박매니저', isActive: true, ownerId: DEFAULT_OWNER_ID },
+    { id: 'staff_3', name: '최신입', isActive: true, ownerId: DEFAULT_OWNER_ID },
 ];
 
 const SALES_PAGE_SIZE = 200; // Firestore 읽기 제한을 위한 기본 페이지 크기
@@ -119,98 +130,107 @@ const TIRE_MODELS: Record<string, string[]> = {
   ]
 };
 
-const TIRE_SPECS = [
-  '155/70R13', '165/60R14', '175/50R15', '185/65R14',
-  '195/65R15', '205/55R16', '205/60R16', '185/65R15', '195/60R16', '215/60R16',
-  '215/55R17', '225/55R17', '215/50R17', '225/50R17', '225/60R17', '235/55R17', '225/45R17', '215/45R17',
-  '245/45R18', '235/45R18', '225/45R18', '235/60R18', '225/55R18', '245/50R18', '225/40R18', '245/40R18', '235/50R18', '255/55R18',
-  '245/40R19', '275/36R19', '245/45R19', '275/40R19', '235/55R19', '255/50R19', '235/45R19', '255/45R19', '225/55R19', '235/50R19',
-  '255/50R20', '265/45R20', '245/45R20', '255/45R20', '275/40R20', '265/40R21', '265/50R20', '275/45R20', '295/35R21', '235/55R20',
-  '145R13', '195/70R15', '195R15', '205/70R15', '215/70R16', '215/70R15'
-];
-
 // Normalize legacy categories (merge '부품/수리' into '기타')
 const normalizeCategory = (category: string) => category === '부품/수리' ? '기타' : category;
-const DEFAULT_OWNER_ID = '250001';
 const normalizeProducts = (list: Product[]) => list.map(p => ({ ...p, category: normalizeCategory(p.category) }));
 
 const generateInitialProducts = (): Product[] => {
-    const products: Product[] = [];
-    let idCounter = 1;
-    products.push({
-        id: '99999',
-        name: '우선결제_임시',
-        brand: '기타',
-        category: '기타', 
-        price: 0,
-        stock: 9999, 
-        stockByStore: { 'ST-1': 9999, 'ST-2': 9999, 'ST-3': 9999 },
-        specification: '규격미정',
-        ownerId: DEFAULT_OWNER_ID
-    });
-    Object.entries(TIRE_MODELS).forEach(([brand, models]) => {
-        models.slice(0, 5).forEach(modelName => {
-            products.push({
-                id: String(idCounter++),
-                brand: brand,
-                name: modelName,
-                price: 100000 + Math.floor(Math.random() * 200000), 
-                stock: 20 + Math.floor(Math.random() * 30),
-                category: '타이어',
-                stockByStore: { 'ST-1': 10 + Math.floor(Math.random() * 15), 'ST-2': 10 + Math.floor(Math.random() * 15), 'ST-3': 5 },
-                specification: TIRE_SPECS[Math.floor(Math.random() * TIRE_SPECS.length)],
-                ownerId: DEFAULT_OWNER_ID
-            });
-        });
-    });
-    products.push(
-        { id: '101', brand: '기타', name: '엔진오일 교환 (합성유)', price: 80000, stock: 100, category: '기타', stockByStore: { 'ST-1': 50, 'ST-2': 50, 'ST-3': 0 }, ownerId: DEFAULT_OWNER_ID }, 
-        { id: '102', brand: '기타', name: '브레이크 패드 교체 (전륜)', price: 120000, stock: 15, category: '기타', stockByStore: { 'ST-1': 10, 'ST-2': 5, 'ST-3': 0 }, ownerId: DEFAULT_OWNER_ID },
-        { id: '103', brand: '기타', name: '와이퍼 세트 (Premium)', price: 35000, stock: 50, category: '기타', stockByStore: { 'ST-1': 25, 'ST-2': 25, 'ST-3': 0 }, ownerId: DEFAULT_OWNER_ID },
-        { id: '104', brand: '기타', name: '휠 밸런스 조정', price: 20000, stock: 999, category: '기타', stockByStore: { 'ST-1': 999, 'ST-2': 999, 'ST-3': 999 }, ownerId: DEFAULT_OWNER_ID }
-    );
-    return products;
+    const demoStock = { 'ST-1': 12, 'ST-2': 8, 'ST-3': 10 };
+    const products: Product[] = [
+        {
+            id: 'P-001',
+            name: '벤투스 S1 에보3',
+            brand: '한국',
+            specification: '245/45R18',
+            category: '타이어',
+            price: 180000,
+            stock: 30,
+            stockByStore: demoStock,
+            ownerId: DEFAULT_OWNER_ID,
+        },
+        {
+            id: 'P-002',
+            name: '마제스티 9 솔루스',
+            brand: '금호',
+            specification: '225/55R17',
+            category: '타이어',
+            price: 165000,
+            stock: 24,
+            stockByStore: demoStock,
+            ownerId: DEFAULT_OWNER_ID,
+        },
+        {
+            id: 'P-003',
+            name: '엔페라 SU1',
+            brand: '넥센',
+            specification: '235/45R18',
+            category: '타이어',
+            price: 150000,
+            stock: 20,
+            stockByStore: demoStock,
+            ownerId: DEFAULT_OWNER_ID,
+        },
+        {
+            id: 'P-004',
+            name: '파일럿 스포츠 5',
+            brand: '미쉐린',
+            specification: '245/40R19',
+            category: '타이어',
+            price: 260000,
+            stock: 15,
+            stockByStore: demoStock,
+            ownerId: DEFAULT_OWNER_ID,
+        },
+        {
+            id: 'P-005',
+            name: '엔진오일 5W30 (4L)',
+            brand: '기타',
+            specification: '5W30',
+            category: '오일',
+            price: 45000,
+            stock: 40,
+            stockByStore: demoStock,
+            ownerId: DEFAULT_OWNER_ID,
+        },
+        {
+            id: 'P-006',
+            name: '브레이크패드 세트',
+            brand: '기타',
+            specification: '국산 세단 호환',
+            category: '기타',
+            price: 60000,
+            stock: 25,
+            stockByStore: demoStock,
+            ownerId: DEFAULT_OWNER_ID,
+        },
+        {
+            id: 'P-007',
+            name: '에어컨 필터',
+            brand: '기타',
+            specification: '대부분 차종',
+            category: '기타',
+            price: 15000,
+            stock: 50,
+            stockByStore: demoStock,
+            ownerId: DEFAULT_OWNER_ID,
+        },
+        {
+            id: 'P-008',
+            name: '윈터 타이어 세트',
+            brand: '콘티넨탈',
+            specification: '225/50R17',
+            category: '타이어',
+            price: 210000,
+            stock: 18,
+            stockByStore: demoStock,
+            ownerId: DEFAULT_OWNER_ID,
+        }
+    ];
+
+    return normalizeProducts(products);
 };
 
-const INITIAL_PRODUCTS: Product[] = normalizeProducts(generateInitialProducts());
-
-const generateMockStockHistory = (products: Product[]): StockInRecord[] => {
-  const records: StockInRecord[] = [];
-  const suppliers = ['한국타이어 본사', '금호타이어 물류', '넥센타이어 강남지사', '미쉐린 코리아', '파츠모아'];
-  products.forEach((prod, idx) => {
-    if (prod.id === '99999') return; 
-    const purchasePrice = Math.floor(prod.price * (0.6 + Math.random() * 0.05));
-    const factoryPrice = Math.floor(prod.price * 0.75);
-    records.push({
-      id: `INIT-IN-1-${idx}`,
-      date: '2023-01-01', 
-      storeId: 'ST-1',
-      supplier: suppliers[Math.floor(Math.random() * suppliers.length)],
-      category: prod.category,
-      brand: prod.brand || '기타',
-      productName: prod.name,
-      specification: prod.specification || '',
-      quantity: 50,
-      factoryPrice: factoryPrice,
-      purchasePrice: purchasePrice 
-    });
-    // Add for ST-2
-    records.push({
-      id: `INIT-IN-2-${idx}`,
-      date: '2023-01-01',
-      storeId: 'ST-2',
-      supplier: suppliers[Math.floor(Math.random() * suppliers.length)],
-      category: prod.category,
-      brand: prod.brand || '기타',
-      productName: prod.name,
-      specification: prod.specification || '',
-      quantity: 50,
-      factoryPrice: factoryPrice,
-      purchasePrice: purchasePrice
-    });
-  });
-  return records;
-};
+const INITIAL_PRODUCTS: Product[] = generateInitialProducts();
 
 const generateMockSales = (): Sale[] => {
   const sales: Sale[] = [];
@@ -381,6 +401,29 @@ const generateMockReservations = (): Reservation[] => {
     ];
 };
 
+const generateMockStockHistory = (products: Product[]): StockInRecord[] => {
+    const suppliers = ['한국타이어물류', '금호공급', '넥센딜러'];
+    const today = new Date();
+    return products.map((product, idx) => {
+        const date = new Date(today);
+        date.setDate(today.getDate() - idx);
+        const purchasePrice = Math.max(40000, Math.floor(product.price * 0.6));
+        return {
+            id: `STOCK-${idx + 1}`,
+            date: date.toISOString(),
+            storeId: 'ST-1',
+            supplier: suppliers[idx % suppliers.length],
+            category: product.category,
+            brand: product.brand || '기타',
+            productName: product.name,
+            specification: product.specification || '',
+            quantity: 10 + idx,
+            purchasePrice,
+            factoryPrice: purchasePrice,
+        } as StockInRecord;
+    });
+};
+
 const INITIAL_SALES: Sale[] = generateMockSales();
 const INITIAL_STOCK_HISTORY: StockInRecord[] = generateMockStockHistory(INITIAL_PRODUCTS);
 // Link Initial Customers to Default Demo Owner '250001'
@@ -528,15 +571,10 @@ const App: React.FC = () => {
     viewTaxInvoice: true,
   });
 
-    const [stores, setStores] = useState<StoreAccount[]>(INITIAL_STORE_ACCOUNTS);
-    const [tireBrands, setTireBrands] = useState<string[]>(INITIAL_TIRE_BRANDS);
-  
-  // Initialize Users with Join Date
-        type OwnerAccount = {id: string, name: string, role: UserRole, storeId?: string, password: string, ownerPin?: string, phoneNumber?: string, joinDate: string};
+        const [stores, setStores] = useState<StoreAccount[]>(INITIAL_STORE_ACCOUNTS);
+        const [tireBrands, setTireBrands] = useState<string[]>(INITIAL_TIRE_BRANDS);
 
-        const [users, setUsers] = useState<OwnerAccount[]>(
-            MOCK_AUTH_USERS.map(u => ({...u, joinDate: u.joinDate || '2025.01.01', ownerPin: u.ownerPin || u.password }))
-    );
+        const [users, setUsers] = useState<OwnerAccount[]>(DEFAULT_OWNER_ACCOUNTS);
   
   const [staffList, setStaffList] = useState<Staff[]>(INITIAL_STAFF); // Manage Staff Entities
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -553,6 +591,10 @@ const App: React.FC = () => {
         end.setHours(23, 59, 59, 999);
         return { start: start.toISOString(), end: end.toISOString() };
     });
+
+    const handleShiftRangeChange = useCallback((start: string, end: string) => {
+        setShiftRange({ start, end });
+    }, []);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>(INITIAL_EXPENSES);
   const [fixedCosts, setFixedCosts] = useState<FixedCostConfig[]>(INITIAL_FIXED_COSTS);
   const [historyFilter, setHistoryFilter] = useState<SalesFilter>({ type: 'ALL', value: '', label: '전체 판매 내역' });
@@ -636,6 +678,18 @@ const App: React.FC = () => {
             console.log(`🌱 Seeded ${seed.length} ${label} into Firestore`);
         };
 
+        const ensureDefaultOwners = async (existing: OwnerAccount[]): Promise<OwnerAccount[]> => {
+            const missing = DEFAULT_OWNER_ACCOUNTS.filter((owner) => !existing.some((o) => o.id === owner.id));
+            if (missing.length === 0) return existing;
+            try {
+                await saveBulkToFirestore(COLLECTIONS.OWNERS, missing);
+                console.log(`🌱 Added missing default owners: ${missing.map((m) => m.id).join(', ')}`);
+            } catch (error) {
+                console.error('❌ Failed to add missing default owners:', error);
+            }
+            return [...existing, ...missing];
+        };
+
         const initializeData = async () => {
             try {
                 // localStorage에서 Firestore로 마이그레이션 (최초 1회만)
@@ -690,11 +744,12 @@ const App: React.FC = () => {
                     getAllFromFirestore<Customer>(COLLECTIONS.CUSTOMERS)
                 ]);
 
+                const ownersWithDefaults = await ensureDefaultOwners(firestoreOwners.data);
                 const normalizedFetchedProducts = normalizeProducts(firestoreProductsPage.data);
 
                 if (SHOULD_SEED_DEMO) {
                     // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
-                    await seedIfEmpty<OwnerAccount>('owners', COLLECTIONS.OWNERS, firestoreOwners.data, users, setUsers);
+                    await seedIfEmpty<OwnerAccount>('owners', COLLECTIONS.OWNERS, ownersWithDefaults, DEFAULT_OWNER_ACCOUNTS, setUsers);
                     await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores.data, INITIAL_STORE_ACCOUNTS, setStores);
                     await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
                     await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesToday, INITIAL_SALES, setSales);
@@ -708,7 +763,7 @@ const App: React.FC = () => {
                     await seedIfEmpty<Staff>('staff', COLLECTIONS.STAFF, firestoreStaffPage.data, INITIAL_STAFF, setStaffList);
                 } else {
                     // 프로덕션에서는 Firestore 값만 사용 (비어 있어도 시드하지 않음)
-                    setUsers(firestoreOwners.data);
+                    setUsers(ownersWithDefaults);
                     setStores(firestoreStores.data);
                     setProducts(normalizedFetchedProducts);
                     setSales(firestoreSalesToday.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -813,6 +868,16 @@ const App: React.FC = () => {
       if (currentUser?.role === 'SUPER_ADMIN') return stockInHistory;
       return stockInHistory.filter(r => visibleStoreIds.includes(r.storeId));
   }, [stockInHistory, visibleStoreIds, currentUser]);
+
+  const visibleStaff = useMemo(() => {
+      if (!currentUser) return [] as Staff[];
+      if (currentUser.role === 'SUPER_ADMIN') return staffList;
+      return staffList.filter((s) => {
+          if (s.ownerId) return s.ownerId === currentUser.id;
+          if (s.storeId) return visibleStoreIds.includes(s.storeId);
+          return false;
+      });
+  }, [staffList, currentUser, visibleStoreIds]);
 
   // 근무표 실시간 구독 (월 범위 + 지점 필터)
   useEffect(() => {
@@ -1055,6 +1120,7 @@ const App: React.FC = () => {
       const defaultStaff: Staff = {
           id: `staff_${Date.now()}`,
           name,
+          ownerId: newOwnerId,
           storeId: newStore.id,
           isActive: true
       };
@@ -1183,13 +1249,22 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to delete store in Firestore:', err));
     };
   
-  const handleAddStaff = (name: string) => { 
+  const handleAddStaff = (name: string) => {
+      const selectStoreId = currentStoreId && currentStoreId !== 'ALL'
+          ? currentStoreId
+          : visibleStoreIds[0] || stores[0]?.id || 'ALL';
+      const resolvedOwnerId = currentUser?.id
+          ?? stores.find(store => store.id === selectStoreId)?.ownerId
+          ?? DEFAULT_OWNER_ID;
+
       const newStaff: Staff = {
           id: `staff_${Date.now()}`,
           name,
-          isActive: true
+          isActive: true,
+          ownerId: resolvedOwnerId,
+          storeId: selectStoreId
       };
-      setStaffList([...staffList, newStaff]);
+      setStaffList(prev => [...prev, newStaff]);
       saveToFirestore<Staff>(COLLECTIONS.STAFF, newStaff)
         .then(() => console.log('✅ Staff saved to Firestore:', newStaff.id))
         .catch((err) => console.error('❌ Failed to save staff to Firestore:', err));
@@ -1515,10 +1590,18 @@ const App: React.FC = () => {
     };
 
     // Shift handlers (Firestore + local)
+    const sanitizeShiftPayload = (shift: Shift) => {
+        const payload = { ...shift } as Partial<Shift>;
+        if (payload.memo === undefined) {
+            delete payload.memo;
+        }
+        return payload as Shift;
+    };
+
     const handleAddShift = async (shift: Shift) => {
         setShifts(prev => [...prev, shift]);
         try {
-            await saveToFirestore<Shift>(COLLECTIONS.SHIFTS, shift);
+            await saveToFirestore<Shift>(COLLECTIONS.SHIFTS, sanitizeShiftPayload(shift));
         } catch (err) {
             console.error('❌ Failed to save shift in Firestore:', err);
         }
@@ -1526,7 +1609,7 @@ const App: React.FC = () => {
     const handleUpdateShift = async (shift: Shift) => {
         setShifts(prev => prev.map(s => s.id === shift.id ? shift : s));
         try {
-            await saveToFirestore<Shift>(COLLECTIONS.SHIFTS, shift);
+            await saveToFirestore<Shift>(COLLECTIONS.SHIFTS, sanitizeShiftPayload(shift));
         } catch (err) {
             console.error('❌ Failed to update shift in Firestore:', err);
         }
@@ -1851,7 +1934,7 @@ const App: React.FC = () => {
                 <POS 
                 products={visibleProducts} stores={visibleStores} categories={categories} tireBrands={tireBrands}
                 currentUser={effectiveUser} currentStoreId={currentStoreId}
-                staffList={staffList}
+                staffList={visibleStaff}
                 shifts={shifts}
                 customers={visibleCustomers} tireModels={TIRE_MODELS}
                 onSaleComplete={handleSaleComplete} onAddCategory={(c) => setCategories([...categories, c])}
@@ -1866,12 +1949,12 @@ const App: React.FC = () => {
             )}
             {activeTab === 'leave' && (
                 <ScheduleAndLeave
-                    staffList={staffList}
+                    staffList={visibleStaff}
                     leaveRequests={leaveRequests}
                     stores={visibleStores}
                     shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
                     currentStoreId={currentStoreId}
-                    onShiftRangeChange={(start, end) => setShiftRange({ start, end })}
+                    onShiftRangeChange={handleShiftRangeChange}
                     onAddShift={handleAddShift}
                     onUpdateShift={handleUpdateShift}
                     onRemoveShift={handleRemoveShift}
@@ -1929,7 +2012,7 @@ const App: React.FC = () => {
                 currentAdminPassword={currentUserPassword} onUpdatePassword={handleUpdatePassword}
                 currentOwnerPin={ownerPin} onUpdateOwnerPin={handleUpdateOwnerPin}
                 currentManagerPin={storePin} onUpdateManagerPin={handleUpdateManagerPin}
-                staffList={staffList} onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff}
+                staffList={visibleStaff} onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff}
                 currentStoreId={currentStoreId}
                 />
             )}

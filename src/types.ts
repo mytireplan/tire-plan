@@ -20,6 +20,7 @@ export interface Staff {
   id: string;
   name: string;
   storeId?: string; // Optional: staff can work across stores
+  ownerId?: string; // Owning account to prevent cross-tenant leakage
   isActive: boolean;
 }
 
