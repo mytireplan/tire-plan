@@ -1319,9 +1319,10 @@ const App: React.FC = () => {
                         .catch((err) => console.error('❌ Failed to save sale to Firestore:', err));
     
     // Add New Customer if not exists (with Owner Scope)
-    if (saleToSave.customer && currentUser) {
+        if (saleToSave.customer && currentUser) {
         const custPhone = saleToSave.customer.phoneNumber;
-        const existing = customers.find(c => c.phoneNumber === custPhone && c.ownerId === currentUser.id);
+        const ownerScopeId = stores.find(s => s.id === saleToSave.storeId)?.ownerId || currentUser.id;
+        const existing = customers.find(c => c.phoneNumber === custPhone && c.ownerId === ownerScopeId);
         
         if (!existing) {
             const newCustomer: Customer = {
@@ -1336,7 +1337,7 @@ const App: React.FC = () => {
                 businessNumber: saleToSave.customer.businessNumber,
                 companyName: saleToSave.customer.companyName,
                 email: saleToSave.customer.email,
-                ownerId: currentUser.id // Link to current Owner
+                ownerId: ownerScopeId // Link to owning account
             };
             setCustomers(prev => [...prev, newCustomer]);
             saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, newCustomer)
