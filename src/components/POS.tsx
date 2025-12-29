@@ -566,7 +566,19 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       setCustomerForm(prev => ({ ...prev, phoneNumber: formatted }));
   };
 
-    const processCheckout = () => {
+      const buildSaleItem = (item: CartItem): Sale['items'][number] => {
+          const sanitizedItem: Sale['items'][number] = {
+              productId: item.id,
+              productName: item.name,
+              quantity: item.quantity,
+              priceAtSale: item.price
+          };
+          if (item.specification) sanitizedItem.specification = item.specification;
+          if (item.brand) sanitizedItem.brand = item.brand;
+          return sanitizedItem;
+      };
+
+      const processCheckout = () => {
     if (!confirmation.method) return;
     
     // Ensure Staff is selected
@@ -631,14 +643,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 vehicleNumber: checkoutForm.vehicleNumber, // Save vehicle number
                 memo: itemMemos, // Save aggregated memo
                 isTaxInvoiceRequested: customerForm.requestTaxInvoice,
-                items: cart.map(item => ({
-                    productId: item.id,
-                    productName: item.name,
-                    quantity: item.quantity,
-                    priceAtSale: item.price,
-                    specification: item.specification,
-                    brand: item.brand
-                })),
+                items: cart.map(buildSaleItem),
                 ...(customerPayload ? { customer: customerPayload } : {})
             };
 
