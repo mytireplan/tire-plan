@@ -852,6 +852,7 @@ const App: React.FC = () => {
   const visibleProducts = useMemo(() => {
       if (!currentUser) return [];
 
+      const normalizeOwnerId = (ownerId?: string) => ownerId && ownerId !== 'null' ? ownerId : undefined;
       const isSeedProduct = (product: Product) => product.ownerId === DEFAULT_OWNER_ID;
 
       if (currentUser.role === 'SUPER_ADMIN') {
@@ -860,8 +861,11 @@ const App: React.FC = () => {
       }
 
       const ownerId = currentUser.id;
-      // Owner/staff: see their own products (legacy ownerless included), hide seeded demo items
-      return products.filter(p => !isSeedProduct(p) && (!p.ownerId || p.ownerId === ownerId));
+      return products.filter(p => {
+          if (isSeedProduct(p)) return false;
+          const productOwnerId = normalizeOwnerId(p.ownerId);
+          return !productOwnerId || productOwnerId === ownerId;
+      });
   }, [products, currentUser]);
 
   const visibleStockHistory = useMemo(() => {
