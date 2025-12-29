@@ -1295,7 +1295,22 @@ const App: React.FC = () => {
 
     const handleSaleComplete = (newSale: Sale, options?: { adjustInventory?: boolean }) => {
         const adjustInventory = options?.adjustInventory !== false;
+        const sanitizeCustomer = (customer?: Sale['customer']) => {
+            if (!customer) return undefined;
+            const cleaned = { ...customer } as Record<string, unknown>;
+            Object.keys(cleaned).forEach(key => {
+                if (cleaned[key] === undefined || cleaned[key] === null || cleaned[key] === '') delete cleaned[key];
+            });
+            return Object.keys(cleaned).length === 0 ? undefined : (cleaned as Sale['customer']);
+        };
+
+        const sanitizedCustomer = sanitizeCustomer(newSale.customer);
         const saleToSave: Sale = { ...newSale, inventoryAdjusted: adjustInventory };
+        if (sanitizedCustomer) {
+            saleToSave.customer = sanitizedCustomer;
+        } else {
+            delete saleToSave.customer;
+        }
 
         setSales(prev => [saleToSave, ...prev]);
         saveToFirestore<Sale>(COLLECTIONS.SALES, saleToSave)
