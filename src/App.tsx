@@ -1367,6 +1367,7 @@ const App: React.FC = () => {
     }
 
         if (adjustInventory) {
+            const updatedProducts: Product[] = [];
             setProducts(prevProducts => {
                 return prevProducts.map(prod => {
                     const soldItem = saleToSave.items.find(item => item.productId === prod.id);
@@ -1377,11 +1378,21 @@ const App: React.FC = () => {
                         const newStoreStock = Math.max(0, currentStoreStock - soldItem.quantity);
                         const newStockByStore = { ...prod.stockByStore, [saleToSave.storeId]: newStoreStock };
                         const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-                        return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+                        const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+                        updatedProducts.push(updated);
+                        return updated;
                     }
                     return prod;
                 });
             });
+
+            if (updatedProducts.length > 0) {
+                updatedProducts.forEach(product => {
+                    saveToFirestore<Product>(COLLECTIONS.PRODUCTS, product)
+                        .then(() => console.log('✅ Product stock updated after sale:', product.id))
+                        .catch(err => console.error('❌ Failed to update product stock after sale:', err));
+                });
+            }
         }
   };
 
