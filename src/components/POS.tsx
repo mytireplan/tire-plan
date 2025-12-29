@@ -462,14 +462,24 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   // --- Emergency / Temp Product Logic (Inline Version) ---
   const addDummyProduct = () => {
       const dummyProduct = fireProducts.find(p => p.id === '99999');
-      if (dummyProduct) {
-          // Add to cart with price 0 (forcing user to input)
-          addToCart(dummyProduct, 0);
-          // Note: We can't set focus immediately because we don't know the new ID yet easily here without refactoring.
-          // But user can click to edit.
-      } else {
+      if (!dummyProduct) {
+          console.error('Missing manual item template (ID:99999)');
           alert('임시 상품 데이터(ID:99999)가 없습니다. 시스템 관리자에게 문의하세요.');
+          return;
       }
+      const manualItem: CartItem = {
+          cartItemId: `manual-${Date.now()}`,
+          id: '99999',
+          name: '우선결제',
+          price: 0,
+          stock: 0,
+          stockByStore: { [activeStoreId]: 0 },
+          category: '기타',
+          quantity: 1,
+          isManual: true,
+          originalPrice: 0,
+      };
+      setCart(prev => [...prev, manualItem]);
   };
 
   const updateMemo = (cartItemId: string, memo: string) => {
