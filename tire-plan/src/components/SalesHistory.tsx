@@ -614,13 +614,15 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
   const saveDetailEdit = () => {
       if (editFormData && onUpdateSale) {
-          // Verify totals: Re-sum the items
-          const calculatedTotal = editFormData.items.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
+          // Recalculate unit prices to respect the locked total before saving
+          const normalizedItems = recalculateUnitPrices(editFormData.items, lockedTotalAmount || editFormData.totalAmount);
+          const calculatedTotal = normalizedItems.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
+          const targetTotal = lockedTotalAmount || calculatedTotal;
           
-          // Update totalAmount and mark as Edited
           const updatedSale = { 
               ...editFormData, 
-              totalAmount: calculatedTotal,
+              items: normalizedItems,
+              totalAmount: targetTotal,
               isEdited: true // Mark as modified
           };
           
