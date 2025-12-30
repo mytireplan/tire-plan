@@ -456,10 +456,55 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
               newItems = recalculateUnitPrices(newItems, getLockedBudget());
               setEditFormData({ ...editFormData, items: newItems });
               setHasUnsavedChanges(true);
+          } else if (swapTarget?.isQuickAddCart) {
+              // Quick-add cart case
+              let newItems = [...quickAddForm.items];
+              newItems.push({
+                  productId: proxyProduct.id,
+                  productName: proxyProduct.name,
+                  brand: proxyProduct.brand,
+                  specification: proxyProduct.specification,
+                  quantity: consumptionQty,
+                  priceAtSale: proxyProduct.price
+              });
+              setQuickAddForm(prev => ({ ...prev, items: newItems }));
           }
       } else {
-          // Normal flow without insufficient stock warning
-          executeSwap({ ...proxyProduct, _swapQuantity: consumptionQty });
+          // Normal flow without insufficient stock warning - directly add to cart
+          if (swapTarget?.isQuickAddCart) {
+              // Quick-add cart
+              let newItems = [...quickAddForm.items];
+              newItems.push({
+                  productId: proxyProduct.id,
+                  productName: proxyProduct.name,
+                  brand: proxyProduct.brand,
+                  specification: proxyProduct.specification,
+                  quantity: consumptionQty,
+                  priceAtSale: proxyProduct.price
+              });
+              setQuickAddForm(prev => ({ ...prev, items: newItems }));
+          } else if (swapTarget?.isEditMode && editFormData) {
+              // Sales detail edit mode
+              let newItems = [...editFormData.items];
+              
+              if (swapTarget.isAdding) {
+                  newItems.push({
+                      productId: proxyProduct.id,
+                      productName: proxyProduct.name,
+                      brand: proxyProduct.brand,
+                      specification: proxyProduct.specification,
+                      quantity: consumptionQty,
+                      priceAtSale: proxyProduct.price
+                  });
+              }
+              
+              newItems = recalculateUnitPrices(newItems, getLockedBudget());
+              setEditFormData({ ...editFormData, items: newItems });
+              setHasUnsavedChanges(true);
+          } else {
+              // Fallback to executeSwap
+              executeSwap({ ...proxyProduct, _swapQuantity: consumptionQty });
+          }
       }
 
       // Ensure the last-added item in the edit form OR quick-add cart has the stocked quantity
@@ -1415,7 +1460,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
                               {/* Quick Stock In Button */}
                               <button 
-                                onClick={() => setIsStockInModalOpen(true)}
+                                onClick={() => {
+                                  setSwapTarget({ isQuickAddCart: true, isAdding: true });
+                                  setIsStockInModalOpen(true);
+                                }}
                                 className="w-full py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
                               >
                                   <Truck size={16}/> + 신규 상품 등록 (바로 추가)
