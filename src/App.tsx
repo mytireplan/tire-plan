@@ -1563,7 +1563,8 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
   };
   const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
-            const qtyForStock = record.receivedQuantity ?? record.quantity;
+            const isConsumed = Boolean(record.consumedAtSaleId);
+            const qtyForStock = isConsumed ? 0 : (record.receivedQuantity ?? record.quantity ?? 0);
                         const recordToSave: StockInRecord = record.consumedAtSaleId
                                 ? { ...record, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
                                 : { ...record, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
