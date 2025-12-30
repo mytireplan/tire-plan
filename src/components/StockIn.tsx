@@ -232,10 +232,13 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
 
     // 3. Monthly Totals
     const monthlyTotals = useMemo(() => {
-        return filteredHistory.reduce((acc, curr) => ({
-            qty: acc.qty + curr.quantity,
-            cost: acc.cost + (curr.purchasePrice || 0) * curr.quantity
-        }), { qty: 0, cost: 0 });
+        return filteredHistory.reduce((acc, curr) => {
+            const qty = curr.receivedQuantity ?? curr.quantity;
+            return {
+                qty: acc.qty + qty,
+                cost: acc.cost + (curr.purchasePrice || 0) * qty
+            };
+        }, { qty: 0, cost: 0 });
     }, [filteredHistory]);
 
     // Calculation of Discount Rate Badge
@@ -554,7 +557,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                                     <div className="text-xs text-gray-500">{record.specification}</div>
                                                 </td>
                                                 <td className="px-4 py-3 text-center font-bold text-blue-600 align-middle whitespace-nowrap">
-                                                    +{record.quantity}
+                                                    +{record.receivedQuantity ?? record.quantity}
                                                 </td>
                                                 {isAdminView && (
                                                     <>
@@ -575,7 +578,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3 text-right font-bold text-gray-800 whitespace-nowrap align-middle">
-                                                            {formatCurrency((record.purchasePrice || 0) * record.quantity)}
+                                                            {formatCurrency((record.purchasePrice || 0) * (record.receivedQuantity ?? record.quantity))}
                                                         </td>
                                                         <td className="px-4 py-3 text-center whitespace-nowrap align-middle">
                                                             <button
