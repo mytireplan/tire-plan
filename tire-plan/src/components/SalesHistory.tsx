@@ -406,6 +406,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
         return newItems;
   };
 
+      // Preferred budget for recalculations; falls back to sale totals if lock is unset
+      const getLockedBudget = () => lockedTotalAmount || selectedSale?.totalAmount || editFormData?.totalAmount || 0;
+
     // Accepts optional _swapQuantity for new item
     const executeSwap = (product: Product & { _swapQuantity?: number }) => {
       if (!swapTarget) return;
@@ -436,7 +439,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
               }
           }
           
-          newItems = recalculateUnitPrices(newItems, lockedTotalAmount);
+          newItems = recalculateUnitPrices(newItems, getLockedBudget());
 
           setEditFormData({ ...editFormData, items: newItems });
           setIsSwapModalOpen(false);
@@ -463,7 +466,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
               if (newQty >= 0) {
                    newItems[itemIndex] = { ...newItems[itemIndex], quantity: newQty };
                    // Recalculate on Quantity Change - Distribute lock
-                   newItems = recalculateUnitPrices(newItems, lockedTotalAmount);
+                   newItems = recalculateUnitPrices(newItems, getLockedBudget());
               }
           } else if (field === 'priceAtSale') {
                // Manual Price override
@@ -479,7 +482,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                const targetCost = newUnitPrice * targetItem.quantity;
                
                // Calculate Remaining Budget for ALL OTHER items
-               const remainingBudget = lockedTotalAmount - targetCost;
+               const budget = getLockedBudget();
+               const remainingBudget = budget - targetCost;
                const otherItemsIndices = newItems.map((_, i) => i).filter(i => i !== itemIndex);
 
                if (otherItemsIndices.length === 0) {
@@ -488,7 +492,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                    // If we allow editing single item, we break the "Fixed Total" rule.
                    // The prompt requirement says: Total is FIXED. 
                    // So single item price is strictly Total / Qty.
-                   const fixedPrice = Math.floor(lockedTotalAmount / targetItem.quantity);
+                   const fixedPrice = Math.floor(budget / targetItem.quantity);
                    newItems[itemIndex].priceAtSale = fixedPrice;
                } else {
                    // Distribute remainingBudget among other items
@@ -517,7 +521,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
                    // Fix Rounding Drift to ensure exact Total Match
                    const currentTotal = newItems.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
-                   const drift = lockedTotalAmount - currentTotal;
+                   const drift = budget - currentTotal;
 
                    if (drift !== 0) {
                        // Add drift to the first available 'other' item
@@ -564,7 +568,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       if (!editFormData) return;
       let newItems = editFormData.items.filter((_, i) => i !== index);
       // Recalculate on Remove
-      newItems = recalculateUnitPrices(newItems, lockedTotalAmount);
+    newItems = recalculateUnitPrices(newItems, getLockedBudget());
       setEditFormData({ ...editFormData, items: newItems });
   };
 
@@ -615,9 +619,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const saveDetailEdit = () => {
       if (editFormData && onUpdateSale) {
           // Recalculate unit prices to respect the locked total before saving
-          const normalizedItems = recalculateUnitPrices(editFormData.items, lockedTotalAmount || editFormData.totalAmount);
+          const budget = getLockedBudget();
+          const normalizedItems = recalculateUnitPrices(editFormData.items, budget || editFormData.totalAmount);
           const calculatedTotal = normalizedItems.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
-          const targetTotal = lockedTotalAmount || calculatedTotal;
+          const targetTotal = budget || calculatedTotal;
           
           const updatedSale = { 
               ...editFormData, 

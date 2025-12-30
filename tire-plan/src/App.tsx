@@ -484,6 +484,35 @@ const App: React.FC = () => {
   const [historyFilter, setHistoryFilter] = useState<SalesFilter>({ type: 'ALL', value: '', label: '전체 판매 내역' });
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
   const [reservations, setReservations] = useState<Reservation[]>(INITIAL_RESERVATIONS);
+  const salesUnsubRef = useRef<(() => void) | null>(null);
+  const stockInUnsubRef = useRef<(() => void) | null>(null);
+
+  // 실시간 구독: 판매/입고 히스토리 (APP 상태에서만)
+  useEffect(() => {
+      const cleanup = () => {
+          salesUnsubRef.current?.();
+          stockInUnsubRef.current?.();
+          salesUnsubRef.current = null;
+          stockInUnsubRef.current = null;
+      };
+
+      if (viewState !== 'APP') {
+          cleanup();
+          return;
+      }
+
+      salesUnsubRef.current = subscribeToCollection<Sale>(COLLECTIONS.SALES, (data) => {
+          const sorted = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setSales(sorted);
+      });
+
+      stockInUnsubRef.current = subscribeToCollection<StockInRecord>(COLLECTIONS.STOCK_IN, (data) => {
+          const sorted = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setStockInHistory(sorted);
+      });
+
+      return cleanup;
+  }, [viewState]);
 
   // Admin auto-timeout (5 minutes of inactivity)
   useEffect(() => {
@@ -1115,6 +1144,12 @@ const App: React.FC = () => {
     };
   
     const handleSaleComplete = (newSale: Sale, options?: { adjustInventory?: boolean }) => {
+        const persistProducts = (list: Product[]) => {
+            if (!list.length) return Promise.resolve();
+            const sanitized = list.map(p => JSON.parse(JSON.stringify(p)) as Product);
+            return Promise.all(sanitized.map(p => saveToFirestore<Product>(COLLECTIONS.PRODUCTS, p)));
+        };
+
         const adjustInventory = options?.adjustInventory !== false;
         const saleToSave: Sale = { ...newSale, inventoryAdjusted: adjustInventory };
         setSales(prev => [saleToSave, ...prev]);
@@ -1176,7 +1211,7 @@ const App: React.FC = () => {
         const consumptionLogs: StockInRecord[] = [];
         const saleStoreId = saleToSave.storeId;
 
-        setProducts(prevProducts => prevProducts.map(prod => {
+        const nextProducts = products.map(prod => {
             if (prod.id === '99999' || !saleStoreId) return prod;
 
             const safeStockByStore = prod.stockByStore || {};
@@ -1217,14 +1252,14 @@ const App: React.FC = () => {
             };
             consumptionLogs.push(consumptionRecord);
             return updated;
-        }));
+        });
+
+        setProducts(nextProducts);
 
         if (updatedProducts.length > 0) {
-            updatedProducts.forEach(product => {
-                saveToFirestore<Product>(COLLECTIONS.PRODUCTS, product)
-                    .then(() => console.log('✅ Product stock updated after sale:', product.id))
-                    .catch(err => console.error('❌ Failed to update product stock after sale:', err));
-            });
+            persistProducts(updatedProducts)
+                .then(() => console.log('✅ Product stock updated after sale'))
+                .catch(err => console.error('❌ Failed to update product stock after sale:', err));
         }
 
         if (consumptionLogs.length > 0) {

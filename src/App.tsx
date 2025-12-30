@@ -602,6 +602,37 @@ const App: React.FC = () => {
   const [reservations, setReservations] = useState<Reservation[]>(INITIAL_RESERVATIONS);
     const reservationUnsubRef = useRef<(() => void) | null>(null);
     const shiftsUnsubRef = useRef<(() => void) | null>(null);
+        const salesUnsubRef = useRef<(() => void) | null>(null);
+        const stockInUnsubRef = useRef<(() => void) | null>(null);
+
+    // 실시간 구독: 판매/입고 히스토리 최신화 (화면이 APP일 때만)
+    useEffect(() => {
+        const cleanup = () => {
+            salesUnsubRef.current?.();
+            stockInUnsubRef.current?.();
+            salesUnsubRef.current = null;
+            stockInUnsubRef.current = null;
+        };
+
+        if (viewState !== 'APP') {
+            cleanup();
+            return;
+        }
+
+        const salesConstraints: QueryConstraint[] = [orderBy('date', 'desc'), limit(SALES_PAGE_SIZE)];
+        salesUnsubRef.current = subscribeToQuery<Sale>(COLLECTIONS.SALES, salesConstraints, (data) => {
+            const sorted = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setSales(sorted);
+        });
+
+        const stockConstraints: QueryConstraint[] = [orderBy('date', 'desc'), limit(SALES_PAGE_SIZE)];
+        stockInUnsubRef.current = subscribeToQuery<StockInRecord>(COLLECTIONS.STOCK_IN, stockConstraints, (data) => {
+            const sorted = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setStockInHistory(sorted);
+        });
+
+        return cleanup;
+    }, [viewState]);
 
   // Admin auto-timeout (5 minutes of inactivity)
   useEffect(() => {
@@ -1295,6 +1326,12 @@ const App: React.FC = () => {
     };
 
     const handleSaleComplete = (newSale: Sale, options?: { adjustInventory?: boolean }) => {
+            const persistProducts = (list: Product[]) => {
+                if (!list.length) return Promise.resolve();
+                const sanitized = list.map(p => JSON.parse(JSON.stringify(p)) as Product);
+                return Promise.all(sanitized.map(p => saveToFirestore<Product>(COLLECTIONS.PRODUCTS, p)));
+            };
+
         const adjustInventory = options?.adjustInventory !== false;
         const sanitizeCustomer = (customer?: Sale['customer']) => {
             if (!customer) return undefined;
@@ -1380,61 +1417,58 @@ const App: React.FC = () => {
             const consumptionLogs: StockInRecord[] = [];
             const saleStoreId = saleToSave.storeId;
 
-            setProducts(prevProducts => {
-                return prevProducts.map(prod => {
-                    if (prod.id === '99999' || !saleStoreId) return prod;
+            const nextProducts = products.map(prod => {
+                if (prod.id === '99999' || !saleStoreId) return prod;
 
-                    const safeStockByStore = prod.stockByStore || {};
+                const safeStockByStore = prod.stockByStore || {};
 
-                    // Sum sold qty for this product by id, or fallback to name/spec match
-                    const soldQty = saleToSave.items.reduce((sum, item) => {
-                        const idMatch = item.productId === prod.id;
-                        const nameMatch = normalize(item.productName) === normalize(prod.name);
-                        const specMatch = normalize(item.specification) === normalize(prod.specification);
-                        const fallbackMatch = !item.productId && (prod.specification || item.specification)
-                            ? (nameMatch && specMatch)
-                            : nameMatch;
-                        return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
-                    }, 0);
+                // Sum sold qty for this product by id, or fallback to name/spec match
+                const soldQty = saleToSave.items.reduce((sum, item) => {
+                    const idMatch = item.productId === prod.id;
+                    const nameMatch = normalize(item.productName) === normalize(prod.name);
+                    const specMatch = normalize(item.specification) === normalize(prod.specification);
+                    const fallbackMatch = !item.productId && (prod.specification || item.specification)
+                        ? (nameMatch && specMatch)
+                        : nameMatch;
+                    return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
+                }, 0);
 
-                    if (soldQty <= 0) return prod;
+                if (soldQty <= 0) return prod;
 
-                    const currentStoreStock = safeStockByStore[saleStoreId] || 0;
-                    const newStoreStock = Math.max(0, currentStoreStock - soldQty);
-                    const newStockByStore = { ...safeStockByStore, [saleStoreId]: newStoreStock };
-                    const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-                    const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
-                    updatedProducts.push(updated);
+                const currentStoreStock = safeStockByStore[saleStoreId] || 0;
+                const newStoreStock = Math.max(0, currentStoreStock - soldQty);
+                const newStockByStore = { ...safeStockByStore, [saleStoreId]: newStoreStock };
+                const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+                updatedProducts.push(updated);
 
-                    // Log consumption to stock history (for visibility and refresh persistence)
-                    const consumptionRecord: StockInRecord = {
-                        id: `IN-CONSUME-${Date.now()}-${prod.id}`,
-                        date: new Date().toISOString(),
-                        storeId: saleStoreId,
-                        productId: prod.id,
-                        supplier: '판매소진',
-                        category: prod.category,
-                        brand: prod.brand || '기타',
-                        productName: prod.name,
-                        specification: prod.specification || '',
-                        quantity: 0,
-                        receivedQuantity: soldQty,
-                        consumedAtSaleId: saleToSave.id,
-                        purchasePrice: 0,
-                        factoryPrice: prod.price
-                    };
-                    consumptionLogs.push(consumptionRecord);
-                    return updated;
-                });
+                // Log consumption to stock history (for visibility and refresh persistence)
+                const consumptionRecord: StockInRecord = {
+                    id: `IN-CONSUME-${Date.now()}-${prod.id}`,
+                    date: new Date().toISOString(),
+                    storeId: saleStoreId,
+                    productId: prod.id,
+                    supplier: '판매소진',
+                    category: prod.category,
+                    brand: prod.brand || '기타',
+                    productName: prod.name,
+                    specification: prod.specification || '',
+                    quantity: 0,
+                    receivedQuantity: soldQty,
+                    consumedAtSaleId: saleToSave.id,
+                    purchasePrice: 0,
+                    factoryPrice: prod.price
+                };
+                consumptionLogs.push(consumptionRecord);
+                return updated;
             });
 
+            setProducts(nextProducts);
+
             if (updatedProducts.length > 0) {
-                updatedProducts.forEach(product => {
-                    const cleanProduct = JSON.parse(JSON.stringify(product)) as Product;
-                    saveToFirestore<Product>(COLLECTIONS.PRODUCTS, cleanProduct)
-                        .then(() => console.log('✅ Product stock updated after sale:', cleanProduct.id))
-                        .catch(err => console.error('❌ Failed to update product stock after sale:', err));
-                });
+                persistProducts(updatedProducts)
+                    .then(() => console.log('✅ Product stock updated after sale'))
+                    .catch(err => console.error('❌ Failed to update product stock after sale:', err));
             }
 
             if (consumptionLogs.length > 0) {
