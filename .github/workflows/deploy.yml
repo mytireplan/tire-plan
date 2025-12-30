@@ -19,24 +19,23 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Build
+      - name: Build (CI)
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=2048
 
-      - name: Sync sources to Lightsail
+      - name: Sync dist to Lightsail
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.LIGHTSAIL_HOST }}
           username: ${{ secrets.LIGHTSAIL_USER }}
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           port: ${{ secrets.LIGHTSAIL_PORT || '22' }}
-          source: .
+          source: dist
           target: /home/ubuntu/tire-plan
           rm: true
-          exclude: .git,node_modules,dist
 
-      - name: Install/build/restart on server
+      - name: Restart static server on Lightsail
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.LIGHTSAIL_HOST }}
@@ -47,8 +46,14 @@ jobs:
             set -e
             APP_DIR=/home/ubuntu/tire-plan
             cd "$APP_DIR"
-            npm ci
-            NODE_OPTIONS=--max-old-space-size=2048 npm run build
+
+            # Ensure serve is available to host static dist
+            if ! command -v serve >/dev/null 2>&1; then
+              sudo npm install -g serve
+            fi
+
+            # Restart PM2 serving the built dist
             pm2 stop tire-plan || true
-            pm2 start "npm run preview" --name "tire-plan"
+            pm2 delete tire-plan || true
+            pm2 start "serve -s $APP_DIR/dist -l 5173" --name "tire-plan"
             pm2 save
