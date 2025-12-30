@@ -21,9 +21,9 @@ echo "Target IP: $LIGHTSAIL_IP"
 echo "App Name: $APP_NAME"
 echo ""
 
-# Step 1: 로컬 빌드 확인
+# Step 1: 로컬 빌드 확인 (Node 메모리 여유 확보)
 echo "📦 Step 1: 로컬 빌드 확인..."
-npm run build
+NODE_OPTIONS=--max-old-space-size=2048 npm run build
 echo "✅ 빌드 완료"
 echo ""
 
@@ -82,7 +82,7 @@ ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     npm ci
     
     echo "빌드..."
-    npm run build
+    NODE_OPTIONS=--max-old-space-size=2048 npm run build
     
     echo "✅ 빌드 완료"
 SSHEOF

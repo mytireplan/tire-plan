@@ -21,6 +21,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=2048
 
       - name: Sync sources to Lightsail
         uses: appleboy/scp-action@v0.1.7
@@ -46,7 +48,7 @@ jobs:
             APP_DIR=/home/ubuntu/tire-plan
             cd "$APP_DIR"
             npm ci
-            npm run build
+            NODE_OPTIONS=--max-old-space-size=2048 npm run build
             pm2 stop tire-plan || true
             pm2 start "npm run preview" --name "tire-plan"
             pm2 save
