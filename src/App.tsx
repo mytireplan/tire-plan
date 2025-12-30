@@ -1505,6 +1505,8 @@ const App: React.FC = () => {
 
               const allProductIds = new Set<string>([...Object.keys(prevQtyMap), ...Object.keys(newQtyMap)]);
 
+              const updatedProducts: Product[] = [];
+
               setProducts(prevProducts => prevProducts.map(prod => {
                   if (!allProductIds.has(prod.id) || prod.id === '99999') return prod;
                   const oldQty = prevTracked ? (prevQtyMap[prod.id] || 0) : 0;
@@ -1515,8 +1517,17 @@ const App: React.FC = () => {
                   const updatedStoreStock = Math.max(0, currentStoreStock - delta);
                   const newStockByStore = { ...prod.stockByStore, [storeId]: updatedStoreStock };
                   const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-                  return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+                  const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+                  updatedProducts.push(updated);
+                  return updated;
               }));
+
+              // Persist reconciled products
+              updatedProducts.forEach(p => {
+                  saveToFirestore<Product>(COLLECTIONS.PRODUCTS, p)
+                    .then(() => console.log('✅ Product stock reconciled after sale edit:', p.id))
+                    .catch(err => console.error('❌ Failed to persist reconciled product:', err));
+              });
           }
       }
   };
