@@ -1359,8 +1359,16 @@ const App: React.FC = () => {
     // Add New Customer if not exists (with Owner Scope)
         if (saleToSave.customer && currentUser) {
         const custPhone = saleToSave.customer.phoneNumber;
+        const custVehicle = saleToSave.customer.vehicleNumber || saleToSave.vehicleNumber;
         const ownerScopeId = stores.find(s => s.id === saleToSave.storeId)?.ownerId || currentUser.id;
-        const existing = customers.find(c => c.phoneNumber === custPhone && c.ownerId === ownerScopeId);
+        
+        // Find existing customer by phone OR vehicle number
+        const existing = customers.find(c => {
+            const phoneMatch = custPhone && c.phoneNumber === custPhone && c.ownerId === ownerScopeId;
+            const vehicleMatch = custVehicle && c.vehicleNumber === custVehicle && c.ownerId === ownerScopeId;
+            return phoneMatch || vehicleMatch;
+        });
+        
         const buildCustomerRecord = () => {
             const base: Customer = {
                 id: `C-${Date.now()}`,
@@ -1372,7 +1380,7 @@ const App: React.FC = () => {
                 ownerId: ownerScopeId
             };
             if (saleToSave.customer!.carModel) base.carModel = saleToSave.customer!.carModel;
-            if (saleToSave.customer!.vehicleNumber) base.vehicleNumber = saleToSave.customer!.vehicleNumber;
+            if (custVehicle) base.vehicleNumber = custVehicle;
             if (saleToSave.customer!.businessNumber) base.businessNumber = saleToSave.customer!.businessNumber;
             if (saleToSave.customer!.companyName) base.companyName = saleToSave.customer!.companyName;
             if (saleToSave.customer!.email) base.email = saleToSave.customer!.email;
@@ -1390,12 +1398,18 @@ const App: React.FC = () => {
             // Update existing customer stats
             let updatedCustomer: Customer | null = null;
             setCustomers(prev => prev.map(c => {
-                if (c.phoneNumber === custPhone && c.ownerId === ownerScopeId) {
+                const phoneMatch = custPhone && c.phoneNumber === custPhone && c.ownerId === ownerScopeId;
+                const vehicleMatch = custVehicle && c.vehicleNumber === custVehicle && c.ownerId === ownerScopeId;
+                
+                if (phoneMatch || vehicleMatch) {
                     const updated = {
                         ...c,
                         totalSpent: c.totalSpent + saleToSave.totalAmount,
                         visitCount: c.visitCount + 1,
-                        lastVisitDate: saleToSave.date
+                        lastVisitDate: saleToSave.date,
+                        // Update phone/vehicle if missing
+                        phoneNumber: c.phoneNumber || custPhone,
+                        vehicleNumber: c.vehicleNumber || custVehicle
                     } as Customer;
                     updatedCustomer = updated;
                     return updated;
@@ -1520,10 +1534,18 @@ const App: React.FC = () => {
       // Upsert customer when sale updates include customer info
       if (salePayload.customer) {
           const custPhone = salePayload.customer.phoneNumber;
+          const custVehicle = salePayload.customer.vehicleNumber || salePayload.vehicleNumber;
           const ownerScopeId = stores.find(s => s.id === salePayload.storeId)?.ownerId || currentUser?.id;
           if (ownerScopeId) {
-              const existing = customers.find(c => c.phoneNumber === custPhone && c.ownerId === ownerScopeId);
+              // Find existing customer by phone OR vehicle number
+              const existing = customers.find(c => {
+                  const phoneMatch = custPhone && c.phoneNumber === custPhone && c.ownerId === ownerScopeId;
+                  const vehicleMatch = custVehicle && c.vehicleNumber === custVehicle && c.ownerId === ownerScopeId;
+                  return phoneMatch || vehicleMatch;
+              });
+              
               const prevPhone = prevSale?.customer?.phoneNumber;
+              const prevVehicle = prevSale?.customer?.vehicleNumber || prevSale?.vehicleNumber;
               const spendDelta = (salePayload.totalAmount || 0) - (prevSale?.totalAmount || 0);
 
               if (!existing) {
@@ -1537,7 +1559,7 @@ const App: React.FC = () => {
                       ownerId: ownerScopeId
                   };
                   if (salePayload.customer.carModel) newCustomer.carModel = salePayload.customer.carModel;
-                  if (salePayload.customer.vehicleNumber) newCustomer.vehicleNumber = salePayload.customer.vehicleNumber;
+                  if (custVehicle) newCustomer.vehicleNumber = custVehicle;
                   if (salePayload.customer.businessNumber) newCustomer.businessNumber = salePayload.customer.businessNumber;
                   if (salePayload.customer.companyName) newCustomer.companyName = salePayload.customer.companyName;
                   if (salePayload.customer.email) newCustomer.email = salePayload.customer.email;
@@ -1549,13 +1571,18 @@ const App: React.FC = () => {
               } else {
                   let updatedCustomer: Customer | null = null;
                   setCustomers(prev => prev.map(c => {
-                      if (c.phoneNumber === custPhone && c.ownerId === ownerScopeId) {
-                          const visitBump = (!prevPhone || prevPhone !== custPhone) ? 1 : 0;
+                      const phoneMatch = custPhone && c.phoneNumber === custPhone && c.ownerId === ownerScopeId;
+                      const vehicleMatch = custVehicle && c.vehicleNumber === custVehicle && c.ownerId === ownerScopeId;
+                      
+                      if (phoneMatch || vehicleMatch) {
+                          // Count as new visit if phone OR vehicle changed
+                          const visitBump = ((!prevPhone || prevPhone !== custPhone) && (!prevVehicle || prevVehicle !== custVehicle)) ? 1 : 0;
                           const updated = {
                               ...c,
                               name: salePayload.customer!.name || c.name,
                               carModel: salePayload.customer!.carModel || c.carModel,
-                              vehicleNumber: salePayload.customer!.vehicleNumber || c.vehicleNumber,
+                              phoneNumber: c.phoneNumber || custPhone,
+                              vehicleNumber: c.vehicleNumber || custVehicle,
                               totalSpent: Math.max(0, (c.totalSpent || 0) + spendDelta),
                               visitCount: c.visitCount + visitBump,
                               lastVisitDate: salePayload.date
@@ -2287,6 +2314,7 @@ const App: React.FC = () => {
                 stockInHistory={visibleStockHistory} onSwapProduct={() => {/* swap logic */}}
                 onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
                 categories={categories} tireBrands={tireBrands} tireModels={TIRE_MODELS}
+                shifts={shifts} staffList={staffList}
                 />
             )}
             {(activeTab === 'financials') && (

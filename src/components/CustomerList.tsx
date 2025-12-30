@@ -81,9 +81,26 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
     startPage = Math.max(1, endPage - 4);
     const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, idx) => startPage + idx);
 
-  // Filter sales for the selected customer
+  // Helper function to get actual visit count from sales
+  const getActualVisitCount = (customer: Customer): number => {
+      return sales.filter(s => {
+          const phoneMatch = s.customer?.phoneNumber && s.customer.phoneNumber === customer.phoneNumber;
+          const vehicleMatch = (s.customer?.vehicleNumber || s.vehicleNumber) && 
+                             (s.customer?.vehicleNumber === customer.vehicleNumber || 
+                              s.vehicleNumber === customer.vehicleNumber);
+          return phoneMatch || vehicleMatch;
+      }).length;
+  };
+
+  // Filter sales for the selected customer (by phone OR vehicle number)
   const customerSales = selectedCustomer 
-    ? sales.filter(s => s.customer?.phoneNumber === selectedCustomer.phoneNumber)
+    ? sales.filter(s => {
+        const phoneMatch = s.customer?.phoneNumber && s.customer.phoneNumber === selectedCustomer.phoneNumber;
+        const vehicleMatch = (s.customer?.vehicleNumber || s.vehicleNumber) && 
+                           (s.customer?.vehicleNumber === selectedCustomer.vehicleNumber || 
+                            s.vehicleNumber === selectedCustomer.vehicleNumber);
+        return phoneMatch || vehicleMatch;
+      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     : [];
 
   return (
@@ -175,7 +192,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <span className="bg-blue-50 text-blue-600 py-1 px-2 rounded-full text-xs font-bold">
-                                        {customer.visitCount}회
+                                        {getActualVisitCount(customer)}회
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-right font-bold text-slate-700">
@@ -213,7 +230,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
                                 </div>
                              </div>
                              <div className="text-right">
-                                <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-xs font-bold">{customer.visitCount}회 방문</span>
+                                <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-xs font-bold">{getActualVisitCount(customer)}회 방문</span>
                              </div>
                          </div>
                          <div className="flex justify-between items-center border-t border-gray-50 pt-2 mt-2">
@@ -275,9 +292,18 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
                           </h3>
                           <p className="text-xs text-gray-500 mt-1">
                               {selectedCustomer.name} | {selectedCustomer.phoneNumber}
+                              {selectedCustomer.vehicleNumber && <span className="ml-2">🚗 {selectedCustomer.vehicleNumber}</span>}
                           </p>
+                          <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-bold">
+                                  방문 {customerSales.length}회
+                              </span>
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-bold">
+                                  총 {formatCurrency(selectedCustomer.totalSpent)}
+                              </span>
+                          </div>
                       </div>
-                      <button onClick={() => setSelectedCustomer(null)} className="text-gray-400 hover:text-gray-600">
+                      <button onClick={() => setSelectedCustomer(null)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg">
                           <X size={20} />
                       </button>
                   </div>

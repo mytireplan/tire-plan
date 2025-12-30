@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem } from '../types';
+import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff } from '../types';
 import { PaymentMethod } from '../types';
 import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
@@ -22,11 +22,13 @@ interface SalesHistoryProps {
   categories: string[];
   tireBrands: string[];
   tireModels: Record<string, string[]>;
+  shifts: Shift[];
+  staffList: Staff[];
 }
 
 type ViewMode = 'daily' | 'weekly' | 'monthly' | 'staff';
 
-const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels }) => {
+const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, shifts, staffList }) => {
   
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -40,9 +42,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
     const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-    const [quickSearchBrand, setQuickSearchBrand] = useState<string>('ALL');
-    const [quickSearchTerm, setQuickSearchTerm] = useState('');
-    const [quickSelectedProductId, setQuickSelectedProductId] = useState<string>('');
       const toLocalInputValue = (date: Date) => {
           const offsetMs = date.getTimezoneOffset() * 60000;
           const local = new Date(date.getTime() - offsetMs);
@@ -54,23 +53,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           paymentMethod: PaymentMethod;
           staffName: string;
           storeId: string;
-          quantity: number;
-          totalAmount: number;
           customerName: string;
           customerPhone: string;
           memo: string;
           inventoryAdjust: boolean;
+          items: SalesItem[];
       }>({
           datetime: toLocalInputValue(new Date()),
             paymentMethod: PaymentMethod.CARD,
             staffName: '',
             storeId: currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : (stores[0]?.id || ''),
-            quantity: 1,
-            totalAmount: 0,
             customerName: '',
             customerPhone: '',
             memo: '',
-            inventoryAdjust: false
+            inventoryAdjust: false,
+            items: []
     });
   
     // Inline memo editing removed (not used)
@@ -78,11 +75,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   // Swap/Add Item Modal State
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
   const [swapTarget, setSwapTarget] = useState<{
-      saleId: string, 
+      saleId?: string, 
       itemId?: string, 
       isEditMode?: boolean, 
       itemIndex?: number,
-      isAdding?: boolean // New flag for adding item
+      isAdding?: boolean, // New flag for adding item
+      isQuickAddCart?: boolean // New flag for quick-add cart
   } | null>(null);
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [swapSearchBrand, setSwapSearchBrand] = useState<string>('ALL');
@@ -101,7 +99,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       productName: '',
       specification: '',
       quantity: 1,
-      factoryPrice: 0
+      factoryPrice: 0,
+      sellingPrice: 0  // 판매가격 추가
   });
 
     const isAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN';
@@ -136,6 +135,33 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           setEditFormData(null);
       }
   }, [selectedSale]);
+
+  // Auto-update staff when date or store changes in quick add form
+  useEffect(() => {
+      if (!shifts || !staffList) return;
+      
+      const selectedDate = quickAddForm.datetime ? new Date(quickAddForm.datetime).toISOString().split('T')[0] : null;
+      const selectedStoreId = quickAddForm.storeId;
+      
+      if (!selectedDate || !selectedStoreId) return;
+      
+      const matchingShifts = shifts.filter(shift => {
+          if (!shift.start) return false;
+          const shiftDate = shift.start.split('T')[0];
+          return shiftDate === selectedDate && shift.storeId === selectedStoreId;
+      });
+      
+      const staffIds = Array.from(new Set(matchingShifts.map(s => s.staffId)));
+      const availableStaff = staffList.filter(staff => staffIds.includes(staff.id));
+      
+      // Auto-select if only one staff member
+      if (availableStaff.length === 1) {
+          setQuickAddForm(prev => ({ ...prev, staffName: availableStaff[0].name }));
+      } else if (availableStaff.length === 0 || !availableStaff.find(s => s.name === quickAddForm.staffName)) {
+          // Reset if current staff is not available
+          setQuickAddForm(prev => ({ ...prev, staffName: '' }));
+      }
+  }, [quickAddForm.datetime, quickAddForm.storeId, shifts, staffList]);
 
   const handlePrev = () => {
     const newDate = new Date(currentDate);
@@ -199,7 +225,15 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           const term = searchTerm.toLowerCase();
           const vehicle = sale.vehicleNumber?.toLowerCase() || '';
           const phone = sale.customer?.phoneNumber || '';
-          if (!vehicle.includes(term) && !phone.includes(term)) return false;
+          
+          // Search in product names and specifications
+          const matchesProduct = sale.items?.some(item => {
+              const productName = item.productName?.toLowerCase() || '';
+              const specification = item.specification?.toLowerCase() || '';
+              return productName.includes(term) || specification.includes(term);
+          });
+          
+          if (!vehicle.includes(term) && !phone.includes(term) && !matchesProduct) return false;
       }
       
       return true;
@@ -291,19 +325,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                     ...prev,
                     datetime: getDefaultQuickDateTime(),
                     storeId: defaultStore,
-                    staffName: prev.staffName || currentUser.name
+                    staffName: prev.staffName || currentUser.name,
+                    items: []
             }));
-            setQuickSelectedProductId('');
-            setQuickSearchTerm('');
-            setQuickSearchBrand('ALL');
             setIsQuickAddOpen(true);
     };
 
-    const handleQuickNumberChange = (field: 'quantity' | 'totalAmount', val: string) => {
-            const raw = val.replace(/[^0-9]/g, '');
-            const num = raw === '' ? 0 : Number(raw);
-            setQuickAddForm(prev => ({ ...prev, [field]: num }));
-    };
   
   const getPaymentIcon = (method: PaymentMethod) => {
       switch (method) {
@@ -364,7 +391,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       const record: StockInRecord = {
           id: `IN-${Date.now()}`,
           date: new Date().toISOString().split('T')[0],
-          storeId: selectedSale ? selectedSale.storeId : currentStoreId,
+          storeId: selectedSale ? selectedSale.storeId : (swapTarget?.isQuickAddCart ? quickAddForm.storeId : currentStoreId),
           productId: undefined,
           supplier: stockInForm.supplier || '자체입고',
           category: stockInForm.category,
@@ -407,17 +434,26 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       // 3. Add to Sale List with correct quantity
       executeSwap({ ...proxyProduct, _swapQuantity: consumptionQty });
 
-      // Ensure the last-added item in the edit form has the stocked quantity (safety in case of race)
-      setEditFormData(prev => {
-          if (!prev) return prev;
-          const items = Array.isArray(prev.items) ? [...prev.items] : [];
-          if (items.length === 0) return prev;
-          const lastIdx = items.length - 1;
-          items[lastIdx] = { ...items[lastIdx], quantity: consumptionQty };
-          return { ...prev, items };
-      });
+      // Ensure the last-added item in the edit form OR quick-add cart has the stocked quantity
+      if (swapTarget?.isQuickAddCart) {
+          // No need for safety check in quick-add since we just added it to items
+      } else if (editFormData) {
+          setEditFormData(prev => {
+              if (!prev) return prev;
+              const items = Array.isArray(prev.items) ? [...prev.items] : [];
+              if (items.length === 0) return prev;
+              const lastIdx = items.length - 1;
+              items[lastIdx] = { ...items[lastIdx], quantity: consumptionQty };
+              return { ...prev, items };
+          });
+      }
 
       setIsStockInModalOpen(false);
+      // Close Swap modal if it's open for quick-add cart
+      if (swapTarget?.isQuickAddCart) {
+          setIsSwapModalOpen(false);
+          setSwapTarget(null);
+      }
       // Reset form
       setStockInForm({
           supplier: '',
@@ -426,7 +462,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           productName: '',
           specification: '',
           quantity: 1,
-          factoryPrice: 0
+          factoryPrice: 0,
+          sellingPrice: 0
       });
       setQuickAddForm(prev => ({ ...prev, inventoryAdjust: true }));
   };
@@ -487,7 +524,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     const executeSwap = (product: Product & { _swapQuantity?: number }) => {
       if (!swapTarget) return;
 
-      if (swapTarget.isEditMode && editFormData) {
+      if (swapTarget.isQuickAddCart) {
+          // Add to quick-add cart
+          let newItems = [...quickAddForm.items];
+          newItems.push({
+              productId: product.id,
+              productName: product.name,
+              brand: product.brand,
+              specification: product.specification,
+              quantity: product._swapQuantity || 1,
+              priceAtSale: product.price
+          });
+          setQuickAddForm(prev => ({ ...prev, items: newItems }));
+          setIsSwapModalOpen(false);
+          setSwapTarget(null);
+      } else if (swapTarget.isEditMode && editFormData) {
           let newItems = [...editFormData.items];
           
           if (swapTarget.isAdding) {
@@ -519,7 +570,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           setHasUnsavedChanges(true);
           setIsSwapModalOpen(false);
           setSwapTarget(null);
-      } else if (swapTarget.itemId) {
+      } else if (swapTarget.itemId && swapTarget.saleId) {
           onSwapProduct(swapTarget.saleId, swapTarget.itemId, product);
           setIsSwapModalOpen(false);
           setSwapTarget(null);
@@ -754,10 +805,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     return Array.from(brands).sort();
   }, [products]);
 
-    const quickSelectedProduct = useMemo(() => {
-            return products.find(p => p.id === quickSelectedProductId) || null;
-    }, [products, quickSelectedProductId]);
-
   const filteredSearchProducts = useMemo(() => {
     const term = productSearchTerm.trim().toLowerCase();
     const numericTerm = term.replace(/\D/g, ''); // Extract numbers only
@@ -787,42 +834,30 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     });
   }, [products, productSearchTerm, swapSearchBrand]);
 
-  const quickFilteredProducts = useMemo(() => {
-      const term = quickSearchTerm.trim().toLowerCase();
-      const numericTerm = term.replace(/\D/g, '');
-
-      return products.filter(p => {
-          if (p.id === '99999') return false;
-          if (quickSearchBrand !== 'ALL' && p.brand !== quickSearchBrand) return false;
-          if (!term) return true;
-
-          const nameMatch = p.name.toLowerCase().includes(term);
-          const specMatch = p.specification?.toLowerCase().includes(term);
-          let numericSpecMatch = false;
-          if (!nameMatch && !specMatch && numericTerm.length >= 3 && p.specification) {
-              const productNumericSpec = p.specification.toLowerCase().replace(/\D/g, '');
-              if (productNumericSpec.includes(numericTerm)) numericSpecMatch = true;
-          }
-          return nameMatch || specMatch || numericSpecMatch;
+  // Filter staff who worked on the selected date and store
+  const availableStaffForQuickAdd = useMemo(() => {
+      if (!quickAddForm.datetime || !quickAddForm.storeId || !shifts || !staffList) return [];
+      
+      const selectedDate = new Date(quickAddForm.datetime).toISOString().split('T')[0];
+      const selectedStoreId = quickAddForm.storeId;
+      
+      // Find shifts for the selected date and store
+      const matchingShifts = shifts.filter(shift => {
+          if (!shift.start) return false;
+          const shiftDate = shift.start.split('T')[0];
+          return shiftDate === selectedDate && shift.storeId === selectedStoreId;
       });
-  }, [products, quickSearchTerm, quickSearchBrand]);
-
-  const quickUnitPrice = useMemo(() => {
-      return quickAddForm.quantity > 0 ? Math.round(quickAddForm.totalAmount / quickAddForm.quantity) : 0;
-  }, [quickAddForm.quantity, quickAddForm.totalAmount]);
+      
+      // Get unique staff IDs from matching shifts
+      const staffIds = Array.from(new Set(matchingShifts.map(s => s.staffId)));
+      
+      // Return staff objects
+      return staffList.filter(staff => staffIds.includes(staff.id));
+  }, [quickAddForm.datetime, quickAddForm.storeId, shifts, staffList]);
 
   const submitQuickAdd = () => {
-      const targetProduct = quickSelectedProduct;
-      if (!targetProduct) {
-          alert('상품을 선택해주세요.');
-          return;
-      }
-      if (!quickAddForm.quantity || quickAddForm.quantity <= 0) {
-          alert('수량을 입력해주세요.');
-          return;
-      }
-      if (!quickAddForm.totalAmount || quickAddForm.totalAmount <= 0) {
-          alert('총 결제 금액을 입력해주세요.');
+      if (!quickAddForm.items || quickAddForm.items.length === 0) {
+          alert('상품을 추가해주세요.');
           return;
       }
 
@@ -834,8 +869,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           return;
       }
 
+      // Calculate total amount from items
+      const totalAmount = quickAddForm.items.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
+      if (totalAmount <= 0) {
+          alert('판매 금액이 올바르지 않습니다.');
+          return;
+      }
+
       const isoString = quickAddForm.datetime ? new Date(quickAddForm.datetime).toISOString() : new Date().toISOString();
-      const unitPrice = quickUnitPrice;
       const customer = (quickAddForm.customerName || quickAddForm.customerPhone) ? {
           name: quickAddForm.customerName,
           phoneNumber: quickAddForm.customerPhone
@@ -845,16 +886,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           id: `Q-${Date.now()}`,
           date: isoString,
           storeId,
-          totalAmount: quickAddForm.totalAmount,
+          totalAmount,
           paymentMethod: quickAddForm.paymentMethod,
-          items: [{
-              productId: targetProduct.id,
-              productName: targetProduct.name,
-              specification: targetProduct.specification,
-              brand: targetProduct.brand,
-              quantity: quickAddForm.quantity,
-              priceAtSale: unitPrice
-          }],
+          items: quickAddForm.items,
           staffName: quickAddForm.staffName || currentUser.name,
           customer,
           memo: quickAddForm.memo,
@@ -912,7 +946,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                     <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input 
                         type="text" 
-                        placeholder="차량번호 또는 전화번호 뒷자리" 
+                        placeholder="차량번호/전화번호/상품명/사이즈" 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1165,171 +1199,224 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       {/* Quick Add Modal */}
       {isQuickAddOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-              <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
-                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                      <div className="space-y-1">
-                          <div className="text-xs font-bold text-blue-600 uppercase">빠른 판매 등록</div>
-                          <h3 className="font-bold text-lg text-gray-800">선택한 날짜에 판매 추가</h3>
+              <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
+                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                      <div>
+                          <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                              <ShoppingBag size={20} className="text-blue-600"/> 
+                              판매 추가
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-1">선택한 날짜에 판매 내역 추가</p>
                       </div>
-                      <button onClick={() => setIsQuickAddOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                      <button onClick={() => setIsQuickAddOpen(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg">
+                          <X size={20}/>
+                      </button>
                   </div>
 
-                  <div className="p-5 space-y-4 overflow-y-auto">
-                      <div className="grid md:grid-cols-3 gap-3">
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">판매 날짜/시간</label>
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                      <div className="space-y-4">
+                          <div className="space-y-2">
+                              <label className="text-sm font-bold text-gray-700">판매 날짜/시간</label>
                               <input 
                                 type="datetime-local"
                                 value={quickAddForm.datetime}
                                 onChange={e => setQuickAddForm(prev => ({ ...prev, datetime: e.target.value }))}
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                               />
                           </div>
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">결제 수단</label>
-                              <select 
-                                value={quickAddForm.paymentMethod}
-                                onChange={e => setQuickAddForm(prev => ({ ...prev, paymentMethod: e.target.value as PaymentMethod }))}
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                              >
-                                <option value={PaymentMethod.CARD}>카드</option>
-                                <option value={PaymentMethod.CASH}>현금</option>
-                                <option value={PaymentMethod.TRANSFER}>이체</option>
-                              </select>
-                          </div>
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">담당자</label>
-                              <input 
-                                type="text"
-                                value={quickAddForm.staffName}
-                                onChange={e => setQuickAddForm(prev => ({ ...prev, staffName: e.target.value }))}
-                                placeholder={currentUser.name}
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                              />
-                          </div>
-                      </div>
 
-                      <div className="grid md:grid-cols-3 gap-3">
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">지점</label>
+                          <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                  <label className="text-sm font-bold text-gray-700">결제 수단</label>
+                                  <select 
+                                    value={quickAddForm.paymentMethod}
+                                    onChange={e => setQuickAddForm(prev => ({ ...prev, paymentMethod: e.target.value as PaymentMethod }))}
+                                    className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                  >
+                                    <option value={PaymentMethod.CARD}>카드</option>
+                                    <option value={PaymentMethod.CASH}>현금</option>
+                                    <option value={PaymentMethod.TRANSFER}>이체</option>
+                                  </select>
+                              </div>
+                              <div className="space-y-2">
+                                  <label className="text-sm font-bold text-gray-700">담당자</label>
+                                  {availableStaffForQuickAdd.length === 0 ? (
+                                      <div className="w-full p-2.5 border border-amber-300 bg-amber-50 rounded-lg text-sm text-amber-700">
+                                          해당 날짜/매장에 근무한 직원이 없습니다
+                                      </div>
+                                  ) : availableStaffForQuickAdd.length === 1 ? (
+                                      <div className="w-full p-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm font-bold text-gray-700">
+                                          {availableStaffForQuickAdd[0].name}
+                                      </div>
+                                  ) : (
+                                      <select
+                                        value={quickAddForm.staffName}
+                                        onChange={e => setQuickAddForm(prev => ({ ...prev, staffName: e.target.value }))}
+                                        className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                      >
+                                        <option value="">선택하세요</option>
+                                        {availableStaffForQuickAdd.map(staff => (
+                                            <option key={staff.id} value={staff.name}>{staff.name}</option>
+                                        ))}
+                                      </select>
+                                  )}
+                              </div>
+                          </div>
+
+                          <div className="space-y-2">
+                              <label className="text-sm font-bold text-gray-700">지점</label>
                               {currentUser.role === 'STAFF' ? (
-                                  <div className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-sm font-bold text-gray-700">
+                                  <div className="w-full p-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm font-bold text-gray-700">
                                       {stores.find(s => s.id === quickAddForm.storeId)?.name || '지점 미선택'}
                                   </div>
                               ) : (
                                   <select 
                                     value={quickAddForm.storeId}
                                     onChange={e => setQuickAddForm(prev => ({ ...prev, storeId: e.target.value }))}
-                                    className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                    className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                   >
                                     {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                   </select>
                               )}
                           </div>
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">수량</label>
-                              <input 
-                                type="text"
-                                inputMode="numeric"
-                                value={quickAddForm.quantity ? formatNumber(quickAddForm.quantity) : ''}
-                                onChange={e => handleQuickNumberChange('quantity', e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                                placeholder="0"
-                              />
-                          </div>
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">총 결제 금액</label>
-                              <input 
-                                type="text"
-                                inputMode="numeric"
-                                value={quickAddForm.totalAmount ? formatNumber(quickAddForm.totalAmount) : ''}
-                                onChange={e => handleQuickNumberChange('totalAmount', e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                                placeholder="0"
-                              />
-                              <div className="text-[11px] text-blue-600 font-semibold">단가 자동 계산: {formatCurrency(quickUnitPrice)}</div>
+                      </div>
+
+                      <div className="border-t border-gray-200 pt-6">
+                          <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                  <h4 className="font-bold text-gray-800 flex items-center gap-2"><ShoppingBag size={16}/> 현재 구매 상품</h4>
+                                  <div className="text-sm text-gray-500">합계: {formatCurrency(quickAddForm.items.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0))}</div>
+                              </div>
+
+                              {quickAddForm.items.length === 0 ? (
+                                  <div className="text-center py-8 text-gray-400 text-sm">상품이 추가되지 않았습니다.</div>
+                              ) : (
+                                  <div className="space-y-3 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                      {quickAddForm.items.map((item, idx) => (
+                                          <div key={idx} className="flex items-start justify-between gap-3 bg-white p-3 rounded-lg border border-gray-100">
+                                              <div className="flex-1 min-w-0">
+                                                  <div className="text-xs font-bold text-blue-600">{item.specification}</div>
+                                                  <div className="text-sm font-bold text-gray-800">{item.brand} {item.productName}</div>
+                                                  <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
+                                                      <div className="space-y-1">
+                                                          <label className="block text-gray-500 font-bold">수량</label>
+                                                          <input
+                                                              type="number"
+                                                              min="1"
+                                                              value={item.quantity}
+                                                              onChange={(e) => {
+                                                                  const newQty = Math.max(1, Number(e.target.value) || 1);
+                                                                  setQuickAddForm(prev => ({
+                                                                      ...prev,
+                                                                      items: prev.items.map((it, i) => i === idx ? { ...it, quantity: newQty } : it)
+                                                                  }));
+                                                              }}
+                                                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                                          />
+                                                      </div>
+                                                      <div className="space-y-1">
+                                                          <label className="block text-gray-500 font-bold">단가</label>
+                                                          <input
+                                                              type="text"
+                                                              inputMode="numeric"
+                                                              value={item.priceAtSale > 0 ? formatNumber(item.priceAtSale) : ''}
+                                                              onChange={(e) => {
+                                                                  const raw = e.target.value.replace(/[^0-9]/g, '');
+                                                                  const newPrice = raw === '' ? 0 : Number(raw);
+                                                                  setQuickAddForm(prev => ({
+                                                                      ...prev,
+                                                                      items: prev.items.map((it, i) => i === idx ? { ...it, priceAtSale: newPrice } : it)
+                                                                  }));
+                                                              }}
+                                                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                                              placeholder="0"
+                                                          />
+                                                      </div>
+                                                      <div className="space-y-1">
+                                                          <label className="block text-gray-500 font-bold">합계</label>
+                                                          <div className="px-2 py-1 bg-blue-50 rounded text-sm font-bold text-blue-600">
+                                                              {formatCurrency(item.priceAtSale * item.quantity)}
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                              <button
+                                                  onClick={() => setQuickAddForm(prev => ({
+                                                      ...prev,
+                                                      items: prev.items.filter((_, i) => i !== idx)
+                                                  }))}
+                                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 mt-1"
+                                                  title="삭제"
+                                              >
+                                                  <Trash2 size={16} />
+                                              </button>
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+
+                              {/* Add Item Button */}
+                              <button 
+                                onClick={() => {
+                                    setSwapTarget({ isQuickAddCart: true, isAdding: true });
+                                    setIsSwapModalOpen(true);
+                                    setProductSearchTerm('');
+                                    setSwapSearchBrand('ALL');
+                                }}
+                                className="w-full mt-3 py-2 border border-dashed border-blue-300 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                              >
+                                  <Plus size={16} /> 상품/서비스 추가
+                              </button>
+
+                              {/* Quick Stock In Button */}
+                              <button 
+                                onClick={() => setIsStockInModalOpen(true)}
+                                className="w-full py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                              >
+                                  <Truck size={16}/> + 신규 상품 등록 (바로 추가)
+                              </button>
                           </div>
                       </div>
 
-                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3">
-                          <div className="flex items-center justify-between">
-                              <div className="text-sm font-bold text-gray-800 flex items-center gap-2"><ShoppingBag size={16}/> 구매 상품 (필수)</div>
-                              <div className="flex gap-2">
-                                  <button onClick={() => setQuickSearchBrand('ALL')} className={`px-3 py-1 text-xs rounded-lg font-bold border ${quickSearchBrand === 'ALL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>전체</button>
-                                  {uniqueBrands.map(brand => (
-                                      <button key={brand} onClick={() => setQuickSearchBrand(brand)} className={`px-3 py-1 text-xs rounded-lg font-bold border ${quickSearchBrand === brand ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>{brand}</button>
-                                  ))}
+                      <div className="border-t border-gray-200 pt-6">
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                      <label className="text-sm font-bold text-gray-700">고객명 (선택)</label>
+                                      <input type="text" value={quickAddForm.customerName} onChange={e => setQuickAddForm(prev => ({ ...prev, customerName: e.target.value }))} className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                  </div>
+                                  <div className="space-y-2">
+                                      <label className="text-sm font-bold text-gray-700">연락처 (선택)</label>
+                                      <input type="text" value={quickAddForm.customerPhone} onChange={e => setQuickAddForm(prev => ({ ...prev, customerPhone: e.target.value }))} className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="010-1234-5678" />
+                                  </div>
+                              </div>
+                              <div className="space-y-2">
+                                  <label className="text-sm font-bold text-gray-700">관리자 메모</label>
+                                  <input type="text" value={quickAddForm.memo} onChange={e => setQuickAddForm(prev => ({ ...prev, memo: e.target.value }))} className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="특이사항 기록" />
                               </div>
                           </div>
-                          <div className="relative">
-                              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      </div>
+
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                          <div className="flex items-start gap-3">
                               <input 
-                                type="text"
-                                value={quickSearchTerm}
-                                onChange={e => setQuickSearchTerm(e.target.value)}
-                                placeholder="규격/브랜드/모델 검색"
-                                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                id="quick-inventory-adjust"
+                                type="checkbox"
+                                checked={quickAddForm.inventoryAdjust}
+                                onChange={e => setQuickAddForm(prev => ({ ...prev, inventoryAdjust: e.target.checked }))}
+                                className="mt-1"
                               />
-                          </div>
-                          <div className="max-h-52 overflow-y-auto space-y-2">
-                              {quickFilteredProducts.length === 0 ? (
-                                  <div className="text-center text-sm text-gray-400 py-6">검색 결과가 없습니다.</div>
-                              ) : (
-                                  quickFilteredProducts.map(p => {
-                                      const isSelected = quickSelectedProductId === p.id;
-                                      return (
-                                          <button 
-                                            key={p.id}
-                                            onClick={() => setQuickSelectedProductId(p.id)}
-                                            className={`w-full text-left p-3 rounded-lg border ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300 hover:bg-white'} flex items-center justify-between`}
-                                          >
-                                              <div>
-                                                  <div className="text-xs font-bold text-blue-600">{p.specification}</div>
-                                                  <div className="text-sm font-bold text-gray-800">{p.brand} {p.name}</div>
-                                              </div>
-                                              <div className="text-right text-xs text-gray-500">
-                                                  재고: {p.stock > 900 ? '∞' : p.stock}
-                                              </div>
-                                          </button>
-                                      );
-                                  })
-                              )}
-                          </div>
-                      </div>
-
-                      <div className="grid md:grid-cols-3 gap-3">
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">고객명 (선택)</label>
-                              <input type="text" value={quickAddForm.customerName} onChange={e => setQuickAddForm(prev => ({ ...prev, customerName: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
-                          </div>
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">연락처 (선택)</label>
-                              <input type="text" value={quickAddForm.customerPhone} onChange={e => setQuickAddForm(prev => ({ ...prev, customerPhone: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg text-sm" placeholder="010-1234-5678" />
-                          </div>
-                          <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-600">관리자 메모</label>
-                              <input type="text" value={quickAddForm.memo} onChange={e => setQuickAddForm(prev => ({ ...prev, memo: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg text-sm" placeholder="특이사항 기록" />
-                          </div>
-                      </div>
-
-                      <div className="flex items-start gap-3 bg-white border border-gray-200 rounded-xl p-3">
-                          <input 
-                            id="quick-inventory-adjust"
-                            type="checkbox"
-                            checked={quickAddForm.inventoryAdjust}
-                            onChange={e => setQuickAddForm(prev => ({ ...prev, inventoryAdjust: e.target.checked }))}
-                            className="mt-1"
-                          />
-                          <div className="space-y-1">
-                              <label htmlFor="quick-inventory-adjust" className="font-bold text-gray-800 text-sm">이 판매로 재고를 차감합니다</label>
-                              <p className="text-xs text-gray-500">기본값은 미차감입니다. 체크 시 현재 재고에서 해당 수량이 차감되며, 과거 보정 입력 시 주의하세요.</p>
+                              <div className="space-y-1">
+                                  <label htmlFor="quick-inventory-adjust" className="font-bold text-gray-800 text-sm cursor-pointer">이 판매로 재고를 차감합니다</label>
+                                  <p className="text-xs text-gray-600">기본값은 미차감입니다. 체크 시 현재 재고에서 해당 수량이 차감되며, 과거 보정 입력 시 주의하세요.</p>
+                              </div>
                           </div>
                       </div>
                   </div>
 
-                  <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-2">
-                      <button onClick={() => setIsQuickAddOpen(false)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-white">닫기</button>
-                      <button onClick={submitQuickAdd} className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 shadow">저장 후 리스트 반영</button>
+                  <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-2 shrink-0">
+                      <button onClick={() => setIsQuickAddOpen(false)} className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-white transition-colors">취소</button>
+                      <button onClick={submitQuickAdd} className="px-5 py-2.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md transition-colors">저장</button>
                   </div>
               </div>
           </div>
@@ -1609,7 +1696,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                 <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl p-0 overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
                         <h3 className="font-bold text-lg text-gray-800">
-                            {swapTarget?.isAdding ? '상품/서비스 추가' : (swapTarget?.isEditMode ? '상품 변경' : '정식 상품으로 변경')}
+                            {swapTarget?.isQuickAddCart ? '상품/서비스 추가' : (swapTarget?.isAdding ? '상품/서비스 추가' : (swapTarget?.isEditMode ? '상품 변경' : '정식 상품으로 변경'))}
                         </h3>
                         <button onClick={() => setIsSwapModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
                     </div>
@@ -1620,7 +1707,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                             onClick={() => setIsStockInModalOpen(true)}
                             className="w-full py-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 shadow-sm mb-2"
                         >
-                            <Truck size={18}/> + 신규 상품 등록 (바로 입고)
+                            <Truck size={18}/> + 신규 상품 등록 {swapTarget?.isQuickAddCart ? '(바로 추가)' : '(바로 입고)'}
                         </button>
 
                          <div>

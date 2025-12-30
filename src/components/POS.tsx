@@ -47,6 +47,7 @@ interface CartItemRowProps {
     onSetPriceEditId: (cartItemId: string | null) => void;
     onUpdateMemo: (cartItemId: string, memo: string) => void;
     onUpdateName: (cartItemId: string, name: string) => void;
+    onUpdateSpecification: (cartItemId: string, specification: string) => void;
 }
 
 const normalizeCategory = (category: string) => category === '부품/수리' ? '기타' : category;
@@ -60,7 +61,8 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
     priceEditId, 
     onSetPriceEditId,
     onUpdateMemo,
-    onUpdateName
+    onUpdateName,
+    onUpdateSpecification
 }) => {
     // Check if discounted
     const isDiscounted = item.originalPrice !== undefined && item.price < item.originalPrice;
@@ -122,7 +124,17 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
                   
                   <div className="flex gap-2 mt-1">
                       {item.brand && <span className="text-[10px] bg-white border px-1 rounded text-gray-500">{item.brand}</span>}
-                      {item.specification && <span className="text-xs text-blue-600">{item.specification}</span>}
+                      {isTempProduct || item.id?.startsWith('RENTAL-') ? (
+                          <input 
+                              type="text" 
+                              className="text-xs text-blue-600 border-b border-blue-300 bg-transparent focus:bg-white focus:outline-none focus:border-blue-500 px-1 flex-1"
+                              value={item.specification || ''}
+                              onChange={(e) => onUpdateSpecification(item.cartItemId, e.target.value)}
+                              placeholder="사이즈 입력 (예: 245/45R18)"
+                          />
+                      ) : (
+                          item.specification && <span className="text-xs text-blue-600">{item.specification}</span>
+                      )}
                   </div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
@@ -482,12 +494,35 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       setCart(prev => [...prev, manualItem]);
   };
 
+  // --- Rental Product Logic (No Inventory Impact) ---
+  const addRentalProduct = (rentalType: 'online' | 'offline') => {
+      const rentalName = rentalType === 'online' ? '온라인 렌탈' : '오프라인 렌탈';
+      const rentalItem: CartItem = {
+          cartItemId: `rental-${rentalType}-${Date.now()}`,
+          id: `RENTAL-${rentalType.toUpperCase()}`,
+          name: rentalName,
+          price: 0,
+          stock: 999999,
+          stockByStore: { [activeStoreId]: 999999 },
+          category: '기타',
+          quantity: 1,
+          isManual: true,
+          specification: '', // 사용자가 입력 가능
+          originalPrice: 0,
+      };
+      setCart(prev => [...prev, rentalItem]);
+  };
+
   const updateMemo = (cartItemId: string, memo: string) => {
       setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, memo } : item));
   };
   
   const updateName = (cartItemId: string, name: string) => {
       setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, name } : item));
+  };
+
+  const updateSpecification = (cartItemId: string, specification: string) => {
+      setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, specification } : item));
   };
   // ------------------------------------
 
@@ -632,6 +667,9 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 email: customerForm.email || ''
             } : undefined;
 
+            // Check if any rental items exist (no inventory adjustment needed)
+            const hasRentalItems = cart.some(item => item.id?.startsWith('RENTAL-'));
+
             const newSale: Sale = {
                 id: `S-${Date.now().toString().slice(-6)}`,
                 date: new Date().toISOString(),
@@ -649,7 +687,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
     // If any cart item is a new product being sold immediately, do NOT increase its stock in inventory
     // (Assume parent App handles inventory update; here, we just avoid calling onAddProduct for immediate sale)
-    onSaleComplete(newSale);
+    // Pass { adjustInventory: false } if rental items exist
+    if (hasRentalItems) {
+        onSaleComplete(newSale, { adjustInventory: false });
+    } else {
+        onSaleComplete(newSale);
+    }
       
       // Reset All Forms
       setCart([]);
@@ -767,6 +810,20 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                         <span className="text-xs text-orange-500">가매출 잡기 (즉시 추가)</span>
                     </button>
 
+                    {/* Online Rental Button */}
+                    <button onClick={() => addRentalProduct('online')} className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-purple-300 bg-purple-50 hover:bg-purple-100 transition-colors min-h-[11rem] gap-2 group">
+                        <div className="w-10 h-10 rounded-full bg-purple-200 flex items-center justify-center text-purple-700 group-hover:scale-110 transition-transform"><Smartphone size={24} /></div>
+                        <span className="font-bold text-purple-700 text-sm">온라인 렌탈</span>
+                        <span className="text-xs text-purple-500">재고 미반영</span>
+                    </button>
+
+                    {/* Offline Rental Button */}
+                    <button onClick={() => addRentalProduct('offline')} className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 hover:bg-indigo-100 transition-colors min-h-[11rem] gap-2 group">
+                        <div className="w-10 h-10 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700 group-hover:scale-110 transition-transform"><MapPin size={24} /></div>
+                        <span className="font-bold text-indigo-700 text-sm">오프라인 렌탈</span>
+                        <span className="text-xs text-indigo-500">재고 미반영</span>
+                    </button>
+
                     {filteredProducts.map(product => {
                         const stock = getStock(product);
                         const isService = product.category === '기타' || stock > 900;
@@ -856,9 +913,9 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                             onUpdatePrice={updatePrice} 
                             priceEditId={priceEditId} 
                             onSetPriceEditId={setPriceEditId} 
-                            // onOpenDiscount removed
                             onUpdateMemo={updateMemo}
                             onUpdateName={updateName}
+                            onUpdateSpecification={updateSpecification}
                         />
                     ))
                 )}
