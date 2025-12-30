@@ -1313,10 +1313,11 @@ const App: React.FC = () => {
             delete saleToSave.customer;
         }
 
-        setSales(prev => [saleToSave, ...prev]);
-        saveToFirestore<Sale>(COLLECTIONS.SALES, saleToSave)
-                        .then(() => console.log('✅ Sale saved to Firestore:', saleToSave.id))
-                        .catch((err) => console.error('❌ Failed to save sale to Firestore:', err));
+        const cleanSaleToSave = JSON.parse(JSON.stringify(saleToSave)) as Sale;
+        setSales(prev => [cleanSaleToSave, ...prev]);
+        saveToFirestore<Sale>(COLLECTIONS.SALES, cleanSaleToSave)
+                .then(() => console.log('✅ Sale saved to Firestore:', cleanSaleToSave.id))
+                .catch((err) => console.error('❌ Failed to save sale to Firestore:', err));
     
     // Add New Customer if not exists (with Owner Scope)
         if (saleToSave.customer && currentUser) {
@@ -1328,22 +1329,17 @@ const App: React.FC = () => {
                 id: `C-${Date.now()}`,
                 name: saleToSave.customer!.name,
                 phoneNumber: saleToSave.customer!.phoneNumber,
-                carModel: saleToSave.customer!.carModel || undefined,
-                vehicleNumber: saleToSave.customer!.vehicleNumber || undefined,
                 totalSpent: saleToSave.totalAmount,
                 lastVisitDate: saleToSave.date,
                 visitCount: 1,
                 ownerId: ownerScopeId
             };
-            const optionalFields: Array<keyof Pick<Customer, 'businessNumber' | 'companyName' | 'email'>> = ['businessNumber', 'companyName', 'email'];
-            const optionalData = optionalFields.reduce((acc, field) => {
-                const value = saleToSave.customer![field];
-                if (value) {
-                    acc[field] = value;
-                }
-                return acc;
-            }, {} as Partial<Pick<Customer, 'businessNumber' | 'companyName' | 'email'>>);
-            return { ...base, ...optionalData };
+            if (saleToSave.customer!.carModel) base.carModel = saleToSave.customer!.carModel;
+            if (saleToSave.customer!.vehicleNumber) base.vehicleNumber = saleToSave.customer!.vehicleNumber;
+            if (saleToSave.customer!.businessNumber) base.businessNumber = saleToSave.customer!.businessNumber;
+            if (saleToSave.customer!.companyName) base.companyName = saleToSave.customer!.companyName;
+            if (saleToSave.customer!.email) base.email = saleToSave.customer!.email;
+            return base;
         };
         
         if (!existing) {
@@ -1407,6 +1403,9 @@ const App: React.FC = () => {
   };
 
   const handleUpdateSale = (updatedSale: Sale) => {
+      const stripUndefined = <T,>(input: T): T => {
+          return JSON.parse(JSON.stringify(input));
+      };
       const sanitizeCustomer = (customer?: Sale['customer']) => {
           if (!customer) return undefined;
           const cleaned = { ...customer } as Record<string, unknown>;
@@ -1441,13 +1440,16 @@ const App: React.FC = () => {
                       id: `C-${Date.now()}`,
                       name: salePayload.customer.name,
                       phoneNumber: custPhone,
-                      carModel: salePayload.customer.carModel || undefined,
-                      vehicleNumber: salePayload.customer.vehicleNumber || undefined,
                       totalSpent: salePayload.totalAmount,
                       lastVisitDate: salePayload.date,
                       visitCount: 1,
                       ownerId: ownerScopeId
                   };
+                  if (salePayload.customer.carModel) newCustomer.carModel = salePayload.customer.carModel;
+                  if (salePayload.customer.vehicleNumber) newCustomer.vehicleNumber = salePayload.customer.vehicleNumber;
+                  if (salePayload.customer.businessNumber) newCustomer.businessNumber = salePayload.customer.businessNumber;
+                  if (salePayload.customer.companyName) newCustomer.companyName = salePayload.customer.companyName;
+                  if (salePayload.customer.email) newCustomer.email = salePayload.customer.email;
                   setCustomers(prev => [...prev, newCustomer]);
                   saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, newCustomer)
                     .then(() => console.log('✅ Customer saved to Firestore (sale update):', newCustomer.id))
@@ -1481,8 +1483,9 @@ const App: React.FC = () => {
       }
 
       // Update sale record
-      setSales(prev => prev.map(s => s.id === salePayload.id ? salePayload : s));
-    saveToFirestore<Sale>(COLLECTIONS.SALES, salePayload)
+            const saleToPersist = stripUndefined(salePayload);
+            setSales(prev => prev.map(s => s.id === salePayload.id ? saleToPersist : s));
+        saveToFirestore<Sale>(COLLECTIONS.SALES, saleToPersist)
       .then(() => console.log('✅ Sale updated in Firestore:', salePayload.id))
       .catch((err) => console.error('❌ Failed to update sale in Firestore:', err));
 
