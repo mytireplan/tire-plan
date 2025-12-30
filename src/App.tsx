@@ -1412,10 +1412,15 @@ const App: React.FC = () => {
     }
 
         if (adjustInventory) {
+            console.log('📊 Starting inventory adjustment for sale:', saleToSave.id);
             const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
             const updatedProducts: Product[] = [];
             const consumptionLogs: StockInRecord[] = [];
             const saleStoreId = saleToSave.storeId;
+
+            console.log('📌 Sale store ID:', saleStoreId);
+            console.log('📌 Sale items:', saleToSave.items);
+            console.log('📌 Total products loaded:', products.length);
 
             const nextProducts = products.map(prod => {
                 if (prod.id === '99999' || !saleStoreId) return prod;
@@ -1435,12 +1440,15 @@ const App: React.FC = () => {
 
                 if (soldQty <= 0) return prod;
 
+                console.log(`🔄 Product "${prod.name}" matched with sold qty: ${soldQty}, store stock before: ${safeStockByStore[saleStoreId] || 0}`);
+
                 const currentStoreStock = safeStockByStore[saleStoreId] || 0;
                 const newStoreStock = Math.max(0, currentStoreStock - soldQty);
                 const newStockByStore = { ...safeStockByStore, [saleStoreId]: newStoreStock };
                 const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
                 const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
                 updatedProducts.push(updated);
+                console.log(`✏️ Product updated - store stock after: ${newStoreStock}`);
 
                 // Log consumption to stock history (for visibility and refresh persistence)
                 const consumptionRecord: StockInRecord = {
