@@ -1342,10 +1342,11 @@ const App: React.FC = () => {
             return base;
         };
         
-        if (!existing) {
-            const newCustomer = buildCustomerRecord();
-            setCustomers(prev => [...prev, newCustomer]);
-            saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, newCustomer)
+                        if (!existing) {
+                        const newCustomer = buildCustomerRecord();
+                        const cleanCustomer = JSON.parse(JSON.stringify(newCustomer)) as Customer;
+                        setCustomers(prev => [...prev, cleanCustomer]);
+                        saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, cleanCustomer)
               .then(() => console.log('✅ Customer saved to Firestore:', newCustomer.id))
               .catch((err) => console.error('❌ Failed to save customer to Firestore:', err));
         } else {
@@ -1364,10 +1365,11 @@ const App: React.FC = () => {
                 }
                 return c;
             }));
-            if (updatedCustomer) {
-              saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, updatedCustomer)
-                .then(() => console.log('✅ Customer updated in Firestore:', updatedCustomer?.id))
-                .catch((err) => console.error('❌ Failed to update customer in Firestore:', err));
+                        if (updatedCustomer) {
+                            const cleanUpdated = JSON.parse(JSON.stringify(updatedCustomer)) as Customer;
+                            saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, cleanUpdated)
+                                .then(() => console.log('✅ Customer updated in Firestore:', updatedCustomer?.id))
+                                .catch((err) => console.error('❌ Failed to update customer in Firestore:', err));
             }
         }
     }
@@ -1403,9 +1405,7 @@ const App: React.FC = () => {
   };
 
   const handleUpdateSale = (updatedSale: Sale) => {
-      const stripUndefined = <T,>(input: T): T => {
-          return JSON.parse(JSON.stringify(input));
-      };
+      const stripUndefined = <T,>(input: T): T => JSON.parse(JSON.stringify(input));
       const sanitizeCustomer = (customer?: Sale['customer']) => {
           if (!customer) return undefined;
           const cleaned = { ...customer } as Record<string, unknown>;
@@ -1450,8 +1450,9 @@ const App: React.FC = () => {
                   if (salePayload.customer.businessNumber) newCustomer.businessNumber = salePayload.customer.businessNumber;
                   if (salePayload.customer.companyName) newCustomer.companyName = salePayload.customer.companyName;
                   if (salePayload.customer.email) newCustomer.email = salePayload.customer.email;
+                  const cleanCustomer = stripUndefined(newCustomer);
                   setCustomers(prev => [...prev, newCustomer]);
-                  saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, newCustomer)
+                  saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, cleanCustomer)
                     .then(() => console.log('✅ Customer saved to Firestore (sale update):', newCustomer.id))
                     .catch((err) => console.error('❌ Failed to save customer during sale update:', err));
               } else {
@@ -1474,7 +1475,8 @@ const App: React.FC = () => {
                       return c;
                   }));
                   if (updatedCustomer) {
-                      saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, updatedCustomer)
+                      const cleanUpdatedCustomer = stripUndefined(updatedCustomer);
+                      saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, cleanUpdatedCustomer)
                         .then(() => console.log('✅ Customer updated in Firestore (sale update):', updatedCustomer?.id))
                         .catch((err) => console.error('❌ Failed to update customer during sale update:', err));
                   }
@@ -1562,10 +1564,13 @@ const App: React.FC = () => {
   };
   const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
             const qtyForStock = record.receivedQuantity ?? record.quantity;
-                        const recordToSave = record.consumedAtSaleId ? { ...record, quantity: 0 } : record;
+                        const recordToSave: StockInRecord = record.consumedAtSaleId
+                                ? { ...record, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
+                                : { ...record, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
+                        const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
 
-            setStockInHistory(prev => [recordToSave, ...prev]);
-        saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, recordToSave)
+            setStockInHistory(prev => [sanitizedRecord, ...prev]);
+        saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord)
       .then(() => console.log('✅ Stock-in saved to Firestore:', record.id))
       .catch((err) => console.error('❌ Failed to save stock-in to Firestore:', err));
       // Ensure brand is added to global tireBrands list so other views (Inventory/POS) see it
