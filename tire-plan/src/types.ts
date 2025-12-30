@@ -2,6 +2,7 @@
 export interface Store {
   id: string;
   name: string;
+  ownerId?: string; // Owning account ID (for scoping)
 }
 
 // Store Account for Login (Owners)
@@ -18,7 +19,8 @@ export interface StoreAccount extends Store {
 export interface Staff {
   id: string;
   name: string;
-  storeId: string;
+  storeId?: string; // Optional: staff can work across stores
+  ownerId?: string; // Owning account to prevent cross-tenant leakage
   isActive: boolean;
 }
 
@@ -29,6 +31,7 @@ export interface Product {
   stock: number; // Total Stock (calculated)
   stockByStore: Record<string, number>; // { 'store_1': 10, 'store_2': 5 }
   category: string;
+  ownerId?: string; // Owning account for multitenancy
   brand?: string; // Brand name (e.g., '한국', '금호')
   barcode?: string;
   specification?: string; // e.g., 245/45R18
@@ -72,6 +75,7 @@ export interface Sale {
   date: string; // ISO String
   storeId: string; // Where the sale happened
   totalAmount: number;
+  discountAmount?: number; // Optional discount applied to the sale
   paymentMethod: PaymentMethod;
   items: SalesItem[];
   staffName: string; // The staff member selected at checkout
@@ -90,18 +94,22 @@ export interface Sale {
   isCanceled?: boolean; // Payment Cancelled
   cancelDate?: string; // When it was cancelled
   isEdited?: boolean; // If the sale details were modified after creation
+  inventoryAdjusted?: boolean; // Whether stock was deducted for this sale
 }
 
 export interface StockInRecord {
   id: string;
   date: string;
   storeId: string;
+  productId?: string; // Linked product for precise stock updates
   supplier: string; // 거래처
   category: string;
   brand: string;
   productName: string;
   specification: string;
   quantity: number;
+  receivedQuantity?: number; // 실입고 수량(즉시판매 시 원본 수량)
+  consumedAtSaleId?: string; // 바로 판매에 사용된 판매 ID
   purchasePrice?: number; // 매입가 (Admin only input in list)
   factoryPrice?: number; // 공장도가 (Entered at registration)
 }
