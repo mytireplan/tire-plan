@@ -1407,26 +1407,96 @@ const App: React.FC = () => {
   };
 
   const handleUpdateSale = (updatedSale: Sale) => {
+      const sanitizeCustomer = (customer?: Sale['customer']) => {
+          if (!customer) return undefined;
+          const cleaned = { ...customer } as Record<string, unknown>;
+          Object.keys(cleaned).forEach(key => {
+              if (cleaned[key] === undefined || cleaned[key] === null || cleaned[key] === '') delete cleaned[key];
+          });
+          return Object.keys(cleaned).length === 0 ? undefined : (cleaned as Sale['customer']);
+      };
+
       // Find previous sale to compute stock deltas
       const prevSale = sales.find(s => s.id === updatedSale.id);
 
+      const sanitizedCustomer = sanitizeCustomer(updatedSale.customer);
+      const salePayload: Sale = { ...updatedSale };
+      if (sanitizedCustomer) {
+          salePayload.customer = sanitizedCustomer;
+      } else {
+          delete salePayload.customer;
+      }
+
+      // Upsert customer when sale updates include customer info
+      if (salePayload.customer) {
+          const custPhone = salePayload.customer.phoneNumber;
+          const ownerScopeId = stores.find(s => s.id === salePayload.storeId)?.ownerId || currentUser?.id;
+          if (ownerScopeId) {
+              const existing = customers.find(c => c.phoneNumber === custPhone && c.ownerId === ownerScopeId);
+              const prevPhone = prevSale?.customer?.phoneNumber;
+              const spendDelta = (salePayload.totalAmount || 0) - (prevSale?.totalAmount || 0);
+
+              if (!existing) {
+                  const newCustomer: Customer = {
+                      id: `C-${Date.now()}`,
+                      name: salePayload.customer.name,
+                      phoneNumber: custPhone,
+                      carModel: salePayload.customer.carModel || undefined,
+                      vehicleNumber: salePayload.customer.vehicleNumber || undefined,
+                      totalSpent: salePayload.totalAmount,
+                      lastVisitDate: salePayload.date,
+                      visitCount: 1,
+                      ownerId: ownerScopeId
+                  };
+                  setCustomers(prev => [...prev, newCustomer]);
+                  saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, newCustomer)
+                    .then(() => console.log('✅ Customer saved to Firestore (sale update):', newCustomer.id))
+                    .catch((err) => console.error('❌ Failed to save customer during sale update:', err));
+              } else {
+                  let updatedCustomer: Customer | null = null;
+                  setCustomers(prev => prev.map(c => {
+                      if (c.phoneNumber === custPhone && c.ownerId === ownerScopeId) {
+                          const visitBump = (!prevPhone || prevPhone !== custPhone) ? 1 : 0;
+                          const updated = {
+                              ...c,
+                              name: salePayload.customer!.name || c.name,
+                              carModel: salePayload.customer!.carModel || c.carModel,
+                              vehicleNumber: salePayload.customer!.vehicleNumber || c.vehicleNumber,
+                              totalSpent: Math.max(0, (c.totalSpent || 0) + spendDelta),
+                              visitCount: c.visitCount + visitBump,
+                              lastVisitDate: salePayload.date
+                          } as Customer;
+                          updatedCustomer = updated;
+                          return updated;
+                      }
+                      return c;
+                  }));
+                  if (updatedCustomer) {
+                      saveToFirestore<Customer>(COLLECTIONS.CUSTOMERS, updatedCustomer)
+                        .then(() => console.log('✅ Customer updated in Firestore (sale update):', updatedCustomer?.id))
+                        .catch((err) => console.error('❌ Failed to update customer during sale update:', err));
+                  }
+              }
+          }
+      }
+
       // Update sale record
-      setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
-    saveToFirestore<Sale>(COLLECTIONS.SALES, updatedSale)
-      .then(() => console.log('✅ Sale updated in Firestore:', updatedSale.id))
+      setSales(prev => prev.map(s => s.id === salePayload.id ? salePayload : s));
+    saveToFirestore<Sale>(COLLECTIONS.SALES, salePayload)
+      .then(() => console.log('✅ Sale updated in Firestore:', salePayload.id))
       .catch((err) => console.error('❌ Failed to update sale in Firestore:', err));
 
       // If we have a previous sale, reconcile inventory differences when inventory is tracked
       if (prevSale) {
-          const storeId = updatedSale.storeId;
+          const storeId = salePayload.storeId;
           const prevTracked = prevSale.inventoryAdjusted !== false;
-          const newTracked = updatedSale.inventoryAdjusted !== false;
+          const newTracked = salePayload.inventoryAdjusted !== false;
 
           if (prevTracked || newTracked) {
               const prevQtyMap: Record<string, number> = {};
               prevSale.items.forEach(it => { prevQtyMap[it.productId] = (prevQtyMap[it.productId] || 0) + it.quantity; });
               const newQtyMap: Record<string, number> = {};
-              updatedSale.items.forEach(it => { newQtyMap[it.productId] = (newQtyMap[it.productId] || 0) + it.quantity; });
+              salePayload.items.forEach(it => { newQtyMap[it.productId] = (newQtyMap[it.productId] || 0) + it.quantity; });
 
               const allProductIds = new Set<string>([...Object.keys(prevQtyMap), ...Object.keys(newQtyMap)]);
 
@@ -1488,8 +1558,11 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
   };
   const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
-      setStockInHistory(prev => [record, ...prev]);
-    saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, record)
+            const qtyForStock = record.receivedQuantity ?? record.quantity;
+                        const recordToSave = record.consumedAtSaleId ? { ...record, quantity: 0 } : record;
+
+            setStockInHistory(prev => [recordToSave, ...prev]);
+        saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, recordToSave)
       .then(() => console.log('✅ Stock-in saved to Firestore:', record.id))
       .catch((err) => console.error('❌ Failed to save stock-in to Firestore:', err));
       // Ensure brand is added to global tireBrands list so other views (Inventory/POS) see it
@@ -1507,7 +1580,7 @@ const App: React.FC = () => {
             const updatedProducts = [...prev];
             const product = updatedProducts[existingProductIndex];
             const currentStoreStock = product.stockByStore[record.storeId] || 0;
-            const newStockByStore = { ...product.stockByStore, [record.storeId]: currentStoreStock + record.quantity };
+            const newStockByStore = { ...product.stockByStore, [record.storeId]: currentStoreStock + qtyForStock };
             const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
             updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId };
                         const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId } as Product;
@@ -1518,12 +1591,12 @@ const App: React.FC = () => {
         } else {
             const newStockByStore: Record<string, number> = {};
             stores.forEach(s => newStockByStore[s.id] = 0);
-            newStockByStore[record.storeId] = record.quantity;
+            newStockByStore[record.storeId] = qtyForStock;
             const newProduct: Product = {
                 id: forceProductId || `P-${Date.now()}`,
                 name: record.productName,
                 price: sellingPrice || 0,
-                stock: record.quantity,
+                stock: qtyForStock,
                 stockByStore: newStockByStore,
                 category: record.category,
                 brand: record.brand,

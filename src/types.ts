@@ -107,6 +107,8 @@ export interface StockInRecord {
   productName: string;
   specification: string;
   quantity: number;
+  receivedQuantity?: number; // 실입고 수량(즉시판매 시 원본 수량)
+  consumedAtSaleId?: string; // 바로 판매에 사용된 판매 ID
   purchasePrice?: number; // 매입가 (Admin only input in list)
   factoryPrice?: number; // 공장도가 (Entered at registration)
 }

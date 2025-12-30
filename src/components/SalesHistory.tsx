@@ -359,6 +359,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           alert('상품명과 수량을 입력해주세요.');
           return;
       }
+            const consumptionQty = stockInForm.quantity;
       
       const record: StockInRecord = {
           id: `IN-${Date.now()}`,
@@ -369,7 +370,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           brand: stockInForm.brand,
           productName: stockInForm.productName.trim(),
           specification: stockInForm.specification.trim(),
-          quantity: stockInForm.quantity,
+                    quantity: 0, // 즉시 판매용 입고는 재고 목록에 잔량 0으로 남김
+                    receivedQuantity: consumptionQty,
+                    consumedAtSaleId: selectedSale?.id,
           factoryPrice: stockInForm.factoryPrice,
           purchasePrice: 0
       };
@@ -398,7 +401,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       };
 
       // 3. Add to Sale List with correct quantity
-      executeSwap({ ...proxyProduct, _swapQuantity: record.quantity });
+      executeSwap({ ...proxyProduct, _swapQuantity: consumptionQty });
 
       // Ensure the last-added item in the edit form has the stocked quantity (safety in case of race)
       setEditFormData(prev => {
@@ -406,7 +409,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           const items = Array.isArray(prev.items) ? [...prev.items] : [];
           if (items.length === 0) return prev;
           const lastIdx = items.length - 1;
-          items[lastIdx] = { ...items[lastIdx], quantity: record.quantity };
+          items[lastIdx] = { ...items[lastIdx], quantity: consumptionQty };
           return { ...prev, items };
       });
 
@@ -607,10 +610,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           setEditFormData({ ...editFormData, items: newItems });
       } else if (field.startsWith('customer.')) {
           const custField = field.split('.')[1];
+          const baseCustomer = editFormData.customer || { name: '', phoneNumber: '' };
           setEditFormData({
               ...editFormData,
               customer: {
-                  ...editFormData.customer!,
+                  ...baseCustomer,
                   [custField]: value
               }
           });
