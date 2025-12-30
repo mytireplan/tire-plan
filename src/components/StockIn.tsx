@@ -226,7 +226,9 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
             const matchesMonth = record.date.startsWith(selectedMonth);
             const matchesSupplier = selectedSupplier === 'ALL' || record.supplier === selectedSupplier;
             const matchesStore = selectedStoreFilter === 'ALL' || record.storeId === selectedStoreFilter;
-            return matchesMonth && matchesSupplier && matchesStore;
+            // Hide consumption logs (자동 생성되는 판매소진 기록)
+            const isNotConsumptionLog = !record.id?.startsWith('IN-CONSUME-');
+            return matchesMonth && matchesSupplier && matchesStore && isNotConsumptionLog;
         });
     }, [stockInHistory, selectedMonth, selectedSupplier, selectedStoreFilter]);
 
