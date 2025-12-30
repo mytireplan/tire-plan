@@ -1533,6 +1533,7 @@ const App: React.FC = () => {
               const allNameSpecKeys = new Set<string>([...Object.keys(prevNameSpecMap), ...Object.keys(newNameSpecMap)]);
 
               const updatedProducts: Product[] = [];
+              const consumptionLogs: StockInRecord[] = [];
 
               setProducts(prevProducts => prevProducts.map(prod => {
                   const key = normalizeKey(prod.name, prod.specification);
@@ -1550,6 +1551,27 @@ const App: React.FC = () => {
                   const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
                   const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
                   updatedProducts.push(updated);
+
+                  // Log consumption when additional quantity is sold via edit (for stock history visibility)
+                  if (newTracked && delta > 0) {
+                      const consumptionRecord: StockInRecord = {
+                          id: `IN-CONSUME-${Date.now()}-${prod.id}`,
+                          date: new Date().toISOString(),
+                          storeId,
+                          productId: prod.id,
+                          supplier: '판매소진',
+                          category: prod.category,
+                          brand: prod.brand || '기타',
+                          productName: prod.name,
+                          specification: prod.specification || '',
+                          quantity: 0,
+                          receivedQuantity: delta,
+                          consumedAtSaleId: salePayload.id,
+                          purchasePrice: 0,
+                          factoryPrice: prod.price
+                      };
+                      consumptionLogs.push(consumptionRecord);
+                  }
                   return updated;
               }));
 
@@ -1559,6 +1581,17 @@ const App: React.FC = () => {
                     .then(() => console.log('✅ Product stock reconciled after sale edit:', p.id))
                     .catch(err => console.error('❌ Failed to persist reconciled product:', err));
               });
+
+              // Persist consumption logs so stock history shows the deductions after edits
+              if (consumptionLogs.length > 0) {
+                  consumptionLogs.forEach(log => {
+                      const clean = JSON.parse(JSON.stringify(log)) as StockInRecord;
+                      setStockInHistory(prev => [clean, ...prev]);
+                      saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, clean)
+                        .then(() => console.log('✅ Stock consumption logged after sale edit:', clean.id))
+                        .catch(err => console.error('❌ Failed to log stock consumption after sale edit:', err));
+                  });
+              }
           }
       }
   };
