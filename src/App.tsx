@@ -1377,11 +1377,14 @@ const App: React.FC = () => {
         if (adjustInventory) {
             const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
             const updatedProducts: Product[] = [];
+            const consumptionLogs: StockInRecord[] = [];
             const saleStoreId = saleToSave.storeId;
 
             setProducts(prevProducts => {
                 return prevProducts.map(prod => {
                     if (prod.id === '99999' || !saleStoreId) return prod;
+
+                    const safeStockByStore = prod.stockByStore || {};
 
                     // Sum sold qty for this product by id, or fallback to name/spec match
                     const soldQty = saleToSave.items.reduce((sum, item) => {
@@ -1396,12 +1399,31 @@ const App: React.FC = () => {
 
                     if (soldQty <= 0) return prod;
 
-                    const currentStoreStock = prod.stockByStore[saleStoreId] || 0;
+                    const currentStoreStock = safeStockByStore[saleStoreId] || 0;
                     const newStoreStock = Math.max(0, currentStoreStock - soldQty);
-                    const newStockByStore = { ...prod.stockByStore, [saleStoreId]: newStoreStock };
+                    const newStockByStore = { ...safeStockByStore, [saleStoreId]: newStoreStock };
                     const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
                     const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
                     updatedProducts.push(updated);
+
+                    // Log consumption to stock history (for visibility and refresh persistence)
+                    const consumptionRecord: StockInRecord = {
+                        id: `IN-CONSUME-${Date.now()}-${prod.id}`,
+                        date: new Date().toISOString(),
+                        storeId: saleStoreId,
+                        productId: prod.id,
+                        supplier: '판매소진',
+                        category: prod.category,
+                        brand: prod.brand || '기타',
+                        productName: prod.name,
+                        specification: prod.specification || '',
+                        quantity: 0,
+                        receivedQuantity: soldQty,
+                        consumedAtSaleId: saleToSave.id,
+                        purchasePrice: 0,
+                        factoryPrice: prod.price
+                    };
+                    consumptionLogs.push(consumptionRecord);
                     return updated;
                 });
             });
@@ -1412,6 +1434,16 @@ const App: React.FC = () => {
                     saveToFirestore<Product>(COLLECTIONS.PRODUCTS, cleanProduct)
                         .then(() => console.log('✅ Product stock updated after sale:', cleanProduct.id))
                         .catch(err => console.error('❌ Failed to update product stock after sale:', err));
+                });
+            }
+
+            if (consumptionLogs.length > 0) {
+                consumptionLogs.forEach(log => {
+                    const clean = JSON.parse(JSON.stringify(log)) as StockInRecord;
+                    setStockInHistory(prev => [clean, ...prev]);
+                    saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, clean)
+                        .then(() => console.log('✅ Stock consumption logged after sale:', clean.id))
+                        .catch(err => console.error('❌ Failed to log stock consumption after sale:', err));
                 });
             }
         }
