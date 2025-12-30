@@ -1589,7 +1589,11 @@ const App: React.FC = () => {
             const updatedProducts = [...prev];
             const product = updatedProducts[existingProductIndex];
             const currentStoreStock = product.stockByStore[record.storeId] || 0;
-            const newStockByStore = { ...product.stockByStore, [record.storeId]: currentStoreStock + qtyForStock };
+            const adjustAmount = isConsumed ? (record.receivedQuantity ?? record.quantity ?? 0) : qtyForStock;
+            const nextStoreStock = isConsumed
+                ? Math.max(0, currentStoreStock - adjustAmount) // roll back any prior inflated stock for consumed entries
+                : currentStoreStock + qtyForStock;
+            const newStockByStore = { ...product.stockByStore, [record.storeId]: nextStoreStock };
             const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
             updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId };
                         const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId } as Product;
