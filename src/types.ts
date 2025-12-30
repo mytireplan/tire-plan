@@ -101,6 +101,7 @@ export interface StockInRecord {
   id: string;
   date: string;
   storeId: string;
+  productId?: string; // Linked product for precise stock updates
   supplier: string; // 거래처
   category: string;
   brand: string;

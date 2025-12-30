@@ -365,6 +365,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           id: `IN-${Date.now()}`,
           date: new Date().toISOString().split('T')[0],
           storeId: selectedSale ? selectedSale.storeId : currentStoreId,
+          productId: undefined,
           supplier: stockInForm.supplier || '자체입고',
           category: stockInForm.category,
           brand: stockInForm.brand,
@@ -385,7 +386,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           return p.specification || record.specification ? (nameMatch && specMatch) : nameMatch;
       });
       
-      const targetProductId = existingProduct ? existingProduct.id : `P-NEW-${Date.now()}`;
+    const targetProductId = existingProduct ? existingProduct.id : `P-NEW-${Date.now()}`;
+    record.productId = targetProductId;
 
       // 1. Execute Stock In (DB update) with specific ID
       onStockIn(record, 0, targetProductId);

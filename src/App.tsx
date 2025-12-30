@@ -1375,29 +1375,42 @@ const App: React.FC = () => {
     }
 
         if (adjustInventory) {
+            const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
             const updatedProducts: Product[] = [];
+            const saleStoreId = saleToSave.storeId;
+
             setProducts(prevProducts => {
                 return prevProducts.map(prod => {
-                    const soldItem = saleToSave.items.find(item => item.productId === prod.id);
-                    if (soldItem) {
-                        if (prod.id === '99999') return prod;
-                        const currentStoreStock = prod.stockByStore[saleToSave.storeId] || 0;
-                        if (currentStoreStock > 900) return prod;
-                        const newStoreStock = Math.max(0, currentStoreStock - soldItem.quantity);
-                        const newStockByStore = { ...prod.stockByStore, [saleToSave.storeId]: newStoreStock };
-                        const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-                        const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
-                        updatedProducts.push(updated);
-                        return updated;
-                    }
-                    return prod;
+                    if (prod.id === '99999' || !saleStoreId) return prod;
+
+                    // Sum sold qty for this product by id, or fallback to name/spec match
+                    const soldQty = saleToSave.items.reduce((sum, item) => {
+                        const idMatch = item.productId === prod.id;
+                        const nameMatch = normalize(item.productName) === normalize(prod.name);
+                        const specMatch = normalize(item.specification) === normalize(prod.specification);
+                        const fallbackMatch = !item.productId && (prod.specification || item.specification)
+                            ? (nameMatch && specMatch)
+                            : nameMatch;
+                        return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
+                    }, 0);
+
+                    if (soldQty <= 0) return prod;
+
+                    const currentStoreStock = prod.stockByStore[saleStoreId] || 0;
+                    const newStoreStock = Math.max(0, currentStoreStock - soldQty);
+                    const newStockByStore = { ...prod.stockByStore, [saleStoreId]: newStoreStock };
+                    const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                    const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+                    updatedProducts.push(updated);
+                    return updated;
                 });
             });
 
             if (updatedProducts.length > 0) {
                 updatedProducts.forEach(product => {
-                    saveToFirestore<Product>(COLLECTIONS.PRODUCTS, product)
-                        .then(() => console.log('✅ Product stock updated after sale:', product.id))
+                    const cleanProduct = JSON.parse(JSON.stringify(product)) as Product;
+                    saveToFirestore<Product>(COLLECTIONS.PRODUCTS, cleanProduct)
+                        .then(() => console.log('✅ Product stock updated after sale:', cleanProduct.id))
                         .catch(err => console.error('❌ Failed to update product stock after sale:', err));
                 });
             }
@@ -1594,16 +1607,29 @@ const App: React.FC = () => {
   const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
             const isConsumed = Boolean(record.consumedAtSaleId);
             const qtyForStock = isConsumed ? 0 : (record.receivedQuantity ?? record.quantity ?? 0);
-                        const recordToSave: StockInRecord = record.consumedAtSaleId
-                                ? { ...record, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
-                                : { ...record, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
-                        const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
 
       const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
 
+            const matchedById = record.productId ? products.find(p => p.id === record.productId) : undefined;
+            const matchedByForce = !matchedById && forceProductId ? products.find(p => p.id === forceProductId) : undefined;
+            const matchedByNameSpec = products.find(p => {
+                if (record.productId || forceProductId) return false; // prefer explicit ids
+                const nameMatch = normalize(p.name) === normalize(record.productName);
+                const specMatch = normalize(p.specification) === normalize(record.specification);
+                return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
+            });
+
+            const targetProduct = matchedById || matchedByForce || matchedByNameSpec;
+            const resolvedProductId = targetProduct?.id || record.productId || forceProductId || `P-NEW-${Date.now()}`;
+
+            const recordToSave: StockInRecord = record.consumedAtSaleId
+                                ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
+                                : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
+                        const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
+
             setStockInHistory(prev => [sanitizedRecord, ...prev]);
         saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord)
-      .then(() => console.log('✅ Stock-in saved to Firestore:', record.id))
+      .then(() => console.log('✅ Stock-in saved to Firestore:', sanitizedRecord.id))
       .catch((err) => console.error('❌ Failed to save stock-in to Firestore:', err));
       // Ensure brand is added to global tireBrands list so other views (Inventory/POS) see it
       if (record.brand && record.brand.trim() !== '') {
@@ -1611,12 +1637,17 @@ const App: React.FC = () => {
       }
       const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || '';
       setProducts(prev => {
-        const existingProductIndex = prev.findIndex(p => {
-                        if (forceProductId) return p.id === forceProductId;
-                        const nameMatch = normalize(p.name) === normalize(record.productName);
-                        const specMatch = normalize(p.specification) === normalize(record.specification);
-                        return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
-        });
+        let existingProductIndex = -1;
+        if (resolvedProductId) {
+            existingProductIndex = prev.findIndex(p => p.id === resolvedProductId);
+        }
+        if (existingProductIndex < 0) {
+            existingProductIndex = prev.findIndex(p => {
+                const nameMatch = normalize(p.name) === normalize(record.productName);
+                const specMatch = normalize(p.specification) === normalize(record.specification);
+                return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
+            });
+        }
         if (existingProductIndex >= 0) {
             const updatedProducts = [...prev];
             const product = updatedProducts[existingProductIndex];
@@ -1637,8 +1668,9 @@ const App: React.FC = () => {
             const newStockByStore: Record<string, number> = {};
             stores.forEach(s => newStockByStore[s.id] = 0);
             newStockByStore[record.storeId] = qtyForStock;
+            const newProductId = resolvedProductId || `P-${Date.now()}`;
             const newProduct: Product = {
-                id: forceProductId || `P-${Date.now()}`,
+                id: newProductId,
                 name: record.productName,
                 price: sellingPrice || 0,
                 stock: qtyForStock,

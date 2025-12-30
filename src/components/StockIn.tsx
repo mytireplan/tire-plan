@@ -145,10 +145,17 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
         // Safety check: If storeId is still empty or ALL (should be fixed by useEffect, but just in case)
         const finalStoreId = formData.storeId === 'ALL' || !formData.storeId ? stores[0]?.id : formData.storeId;
 
+        const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+        const matchedProduct = products.find(p => {
+            const nameMatch = normalize(p.name) === normalize(trimmedName);
+            const specMatch = normalize(p.specification) === normalize(trimmedSpec);
+            return p.specification || trimmedSpec ? (nameMatch && specMatch) : nameMatch;
+        });
         const record: StockInRecord = {
             id: `IN-${Date.now()}`,
             date: formData.date,
             storeId: finalStoreId,
+            productId: matchedProduct?.id,
             supplier: formData.supplier.trim(),
             category: formData.category,
             brand: formData.brand,
