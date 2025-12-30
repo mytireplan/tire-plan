@@ -30,13 +30,13 @@ jobs:
       - name: Prepare SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "$LIGHTSAIL_SSH_KEY" > ~/.ssh/lightsail_key
+          echo "$SSH_KEY" > ~/.ssh/lightsail_key
           chmod 600 ~/.ssh/lightsail_key
         env:
-          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
 
       - name: Deploy to Lightsail
         run: |
-          bash deploy-to-lightsail.sh "$LIGHTSAIL_HOST" "~/.ssh/lightsail_key"
+          bash deploy-to-lightsail.sh "$SSH_HOST" "~/.ssh/lightsail_key"
         env:
-          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
