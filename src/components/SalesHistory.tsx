@@ -90,6 +90,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const [activeEditField, setActiveEditField] = useState<string | null>(null); // 'customer.name', 'item-0-qty'
   const [lockedTotalAmount, setLockedTotalAmount] = useState<number>(0);
 
+  // --- Insufficient Stock State ---
+  const [insufficientStockProduct, setInsuffcientStockProduct] = useState<Product | null>(null);
+  const [isStockWarningOpen, setIsStockWarningOpen] = useState(false);
+
   // --- Immediate Stock In State ---
   const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
   const [stockInForm, setStockInForm] = useState({
@@ -432,11 +436,37 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       };
 
       // 3. Add to Sale List with correct quantity
-      executeSwap({ ...proxyProduct, _swapQuantity: consumptionQty });
+      // If insufficient stock warning triggered, automatically add with swapTarget context
+      if (insufficientStockProduct) {
+          // We have swapTarget set from the warning popup
+          if (swapTarget?.isEditMode && editFormData) {
+              let newItems = [...editFormData.items];
+              
+              if (swapTarget.isAdding) {
+                  newItems.push({
+                      productId: proxyProduct.id,
+                      productName: proxyProduct.name,
+                      brand: proxyProduct.brand,
+                      specification: proxyProduct.specification,
+                      quantity: consumptionQty,
+                      priceAtSale: proxyProduct.price
+                  });
+              }
+              
+              newItems = recalculateUnitPrices(newItems, getLockedBudget());
+              setEditFormData({ ...editFormData, items: newItems });
+              setHasUnsavedChanges(true);
+          }
+      } else {
+          // Normal flow without insufficient stock warning
+          executeSwap({ ...proxyProduct, _swapQuantity: consumptionQty });
+      }
 
       // Ensure the last-added item in the edit form OR quick-add cart has the stocked quantity
       if (swapTarget?.isQuickAddCart) {
           // No need for safety check in quick-add since we just added it to items
+      } else if (editFormData && insufficientStockProduct) {
+          // Already handled above with recalculateUnitPrices
       } else if (editFormData) {
           setEditFormData(prev => {
               if (!prev) return prev;
@@ -454,6 +484,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           setIsSwapModalOpen(false);
           setSwapTarget(null);
       }
+      // Reset states
+      setInsuffcientStockProduct(null);
+      setIsStockWarningOpen(false);
+      
       // Reset form
       setStockInForm({
           supplier: '',
@@ -524,6 +558,17 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     const executeSwap = (product: Product & { _swapQuantity?: number }) => {
       if (!swapTarget) return;
 
+      // 재고 검증: 신규 상품 추가 모드에서만 체크
+      const requestedQty = product._swapQuantity || 1;
+      const hasInsufficientStock = swapTarget.isAdding && product.stock === 0;
+      
+      if (hasInsufficientStock && product.id !== '99999') {
+          // Show stock warning popup
+          setInsuffcientStockProduct(product);
+          setIsStockWarningOpen(true);
+          return; // Don't proceed with adding until user confirms
+      }
+
       if (swapTarget.isQuickAddCart) {
           // Add to quick-add cart
           let newItems = [...quickAddForm.items];
@@ -532,7 +577,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
               productName: product.name,
               brand: product.brand,
               specification: product.specification,
-              quantity: product._swapQuantity || 1,
+              quantity: requestedQty,
               priceAtSale: product.price
           });
           setQuickAddForm(prev => ({ ...prev, items: newItems }));
@@ -547,7 +592,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                   productName: product.name,
                   brand: product.brand,
                   specification: product.specification,
-                  quantity: product._swapQuantity || 1,
+                  quantity: requestedQty,
                   priceAtSale: product.price
               });
           } else {
@@ -1685,6 +1730,60 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                   <div className="flex gap-2 justify-end">
                       <button onClick={() => setShowCancelConfirm(false)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50">닫기</button>
                       <button onClick={() => { setShowCancelConfirm(false); confirmCancelSale(); }} className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700">취소 진행</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Insufficient Stock Warning Popup */}
+      {isStockWarningOpen && insufficientStockProduct && (
+          <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0">
+                          <AlertTriangle size={24} className="text-amber-500" />
+                      </div>
+                      <div>
+                          <h3 className="text-lg font-bold text-gray-800">재고가 없습니다</h3>
+                          <p className="text-sm text-gray-600 mt-1">{insufficientStockProduct.brand} {insufficientStockProduct.name}</p>
+                      </div>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-sm text-amber-800">
+                          <span className="font-bold text-amber-900">{insufficientStockProduct.specification}</span> 상품을 입고하시겠습니까?
+                      </p>
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-2">
+                      <button
+                          onClick={() => {
+                              setIsStockWarningOpen(false);
+                              setInsuffcientStockProduct(null);
+                          }}
+                          className="px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition-colors"
+                      >
+                          취소
+                      </button>
+                      <button
+                          onClick={() => {
+                              // Open stock-in modal with product info pre-filled
+                              setStockInForm(prev => ({
+                                  ...prev,
+                                  productName: insufficientStockProduct.name,
+                                  specification: insufficientStockProduct.specification || '',
+                                  brand: insufficientStockProduct.brand || '기타',
+                                  category: insufficientStockProduct.category,
+                                  quantity: 1
+                              }));
+                              setIsStockInModalOpen(true);
+                              setIsStockWarningOpen(false);
+                              // Keep the product for later use
+                          }}
+                          className="px-4 py-2.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors"
+                      >
+                          입고하기
+                      </button>
                   </div>
               </div>
           </div>
