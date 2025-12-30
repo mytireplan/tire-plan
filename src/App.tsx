@@ -1498,19 +1498,37 @@ const App: React.FC = () => {
           const newTracked = salePayload.inventoryAdjusted !== false;
 
           if (prevTracked || newTracked) {
+              const normalizeKey = (name?: string, spec?: string) => `${(name || '').toLowerCase().replace(/\s+/g, '')}__${(spec || '').toLowerCase().replace(/\s+/g, '')}`;
+
               const prevQtyMap: Record<string, number> = {};
-              prevSale.items.forEach(it => { prevQtyMap[it.productId] = (prevQtyMap[it.productId] || 0) + it.quantity; });
+              const prevNameSpecMap: Record<string, number> = {};
+              prevSale.items.forEach(it => {
+                  prevQtyMap[it.productId] = (prevQtyMap[it.productId] || 0) + it.quantity;
+                  const key = normalizeKey(it.productName, it.specification);
+                  prevNameSpecMap[key] = (prevNameSpecMap[key] || 0) + it.quantity;
+              });
+
               const newQtyMap: Record<string, number> = {};
-              salePayload.items.forEach(it => { newQtyMap[it.productId] = (newQtyMap[it.productId] || 0) + it.quantity; });
+              const newNameSpecMap: Record<string, number> = {};
+              salePayload.items.forEach(it => {
+                  newQtyMap[it.productId] = (newQtyMap[it.productId] || 0) + it.quantity;
+                  const key = normalizeKey(it.productName, it.specification);
+                  newNameSpecMap[key] = (newNameSpecMap[key] || 0) + it.quantity;
+              });
 
               const allProductIds = new Set<string>([...Object.keys(prevQtyMap), ...Object.keys(newQtyMap)]);
+              const allNameSpecKeys = new Set<string>([...Object.keys(prevNameSpecMap), ...Object.keys(newNameSpecMap)]);
 
               const updatedProducts: Product[] = [];
 
               setProducts(prevProducts => prevProducts.map(prod => {
-                  if (!allProductIds.has(prod.id) || prod.id === '99999') return prod;
-                  const oldQty = prevTracked ? (prevQtyMap[prod.id] || 0) : 0;
-                  const newQty = newTracked ? (newQtyMap[prod.id] || 0) : 0;
+                  const key = normalizeKey(prod.name, prod.specification);
+                  const hasIdMatch = allProductIds.has(prod.id);
+                  const hasKeyMatch = allNameSpecKeys.has(key);
+                  if ((!hasIdMatch && !hasKeyMatch) || prod.id === '99999') return prod;
+
+                  const oldQty = prevTracked ? (prevQtyMap[prod.id] || prevNameSpecMap[key] || 0) : 0;
+                  const newQty = newTracked ? (newQtyMap[prod.id] || newNameSpecMap[key] || 0) : 0;
                   const delta = newQty - oldQty; // positive => more sold now -> reduce stock
 
                   const currentStoreStock = prod.stockByStore[storeId] || 0;
