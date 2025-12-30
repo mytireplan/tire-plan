@@ -14,21 +14,39 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 18
 
-      - name: Install
+      - name: Install deps
         run: npm ci
 
       - name: Build
         run: npm run build
 
-      - name: Deploy over SSH (rsync)
-        uses: easingthemes/ssh-deploy@v4
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_KEY }}
-          SOURCE: "dist/"
-          REMOTE_HOST: ${{ secrets.SSH_HOST }}
-          REMOTE_USER: ${{ secrets.SSH_USER }}
-          TARGET: ${{ secrets.DEPLOY_PATH }}
-          ARGS: "-rltgoDzvO --delete --rsync-path=\"mkdir -p ${{ secrets.DEPLOY_PATH }} && rsync\""
+      - name: Sync sources to Lightsail
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: ${{ secrets.LIGHTSAIL_PORT || '22' }}
+          source: .
+          target: /home/ubuntu/tire-plan
+          rm: true
+          exclude: .git,node_modules,dist
+
+      - name: Install/build/restart on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: ${{ secrets.LIGHTSAIL_PORT || '22' }}
+          script: |
+            set -e
+            APP_DIR=/home/ubuntu/tire-plan
+            cd "$APP_DIR"
+            npm ci --production
+            npm run build
+            pm2 stop tire-plan || true
+            pm2 start "npm run preview" --name "tire-plan"
+            pm2 save
