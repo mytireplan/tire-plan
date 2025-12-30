@@ -378,10 +378,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       };
 
       // Check if product already exists to reuse ID, or generate a deterministic new ID
-      const existingProduct = products.find(p => 
-          p.name === record.productName && 
-          (p.specification || '') === (record.specification || '')
-      );
+      const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+      const existingProduct = products.find(p => {
+          const nameMatch = normalize(p.name) === normalize(record.productName);
+          const specMatch = normalize(p.specification) === normalize(record.specification);
+          return p.specification || record.specification ? (nameMatch && specMatch) : nameMatch;
+      });
       
       const targetProductId = existingProduct ? existingProduct.id : `P-NEW-${Date.now()}`;
 

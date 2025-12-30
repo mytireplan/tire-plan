@@ -1581,6 +1581,8 @@ const App: React.FC = () => {
                                 : { ...record, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
                         const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
 
+      const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+
             setStockInHistory(prev => [sanitizedRecord, ...prev]);
         saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord)
       .then(() => console.log('✅ Stock-in saved to Firestore:', record.id))
@@ -1592,9 +1594,10 @@ const App: React.FC = () => {
       const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || '';
       setProducts(prev => {
         const existingProductIndex = prev.findIndex(p => {
-            if (forceProductId) return p.id === forceProductId;
-            if (p.specification && record.specification) return p.name === record.productName && p.specification === record.specification;
-            return p.name === record.productName;
+                        if (forceProductId) return p.id === forceProductId;
+                        const nameMatch = normalize(p.name) === normalize(record.productName);
+                        const specMatch = normalize(p.specification) === normalize(record.specification);
+                        return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
         });
         if (existingProductIndex >= 0) {
             const updatedProducts = [...prev];
