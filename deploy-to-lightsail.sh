@@ -78,8 +78,8 @@ echo ""
 echo "🔧 Step 5: Lightsail에서 빌드..."
 ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     cd $REMOTE_PATH
-    echo "의존성 설치..."
-    npm ci --production  # 프로덕션 전용 의존성만 설치
+    echo "의존성 설치..."  # devDependencies(typescript 등) 포함 설치
+    npm ci
     
     echo "빌드..."
     npm run build

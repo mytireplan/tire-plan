@@ -45,7 +45,7 @@ jobs:
             set -e
             APP_DIR=/home/ubuntu/tire-plan
             cd "$APP_DIR"
-            npm ci --production
+            npm ci
             npm run build
             pm2 stop tire-plan || true
             pm2 start "npm run preview" --name "tire-plan"
