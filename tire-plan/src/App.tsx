@@ -1349,28 +1349,61 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
   };
   const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
-      setStockInHistory(prev => [record, ...prev]);
-    saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, record)
-      .then(() => console.log('✅ Stock-in saved to Firestore:', record.id))
+      const isConsumed = Boolean(record.consumedAtSaleId);
+      const qtyForStock = isConsumed ? 0 : (record.receivedQuantity ?? record.quantity ?? 0);
+
+      const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+
+      const matchedById = record.productId ? products.find(p => p.id === record.productId) : undefined;
+      const matchedByForce = !matchedById && forceProductId ? products.find(p => p.id === forceProductId) : undefined;
+      const matchedByNameSpec = products.find(p => {
+          if (record.productId || forceProductId) return false; // prefer explicit ids
+          const nameMatch = normalize(p.name) === normalize(record.productName);
+          const specMatch = normalize(p.specification) === normalize(record.specification);
+          return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
+      });
+
+      const targetProduct = matchedById || matchedByForce || matchedByNameSpec;
+      const resolvedProductId = targetProduct?.id || record.productId || forceProductId || `P-NEW-${Date.now()}`;
+
+      const recordToSave: StockInRecord = record.consumedAtSaleId
+                          ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
+                          : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
+      const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
+
+      setStockInHistory(prev => [sanitizedRecord, ...prev]);
+    saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord)
+      .then(() => console.log('✅ Stock-in saved to Firestore:', sanitizedRecord.id))
       .catch((err) => console.error('❌ Failed to save stock-in to Firestore:', err));
       // Ensure brand is added to global tireBrands list so other views (Inventory/POS) see it
       if (record.brand && record.brand.trim() !== '') {
           setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
       }
+      const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || '';
       setProducts(prev => {
-        const existingProductIndex = prev.findIndex(p => {
-            if (forceProductId) return p.id === forceProductId;
-            if (p.specification && record.specification) return p.name === record.productName && p.specification === record.specification;
-            return p.name === record.productName;
-        });
+        let existingProductIndex = -1;
+        if (resolvedProductId) {
+            existingProductIndex = prev.findIndex(p => p.id === resolvedProductId);
+        }
+        if (existingProductIndex < 0) {
+            existingProductIndex = prev.findIndex(p => {
+                const nameMatch = normalize(p.name) === normalize(record.productName);
+                const specMatch = normalize(p.specification) === normalize(record.specification);
+                return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
+            });
+        }
         if (existingProductIndex >= 0) {
             const updatedProducts = [...prev];
             const product = updatedProducts[existingProductIndex];
             const currentStoreStock = product.stockByStore[record.storeId] || 0;
-            const newStockByStore = { ...product.stockByStore, [record.storeId]: currentStoreStock + record.quantity };
+            const adjustAmount = isConsumed ? (record.receivedQuantity ?? record.quantity ?? 0) : qtyForStock;
+            const nextStoreStock = isConsumed
+                ? Math.max(0, currentStoreStock - adjustAmount)
+                : currentStoreStock + qtyForStock;
+            const newStockByStore = { ...product.stockByStore, [record.storeId]: nextStoreStock };
             const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-            updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock };
-                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+            updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId };
+                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId } as Product;
                         saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
                             .then(() => console.log('✅ Product stock updated in Firestore:', updatedProduct.id))
                             .catch((err) => console.error('❌ Failed to update product stock in Firestore:', err));
@@ -1378,16 +1411,18 @@ const App: React.FC = () => {
         } else {
             const newStockByStore: Record<string, number> = {};
             stores.forEach(s => newStockByStore[s.id] = 0);
-            newStockByStore[record.storeId] = record.quantity;
+            newStockByStore[record.storeId] = qtyForStock;
+            const newProductId = resolvedProductId || `P-${Date.now()}`;
             const newProduct: Product = {
-                id: forceProductId || `P-${Date.now()}`,
+                id: newProductId,
                 name: record.productName,
                 price: sellingPrice || 0,
-                stock: record.quantity,
+                stock: qtyForStock,
                 stockByStore: newStockByStore,
                 category: record.category,
                 brand: record.brand,
-                specification: record.specification
+                specification: record.specification,
+                ownerId: recordOwnerId
             };
                         saveToFirestore<Product>(COLLECTIONS.PRODUCTS, newProduct)
                             .then(() => console.log('✅ New product saved in Firestore:', newProduct.id))
