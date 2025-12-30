@@ -1433,6 +1433,10 @@ const App: React.FC = () => {
 
       const sanitizedCustomer = sanitizeCustomer(updatedSale.customer);
       const salePayload: Sale = { ...updatedSale };
+      // Default inventory adjustment to true unless explicitly false
+      if (salePayload.inventoryAdjusted === undefined || salePayload.inventoryAdjusted === null) {
+          salePayload.inventoryAdjusted = true;
+      }
       if (sanitizedCustomer) {
           salePayload.customer = sanitizedCustomer;
       } else {
