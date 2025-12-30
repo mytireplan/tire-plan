@@ -1545,9 +1545,10 @@ const App: React.FC = () => {
                   const newQty = newTracked ? (newQtyMap[prod.id] || newNameSpecMap[key] || 0) : 0;
                   const delta = newQty - oldQty; // positive => more sold now -> reduce stock
 
-                  const currentStoreStock = prod.stockByStore[storeId] || 0;
+                  const safeStockByStore = prod.stockByStore || {};
+                  const currentStoreStock = safeStockByStore[storeId] || 0;
                   const updatedStoreStock = Math.max(0, currentStoreStock - delta);
-                  const newStockByStore = { ...prod.stockByStore, [storeId]: updatedStoreStock };
+                  const newStockByStore = { ...safeStockByStore, [storeId]: updatedStoreStock };
                   const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
                   const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
                   updatedProducts.push(updated);
@@ -1571,6 +1572,9 @@ const App: React.FC = () => {
                           factoryPrice: prod.price
                       };
                       consumptionLogs.push(consumptionRecord);
+                      console.log('[Inventory Edit] consumption logged', { saleId: salePayload.id, productId: prod.id, delta });
+                  } else {
+                      console.log('[Inventory Edit] reconciled without consumption log', { saleId: salePayload.id, productId: prod.id, delta });
                   }
                   return updated;
               }));
