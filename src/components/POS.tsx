@@ -15,7 +15,7 @@ interface POSProps {
   staffList: Staff[]; // Use Staff entities 
     shifts: Shift[];
   customers: Customer[];
-  onSaleComplete: (sale: Sale) => void;
+  onSaleComplete: (sale: Sale, options?: { adjustInventory?: boolean }) => void;
     // onAddProduct: (product: Product) => void; // No longer used for immediate sale stock-in
   onAddCategory: (category: string) => void;
   tireModels: Record<string, string[]>;
