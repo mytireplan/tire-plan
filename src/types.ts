@@ -321,3 +321,36 @@ export interface UsageMetrics {
   productsCount: number;
   // Add more metrics as needed
 }
+
+// Menu Access Control by Plan
+export type MenuType = 
+  | 'dashboard' 
+  | 'pos' 
+  | 'salesHistory' 
+  | 'inventory' 
+  | 'reservation' 
+  | 'customers' 
+  | 'taxInvoice' 
+  | 'stockIn' 
+  | 'financials' 
+  | 'schedule' 
+  | 'settings';
+
+export interface MenuAccess {
+  menu: MenuType;
+  label: string;
+  enabled: boolean;
+  restricted?: boolean; // true if accessible but with limitations
+  description?: string;
+}
+
+export interface PlanMenuAccess {
+  plan: SubscriptionPlan;
+  menus: Record<MenuType, MenuAccess>;
+  maxStores: number; // -1 for unlimited
+  maxStaff: number; // -1 for unlimited
+  maxSalesPerMonth: number; // -1 for unlimited
+  maxProducts: number; // -1 for unlimited
+  dataRetentionDays: number; // -1 for unlimited
+}
+
