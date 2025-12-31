@@ -141,21 +141,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       }
   }, [selectedSale]);
 
-  // Close calendar on outside click
-  useEffect(() => {
-      const handleClickOutside = (e: MouseEvent) => {
-          const target = e.target as HTMLElement;
-          if (isCalendarOpen && !target.closest('[data-calendar-root]')) {
-              setIsCalendarOpen(false);
-          }
-      };
-
-      if (isCalendarOpen) {
-          document.addEventListener('mousedown', handleClickOutside);
-          return () => document.removeEventListener('mousedown', handleClickOutside);
-      }
-  }, [isCalendarOpen]);
-
   // Auto-update staff when date or store changes in quick add form
   useEffect(() => {
       if (!shifts || !staffList) return;
@@ -1083,67 +1068,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                 ))}
                 
                 {/* Mini Calendar Toggle Button */}
-                <div className="relative ml-2" data-calendar-root>
-                    <button
-                        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                        className="p-2 text-gray-600 hover:bg-white hover:text-blue-600 rounded-md transition-all"
-                        title="날짜 선택"
-                    >
-                        <Calendar size={18} />
-                    </button>
-
-                    {/* Mini Calendar Popover */}
-                    {isCalendarOpen && (
-                        <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 p-4 w-72" data-calendar-root>
-                            {/* Calendar Header */}
-                            <div className="flex items-center justify-between mb-4">
-                                <button 
-                                    onClick={handleCalendarPrev}
-                                    className="p-1 hover:bg-gray-100 rounded transition-colors"
-                                >
-                                    <ChevronLeft size={18} />
-                                </button>
-                                <h3 className="font-bold text-gray-800 text-center flex-1">
-                                    {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
-                                </h3>
-                                <button 
-                                    onClick={handleCalendarNext}
-                                    className="p-1 hover:bg-gray-100 rounded transition-colors"
-                                >
-                                    <ChevronRight size={18} />
-                                </button>
-                            </div>
-
-                            {/* Weekday Headers */}
-                            <div className="grid grid-cols-7 gap-2 mb-2">
-                                {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-                                    <div key={day} className="text-center text-xs font-bold text-gray-500 py-1">
-                                        {day}
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Calendar Days */}
-                            <div className="grid grid-cols-7 gap-2">
-                                {calendarDays.map((date, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => date && handleDateSelect(date)}
-                                        disabled={!date}
-                                        className={`w-10 h-10 rounded text-sm font-medium transition-colors ${
-                                            !date ? 'text-gray-300' :
-                                            date.toDateString() === currentDate.toDateString() 
-                                                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                                : 'text-gray-700 hover:bg-gray-100'
-                                        }`}
-                                    >
-                                        {date?.getDate()}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <button
+                    onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                    className="ml-2 p-2 text-gray-600 hover:bg-white hover:text-blue-600 rounded-md transition-all"
+                    title="날짜 선택"
+                >
+                    <Calendar size={18} />
+                </button>
             </div>
         </div>
 
@@ -2155,6 +2086,74 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                     </div>
                </div>
           </div>
+      )}
+
+      {/* Calendar Overlay Modal */}
+      {isCalendarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setIsCalendarOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full animate-scale-in p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Calendar Header */}
+            <div className="flex items-center justify-between mb-6">
+              <button 
+                onClick={handleCalendarPrev}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h3 className="text-xl font-bold text-gray-800">
+                {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
+              </h3>
+              <button 
+                onClick={handleCalendarNext}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+
+            {/* Weekday Headers */}
+            <div className="grid grid-cols-7 gap-2 mb-3">
+              {['일', '월', '화', '수', '목', '금', '토'].map(day => (
+                <div key={day} className="text-center text-sm font-bold text-gray-600 py-2">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Days */}
+            <div className="grid grid-cols-7 gap-2">
+              {calendarDays.map((date, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => date && handleDateSelect(date)}
+                  disabled={!date}
+                  className={`h-12 rounded-lg text-sm font-medium transition-all ${
+                    !date ? 'invisible' :
+                    date.toDateString() === currentDate.toDateString() 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
+                      : 'text-gray-700 hover:bg-gray-100 hover:shadow-sm'
+                  }`}
+                >
+                  {date?.getDate()}
+                </button>
+              ))}
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => setIsCalendarOpen(false)}
+              className="w-full mt-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
