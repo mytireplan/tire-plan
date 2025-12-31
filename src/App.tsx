@@ -697,7 +697,28 @@ const App: React.FC = () => {
           if (user) {
               // Firebase UID로 Firestore에서 사용자 정보 로드
               try {
-                  const userDoc = await getFromFirestore<OwnerAccount>(COLLECTIONS.OWNERS, user.uid);
+                  let userDoc = await getFromFirestore<OwnerAccount>(COLLECTIONS.OWNERS, user.uid);
+                  
+                  // 신규 사용자 - 자동 생성 (소셜 로그인)
+                  if (!userDoc) {
+                      console.log('🆕 New user detected, creating owner document...');
+                      
+                      const newOwner: OwnerAccount = {
+                          id: user.uid,
+                          name: user.displayName || user.email?.split('@')[0] || '사용자',
+                          email: user.email || '',
+                          role: 'STORE_ADMIN',
+                          password: '', // 소셜 로그인은 비밀번호 불필요
+                          ownerPin: '1234', // 기본 PIN
+                          phoneNumber: user.phoneNumber || '',
+                          joinDate: new Date().toISOString().slice(0, 10)
+                      };
+                      
+                      await saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, newOwner, true); // skipOwnerId=true
+                      userDoc = newOwner;
+                      console.log('✅ New owner created:', user.uid);
+                  }
+                  
                   if (userDoc) {
                       const userData: User = {
                           id: user.uid,
@@ -715,9 +736,6 @@ const App: React.FC = () => {
                           setViewState('SUPER_ADMIN');
                           setSessionRole('SUPER_ADMIN');
                       }
-                  } else {
-                      console.error('❌ User document not found in Firestore');
-                      setViewState('LOGIN');
                   }
               } catch (error) {
                   console.error('❌ Error loading user from Firestore:', error);
