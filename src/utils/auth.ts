@@ -7,7 +7,7 @@
 
 import bcrypt from 'bcryptjs';
 import { getFromFirestore, COLLECTIONS } from './firestore';
-import type { OwnerAccount } from '../types';
+import type { User } from '../types';
 
 /**
  * 로컬: Firestore에서 비밀번호 직접 검증 (개발용)
@@ -16,10 +16,10 @@ import type { OwnerAccount } from '../types';
 export const validateOwnerPassword = async (
   ownerId: string, 
   password: string
-): Promise<{ valid: boolean; owner?: OwnerAccount; error?: string }> => {
+): Promise<{ valid: boolean; owner?: User; error?: string }> => {
   try {
     // Firestore에서 점주 정보 조회
-    const owner = await getFromFirestore<OwnerAccount>(COLLECTIONS.OWNERS, ownerId);
+    const owner = await getFromFirestore<User>(COLLECTIONS.OWNERS, ownerId);
     
     if (!owner) {
       return { 

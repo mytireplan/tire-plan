@@ -152,6 +152,9 @@ export interface User {
   role: UserRole;
   storeId?: string; // Linked store context
   phoneNumber?: string; // Added for Owner Contact Info
+  email?: string; // Email for social login
+  password?: string; // Legacy plaintext password
+  passwordHash?: string; // Hashed password
 }
 
 export interface SalesFilter {

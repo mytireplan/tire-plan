@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
 import { orderBy, where, limit, collection, query, getDocs, type QueryConstraint } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { getAuth } from 'firebase/auth';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
 
@@ -944,7 +943,7 @@ const App: React.FC = () => {
 
   // --- Auth Handlers ---
 
-  const handleLoginWithState = async (userId: string, email: string): Promise<void> => {
+  const handleLoginWithState = async (userId: string, _email: string): Promise<void> => {
       // ID 기반 로그인 (Firebase Auth 없이 직접 처리)
       try {
           console.log('🔐 Attempting ID-based login:', userId);

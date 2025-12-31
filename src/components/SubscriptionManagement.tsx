@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { CreditCard, Plus, X, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import type { Subscription, BillingKey, PaymentHistory, SubscriptionPlan, SubscriptionPlanFeatures } from '../types';
 
@@ -356,18 +356,18 @@ function getFeatureName(key: keyof SubscriptionPlanFeatures['features']): string
 }
 
 const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
-  ownerId,
+  ownerId: _ownerId,
   currentSubscription,
   billingKeys,
   paymentHistory,
   onSelectPlan,
   onCancelSubscription,
-  onAddBillingKey,
+  onAddBillingKey: _onAddBillingKey,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showBillingKeyModal, setShowBillingKeyModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedBillingKey, setSelectedBillingKey] = useState<string | null>(null);
+  const [_selectedBillingKey, _setSelectedBillingKey] = useState<string | null>(null);
 
   const handlePlanSelection = async (plan: SubscriptionPlan, billingCycle: 'MONTHLY' | 'YEARLY') => {
     if (plan === 'FREE') {

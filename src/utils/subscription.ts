@@ -1,7 +1,7 @@
 // Subscription utility functions for frontend
 // src/utils/subscription.ts
 
-import { initializeApp } from 'firebase/app';
+// import { initializeApp } from 'firebase/app';
 import {
   getFirestore,
   collection,
@@ -12,11 +12,8 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  serverTimestamp,
   writeBatch,
-  Timestamp,
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import type {
   Subscription,
@@ -27,7 +24,6 @@ import type {
 } from '../types';
 
 const firestore = getFirestore();
-const auth = getAuth();
 const functions = getFunctions();
 
 /**
@@ -296,7 +292,11 @@ export async function checkFeatureAccess(
     },
   };
 
-  return PLAN_FEATURES[subscription.plan][feature] || false;
+  const planFeatures = PLAN_FEATURES[subscription.plan];
+  if (!planFeatures) return false;
+  
+  const featureValue = planFeatures[feature as keyof typeof planFeatures];
+  return typeof featureValue === 'boolean' ? featureValue : false;
 }
 
 /**
