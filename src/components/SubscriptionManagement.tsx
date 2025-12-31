@@ -175,8 +175,13 @@ const PlanCard: React.FC<{
         )}
 
         {isFreePlan && (
-          <div className="mb-4 text-xs font-medium text-gray-600">
-            무료 플랜
+          <div className="mb-4 space-y-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-gray-900">무료 플랜</span>
+            </div>
+            <p className="text-xs text-gray-500 invisible">
+              placeholder
+            </p>
           </div>
         )}
 
