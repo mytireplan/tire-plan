@@ -2342,6 +2342,12 @@ const App: React.FC = () => {
                 currentManagerPin={storePin} onUpdateManagerPin={handleUpdateManagerPin}
                 staffList={visibleStaff} onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff}
                 currentStoreId={currentStoreId}
+                ownerId={currentUser?.id || ''}
+                currentSubscription={null}
+                billingKeys={[]}
+                paymentHistory={[]}
+                onSelectSubscriptionPlan={async () => {}}
+                onCancelSubscription={async () => {}}
                 />
             )}
             </div>

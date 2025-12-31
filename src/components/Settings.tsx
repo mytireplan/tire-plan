@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
-import type { Store, Staff, StaffPermissions } from '../types';
-import { Settings as SettingsIcon, Plus, Trash2, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, Eye, EyeOff, Check } from 'lucide-react';
+import type { Store, Staff, StaffPermissions, Subscription, BillingKey, PaymentHistory, SubscriptionPlan } from '../types';
+import { Settings as SettingsIcon, Plus, Trash2, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, Eye, EyeOff, Check, CreditCard } from 'lucide-react';
+import SubscriptionManagement from './SubscriptionManagement';
 
 interface SettingsProps {
   stores: Store[];
@@ -24,6 +25,14 @@ interface SettingsProps {
   currentStoreId: string;
     staffPermissions: StaffPermissions;
     onUpdatePermissions: (next: StaffPermissions) => void;
+    
+  // Subscription props
+  currentSubscription?: Subscription | null;
+  billingKeys?: BillingKey[];
+  paymentHistory?: PaymentHistory[];
+  onSelectSubscriptionPlan?: (plan: SubscriptionPlan, billingCycle: 'MONTHLY' | 'YEARLY', billingKeyId?: string) => Promise<void>;
+  onCancelSubscription?: () => Promise<void>;
+  ownerId?: string;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -32,11 +41,20 @@ const Settings: React.FC<SettingsProps> = ({
     currentOwnerPin, onUpdateOwnerPin,
     currentManagerPin, onUpdateManagerPin,
         staffList, onAddStaff, onRemoveStaff, currentStoreId,
-        staffPermissions, onUpdatePermissions
+        staffPermissions, onUpdatePermissions,
+        currentSubscription = null,
+        billingKeys = [],
+        paymentHistory = [],
+        onSelectSubscriptionPlan,
+        onCancelSubscription,
+        ownerId = ''
 }) => {
     // Permissions props reserved for future UI; referenced to satisfy lint
     void staffPermissions;
     void onUpdatePermissions;
+    
+    // Tab Navigation State
+    const [activeSettingsTab, setActiveSettingsTab] = useState<'system' | 'subscription'>('system');
   // Store Editing State
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [editStoreNameInput, setEditStoreNameInput] = useState('');
@@ -231,6 +249,37 @@ const Settings: React.FC<SettingsProps> = ({
                 </div>
             </div>
         )}
+        
+        {/* Tab Navigation */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex gap-0">
+            <button
+              onClick={() => setActiveSettingsTab('system')}
+              className={`flex-1 px-6 py-4 font-medium text-center border-b-2 transition-colors ${
+                activeSettingsTab === 'system'
+                  ? 'text-blue-600 border-blue-600 bg-blue-50'
+                  : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              시스템 환경 설정
+            </button>
+            <button
+              onClick={() => setActiveSettingsTab('subscription')}
+              className={`flex-1 px-6 py-4 font-medium text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${
+                activeSettingsTab === 'subscription'
+                  ? 'text-blue-600 border-blue-600 bg-blue-50'
+                  : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <CreditCard size={18} />
+              구독관리
+            </button>
+          </div>
+        </div>
+        
+        {/* System Settings Tab */}
+        {activeSettingsTab === 'system' && (
+        <>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <SettingsIcon className="text-gray-600" />
@@ -710,6 +759,23 @@ const Settings: React.FC<SettingsProps> = ({
                     </form>
                 </div>
             </div>
+        )}
+        </>
+        )}
+        
+        {/* Subscription Management Tab */}
+        {activeSettingsTab === 'subscription' && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <SubscriptionManagement
+              ownerId={ownerId}
+              currentSubscription={currentSubscription || null}
+              billingKeys={billingKeys}
+              paymentHistory={paymentHistory}
+              onSelectPlan={onSelectSubscriptionPlan || (async () => {})}
+              onCancelSubscription={onCancelSubscription || (async () => {})}
+              onAddBillingKey={() => {}}
+            />
+        </div>
         )}
     </div>
   );
