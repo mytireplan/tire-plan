@@ -17,6 +17,8 @@ const PLAN_FEATURES: Record<SubscriptionPlan, SubscriptionPlanFeatures> = {
     plan: 'FREE',
     monthlyPrice: 0,
     yearlyPrice: 0,
+    maxStores: 1,
+    maxStaff: 3,
     maxSalesPerMonth: 50,
     maxProducts: 50,
     dataRetentionDays: 30,
@@ -27,54 +29,86 @@ const PLAN_FEATURES: Record<SubscriptionPlan, SubscriptionPlanFeatures> = {
       multiStore: false,
       reservationSystem: false,
       leaveManagement: false,
+      financialReports: false,
+      staffPerformance: false,
+      customerManagement: false,
+      dataExport: false,
+      advancedInventory: false,
     },
   },
   STARTER: {
     plan: 'STARTER',
     monthlyPrice: 19900,
     yearlyPrice: 199000,
-    maxSalesPerMonth: 500,
-    maxProducts: 500,
-    dataRetentionDays: 90,
+    maxStores: 2,
+    maxStaff: 10,
+    maxSalesPerMonth: 300,
+    maxProducts: 200,
+    dataRetentionDays: 365,
     features: {
-      taxInvoice: true,
+      taxInvoice: false,
       advancedAnalytics: false,
       staffManagement: true,
-      multiStore: false,
+      multiStore: true,
       reservationSystem: false,
       leaveManagement: false,
+      financialReports: true,
+      staffPerformance: false,
+      customerManagement: false,
+      dataExport: true,
+      advancedInventory: false,
     },
   },
   PRO: {
     plan: 'PRO',
     monthlyPrice: 39000,
     yearlyPrice: 390000,
-    maxSalesPerMonth: 5000,
-    maxProducts: 5000,
-    dataRetentionDays: 365,
+    maxStores: 5,
+    maxStaff: -1,
+    maxSalesPerMonth: -1,
+    maxProducts: -1,
+    dataRetentionDays: -1,
     features: {
       taxInvoice: true,
       advancedAnalytics: true,
       staffManagement: true,
       multiStore: true,
-      reservationSystem: true,
-      leaveManagement: false,
+      reservationSystem: false,
+      leaveManagement: true,
+      financialReports: true,
+      staffPerformance: true,
+      customerManagement: true,
+      dataExport: true,
+      advancedInventory: true,
     },
   },
   ENTERPRISE: {
     plan: 'ENTERPRISE',
     monthlyPrice: 89000,
     yearlyPrice: 890000,
-    maxSalesPerMonth: -1, // Unlimited
-    maxProducts: -1, // Unlimited
-    dataRetentionDays: -1, // Unlimited
+    maxStores: -1,
+    maxStaff: -1,
+    maxSalesPerMonth: -1,
+    maxProducts: -1,
+    dataRetentionDays: -1,
     features: {
       taxInvoice: true,
       advancedAnalytics: true,
       staffManagement: true,
       multiStore: true,
-      reservationSystem: true,
+      reservationSystem: false,
       leaveManagement: true,
+      financialReports: true,
+      staffPerformance: true,
+      customerManagement: true,
+      dataExport: true,
+      advancedInventory: true,
+      dedicatedSupport: true,
+      customization: true,
+      apiAccess: true,
+      dataBackup: true,
+      advancedReports: true,
+      multiUserPermissions: true,
     },
   },
 };
@@ -187,15 +221,27 @@ const PlanCard: React.FC<{
 
         <div className="mb-5 space-y-1.5 border-y py-3">
           <div className="flex items-center gap-2 text-xs text-gray-600">
-            <span className="font-medium">월간 판매:</span>
+            <span className="font-medium">지점:</span>
             <span className="text-gray-900 font-semibold">
-              {features.maxSalesPerMonth === -1 ? '무제한' : `최대 ${features.maxSalesPerMonth.toLocaleString()}건`}
+              {features.maxStores === -1 ? '무제한' : `${features.maxStores}개`}
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-600">
-            <span className="font-medium">등록 상품:</span>
+            <span className="font-medium">직원:</span>
             <span className="text-gray-900 font-semibold">
-              {features.maxProducts === -1 ? '무제한' : `최대 ${features.maxProducts.toLocaleString()}개`}
+              {features.maxStaff === -1 ? '무제한' : `${features.maxStaff}명까지`}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <span className="font-medium">월간 판매:</span>
+            <span className="text-gray-900 font-semibold">
+              {features.maxSalesPerMonth === -1 ? '무제한' : `${features.maxSalesPerMonth}건까지`}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <span className="font-medium">재고 품목:</span>
+            <span className="text-gray-900 font-semibold">
+              {features.maxProducts === -1 ? '무제한' : `${features.maxProducts}개까지`}
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-600">
@@ -253,12 +299,23 @@ const PlanCard: React.FC<{
 
 function getFeatureName(key: keyof SubscriptionPlanFeatures['features']): string {
   const names: Record<string, string> = {
-    taxInvoice: '세금계산서 발급',
-    advancedAnalytics: '고급 분석',
+    taxInvoice: '세금계산서 발행',
+    advancedAnalytics: '고급 분석 리포트',
     staffManagement: '직원 관리',
-    multiStore: '다중 지점 관리',
+    multiStore: '다지점 통합 대시보드',
     reservationSystem: '예약 시스템',
-    leaveManagement: '휴무 관리',
+    leaveManagement: '휴가 관리',
+    financialReports: '재무제표',
+    staffPerformance: '직원별 성과 분석',
+    customerManagement: '고객 관리',
+    dataExport: 'CSV 내보내기',
+    advancedInventory: '고급 재고 관리',
+    dedicatedSupport: '전담 고객지원',
+    customization: '커스터마이징',
+    apiAccess: 'API 연동',
+    dataBackup: '데이터 백업/복원',
+    advancedReports: '고급 분석 리포트',
+    multiUserPermissions: '다중 사용자 권한 관리',
   };
   return names[key] || key;
 }

@@ -245,9 +245,11 @@ export interface SubscriptionPlanFeatures {
   plan: SubscriptionPlan;
   monthlyPrice: number;
   yearlyPrice: number;
-  maxSalesPerMonth: number;
-  maxProducts: number;
-  dataRetentionDays: number;
+  maxStores: number; // -1 for unlimited
+  maxStaff: number; // -1 for unlimited
+  maxSalesPerMonth: number; // -1 for unlimited
+  maxProducts: number; // -1 for unlimited
+  dataRetentionDays: number; // -1 for unlimited
   features: {
     taxInvoice: boolean;
     advancedAnalytics: boolean;
@@ -255,6 +257,17 @@ export interface SubscriptionPlanFeatures {
     multiStore: boolean;
     reservationSystem: boolean;
     leaveManagement: boolean;
+    financialReports: boolean;
+    staffPerformance: boolean;
+    customerManagement: boolean;
+    dataExport: boolean;
+    advancedInventory: boolean;
+    dedicatedSupport?: boolean;
+    customization?: boolean;
+    apiAccess?: boolean;
+    dataBackup?: boolean;
+    advancedReports?: boolean;
+    multiUserPermissions?: boolean;
   };
 }
 
