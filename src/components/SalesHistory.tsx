@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff } from '../types';
 import { PaymentMethod } from '../types';
-import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck } from 'lucide-react';
+import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -36,6 +36,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const [activePaymentMethod, setActivePaymentMethod] = useState<string>('ALL');
   const [activeStoreId, setActiveStoreId] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState(''); // Vehicle or Phone
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -140,6 +141,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       }
   }, [selectedSale]);
 
+  // Close calendar on outside click
+  useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+          const target = e.target as HTMLElement;
+          if (isCalendarOpen && !target.closest('[data-calendar-root]')) {
+              setIsCalendarOpen(false);
+          }
+      };
+
+      if (isCalendarOpen) {
+          document.addEventListener('mousedown', handleClickOutside);
+          return () => document.removeEventListener('mousedown', handleClickOutside);
+      }
+  }, [isCalendarOpen]);
+
   // Auto-update staff when date or store changes in quick add form
   useEffect(() => {
       if (!shifts || !staffList) return;
@@ -207,6 +223,37 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   };
 
   const { start: filterStart, end: filterEnd } = getDateRange();
+
+  // Mini Calendar Helper
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    const days = [];
+    for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+    return days;
+  };
+
+  const calendarDays = getDaysInMonth(currentDate);
+
+  const handleDateSelect = (date: Date) => {
+      setCurrentDate(date);
+      setIsCalendarOpen(false);
+  };
+
+  const handleCalendarPrev = () => {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+
+  const handleCalendarNext = () => {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
   const getLatestCost = (productName: string, spec?: string) => {
     if (!stockInHistory || stockInHistory.length === 0) return 0;
     const matches = stockInHistory.filter(r => {
@@ -1022,7 +1069,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                     {viewMode === 'staff' ? '직원별 성과 분석' : '판매 내역 조회'}
                 </h2>
             </div>
-            <div className="flex bg-gray-100 p-1 rounded-lg w-full md:w-auto overflow-x-auto no-scrollbar">
+            <div className="flex bg-gray-100 p-1 rounded-lg w-full md:w-auto overflow-x-auto no-scrollbar items-center">
                 {(['daily', 'weekly', 'monthly', 'staff'] as const)
                     .filter(mode => mode !== 'staff' || (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN'))
                     .map((mode) => (
@@ -1034,6 +1081,69 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                         {mode === 'daily' ? '일간' : mode === 'weekly' ? '주간' : mode === 'monthly' ? '월간' : '직원별'}
                     </button>
                 ))}
+                
+                {/* Mini Calendar Toggle Button */}
+                <div className="relative ml-2" data-calendar-root>
+                    <button
+                        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                        className="p-2 text-gray-600 hover:bg-white hover:text-blue-600 rounded-md transition-all"
+                        title="날짜 선택"
+                    >
+                        <Calendar size={18} />
+                    </button>
+
+                    {/* Mini Calendar Popover */}
+                    {isCalendarOpen && (
+                        <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 p-4 w-72" data-calendar-root>
+                            {/* Calendar Header */}
+                            <div className="flex items-center justify-between mb-4">
+                                <button 
+                                    onClick={handleCalendarPrev}
+                                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                >
+                                    <ChevronLeft size={18} />
+                                </button>
+                                <h3 className="font-bold text-gray-800 text-center flex-1">
+                                    {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
+                                </h3>
+                                <button 
+                                    onClick={handleCalendarNext}
+                                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                >
+                                    <ChevronRight size={18} />
+                                </button>
+                            </div>
+
+                            {/* Weekday Headers */}
+                            <div className="grid grid-cols-7 gap-2 mb-2">
+                                {['일', '월', '화', '수', '목', '금', '토'].map(day => (
+                                    <div key={day} className="text-center text-xs font-bold text-gray-500 py-1">
+                                        {day}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Calendar Days */}
+                            <div className="grid grid-cols-7 gap-2">
+                                {calendarDays.map((date, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => date && handleDateSelect(date)}
+                                        disabled={!date}
+                                        className={`w-10 h-10 rounded text-sm font-medium transition-colors ${
+                                            !date ? 'text-gray-300' :
+                                            date.toDateString() === currentDate.toDateString() 
+                                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                                : 'text-gray-700 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        {date?.getDate()}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
 
