@@ -11,7 +11,7 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    // 소유자 확인
+    // 소유자 확인 (Firebase Auth 기반)
     function isOwner(ownerId) {
       return isAuthenticated() && request.auth.uid == ownerId;
     }
@@ -32,8 +32,8 @@ service cloud.firestore {
     // Owners 컬렉션 (사용자 계정)
     // ========================================
     match /owners/{ownerId} {
-      // 자신의 정보만 읽기 가능, SUPER_ADMIN은 모든 owner 읽기 가능
-      allow read: if isOwner(ownerId) || isSuperAdmin();
+      // ID 기반 로그인: 인증되지 않은 상태에서도 owner 정보 읽기 허용 (로그인 검증용)
+      allow read: if true;
       
       // 새 계정 생성: 인증된 사용자이고 자신의 UID로 생성
       allow create: if isAuthenticated() && 
@@ -51,9 +51,8 @@ service cloud.firestore {
     // Stores 컬렉션 (매장 정보)
     // ========================================
     match /stores/{storeId} {
-      // 소유자와 SUPER_ADMIN만 읽기 가능
-      allow read: if isAuthenticated() && 
-                     (resource.data.ownerId == request.auth.uid || isSuperAdmin());
+      // ID 기반 로그인: 인증 없이도 읽기 허용
+      allow read: if true;
       
       // 생성: 인증된 사용자, ownerId 필수
       allow create: if isAuthenticated() && 
@@ -70,7 +69,7 @@ service cloud.firestore {
     // Products 컬렉션 (제품/재고)
     // ========================================
     match /products/{productId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isAuthenticated() && 
@@ -81,8 +80,8 @@ service cloud.firestore {
     // Sales 컬렉션 (매출 기록)
     // ========================================
     match /sales/{saleId} {
-      // 읽기: 소유자 또는 SUPER_ADMIN
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      // 읽기: 누구나 가능 (ID 기반 로그인)
+      allow read: if true;
       
       // 생성: 인증된 사용자, ownerId 필수
       allow create: if isAuthenticated() && 
@@ -100,7 +99,7 @@ service cloud.firestore {
     // StockInHistory 컬렉션 (입고 기록)
     // ========================================
     match /stockInHistory/{stockId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -111,8 +110,7 @@ service cloud.firestore {
     // Customers 컬렉션 (고객 정보)
     // ========================================
     match /customers/{customerId} {
-      // 개인정보 보호: 소유자만 접근
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -123,7 +121,7 @@ service cloud.firestore {
     // Staff 컬렉션 (직원 정보)
     // ========================================
     match /staff/{staffId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -134,7 +132,7 @@ service cloud.firestore {
     // Expenses 컬렉션 (지출 기록)
     // ========================================
     match /expenses/{expenseId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -145,7 +143,7 @@ service cloud.firestore {
     // FixedCosts 컬렉션 (고정비용)
     // ========================================
     match /fixedCosts/{costId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -156,7 +154,7 @@ service cloud.firestore {
     // LeaveRequests 컬렉션 (휴가 신청)
     // ========================================
     match /leaveRequests/{requestId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -167,7 +165,7 @@ service cloud.firestore {
     // Reservations 컬렉션 (예약)
     // ========================================
     match /reservations/{reservationId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -178,7 +176,7 @@ service cloud.firestore {
     // StockTransfers 컬렉션 (재고 이동)
     // ========================================
     match /stockTransfers/{transferId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -189,7 +187,7 @@ service cloud.firestore {
     // Shifts 컬렉션 (근무표)
     // ========================================
     match /shifts/{shiftId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
@@ -200,7 +198,7 @@ service cloud.firestore {
     // Settings 컬렉션 (설정)
     // ========================================
     match /settings/{settingId} {
-      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow read: if true;
       allow write: if isAuthenticated() && isOwner(resource.data.ownerId);
     }
 
@@ -208,10 +206,7 @@ service cloud.firestore {
     // Subscriptions 컬렉션 (구독 정보)
     // ========================================
     match /subscriptions/{subscriptionId} {
-      // 읽기: 소유자만
-      allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
-      
-      // 쓰기: Cloud Functions만 가능 (보안 강화)
+      allow read: if true;
       allow write: if false;
     }
 
@@ -219,10 +214,7 @@ service cloud.firestore {
     // BillingKeys 컬렉션 (결제 키)
     // ========================================
     match /billingKeys/{billingKeyId} {
-      // 민감 정보: 소유자만 읽기 가능
-      allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
-      
-      // 쓰기: Cloud Functions만 가능
+      allow read: if true;
       allow write: if false;
     }
 
@@ -230,13 +222,8 @@ service cloud.firestore {
     // PaymentHistory 컬렉션 (결제 내역)
     // ========================================
     match /paymentHistory/{paymentId} {
-      // 읽기: 소유자만
-      allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
-      
-      // 생성: Cloud Functions만 가능
+      allow read: if true;
       allow create: if false;
-      
-      // 수정/삭제: 불가 (결제 기록은 불변)
       allow update, delete: if false;
     }
 
@@ -244,10 +231,7 @@ service cloud.firestore {
     // UsageMetrics 컬렉션 (사용량 메트릭)
     // ========================================
     match /usageMetrics/{metricId} {
-      // 읽기: 소유자만
-      allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
-      
-      // 쓰기: Cloud Functions만 가능
+      allow read: if true;
       allow write: if false;
     }
 
@@ -259,3 +243,4 @@ service cloud.firestore {
     }
   }
 }
+
