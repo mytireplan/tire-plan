@@ -65,9 +65,9 @@ const PLAN_FEATURES: Record<SubscriptionPlan, SubscriptionPlanFeatures> = {
     plan: 'ENTERPRISE',
     monthlyPrice: 89000,
     yearlyPrice: 890000,
-    maxSalesPerMonth: 999999,
-    maxProducts: 999999,
-    dataRetentionDays: 999999,
+    maxSalesPerMonth: -1, // Unlimited
+    maxProducts: -1, // Unlimited
+    dataRetentionDays: -1, // Unlimited
     features: {
       taxInvoice: true,
       advancedAnalytics: true,
@@ -184,19 +184,19 @@ const PlanCard: React.FC<{
           <div className="flex items-center gap-2 text-xs text-gray-600">
             <span className="font-medium">월간 판매:</span>
             <span className="text-gray-900 font-semibold">
-              최대 {features.maxSalesPerMonth.toLocaleString()}건
+              {features.maxSalesPerMonth === -1 ? '무제한' : `최대 ${features.maxSalesPerMonth.toLocaleString()}건`}
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-600">
             <span className="font-medium">등록 상품:</span>
             <span className="text-gray-900 font-semibold">
-              최대 {features.maxProducts.toLocaleString()}개
+              {features.maxProducts === -1 ? '무제한' : `최대 ${features.maxProducts.toLocaleString()}개`}
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-600">
             <span className="font-medium">데이터 보관:</span>
             <span className="text-gray-900 font-semibold">
-              {features.dataRetentionDays}일
+              {features.dataRetentionDays === -1 ? '무제한' : `${features.dataRetentionDays}일`}
             </span>
           </div>
         </div>
