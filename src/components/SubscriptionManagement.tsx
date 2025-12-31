@@ -88,20 +88,70 @@ const PlanCard: React.FC<{
 }> = ({ plan, isActive, isLoading, onSelectMonthly, onSelectYearly }) => {
   const features = PLAN_FEATURES[plan];
   const isFreePlan = plan === 'FREE';
+  
+  // Plan-specific colors
+  const planColors = {
+    FREE: {
+      border: 'border-gray-300',
+      bg: 'bg-white',
+      headerBg: 'bg-gradient-to-r from-gray-50 to-gray-100',
+      headerText: 'text-gray-900',
+      activeHeaderBg: 'bg-gradient-to-r from-gray-100 to-gray-200',
+      activeBorder: 'border-gray-400',
+      badge: 'bg-gray-100 text-gray-700',
+      buttonPrimary: 'bg-gray-500 hover:bg-gray-600',
+      buttonSecondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+    },
+    STARTER: {
+      border: 'border-blue-300',
+      bg: 'bg-white',
+      headerBg: 'bg-gradient-to-r from-blue-50 to-blue-100',
+      headerText: 'text-blue-900',
+      activeHeaderBg: 'bg-gradient-to-r from-blue-100 to-blue-200',
+      activeBorder: 'border-blue-500',
+      badge: 'bg-blue-100 text-blue-700',
+      buttonPrimary: 'bg-blue-500 hover:bg-blue-600',
+      buttonSecondary: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+    },
+    PRO: {
+      border: 'border-purple-300',
+      bg: 'bg-white',
+      headerBg: 'bg-gradient-to-r from-purple-50 to-purple-100',
+      headerText: 'text-purple-900',
+      activeHeaderBg: 'bg-gradient-to-r from-purple-100 to-purple-200',
+      activeBorder: 'border-purple-500',
+      badge: 'bg-purple-100 text-purple-700',
+      buttonPrimary: 'bg-purple-500 hover:bg-purple-600',
+      buttonSecondary: 'bg-purple-100 text-purple-700 hover:bg-purple-200',
+    },
+    ENTERPRISE: {
+      border: 'border-amber-300',
+      bg: 'bg-white',
+      headerBg: 'bg-gradient-to-r from-amber-50 to-amber-100',
+      headerText: 'text-amber-900',
+      activeHeaderBg: 'bg-gradient-to-r from-amber-100 to-amber-200',
+      activeBorder: 'border-amber-500',
+      badge: 'bg-amber-100 text-amber-700',
+      buttonPrimary: 'bg-amber-500 hover:bg-amber-600',
+      buttonSecondary: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+    },
+  };
+
+  const colors = planColors[plan];
 
   return (
     <div
       className={`rounded-lg border-2 overflow-hidden transition-all ${
         isActive
-          ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-200 bg-white hover:border-gray-300'
+          ? `${colors.activeBorder} shadow-lg`
+          : `${colors.border} ${colors.bg} hover:shadow-md`
       }`}
     >
-      <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b">
+      <div className={`${isActive ? colors.activeHeaderBg : colors.headerBg} px-6 py-4 border-b`}>
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">{plan}</h3>
+          <h3 className={`text-lg font-bold ${colors.headerText}`}>{plan}</h3>
           {isActive && (
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
+            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${colors.badge} text-sm font-medium`}>
               <CheckCircle size={16} />
               현재 플랜
             </span>
@@ -152,22 +202,18 @@ const PlanCard: React.FC<{
         </div>
 
         <div className="space-y-2 mb-6">
-          <h4 className="font-semibold text-sm text-gray-900">포함 기능</h4>
-          <ul className="space-y-2">
+          <h4 className="font-semibold text-sm text-gray-900 mb-3">포함 기능</h4>
+          <ul className="space-y-2.5">
             {Object.entries(features.features).map(([key, enabled]) => (
-              <li key={key} className="flex items-center gap-2 text-sm">
-                <span
-                  className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center ${
-                    enabled
-                      ? 'bg-blue-500 border-blue-500 text-white'
-                      : 'border-gray-300 text-gray-300'
-                  }`}
-                >
-                  {enabled && <span className="text-xs">✓</span>}
-                </span>
-                <span className={enabled ? 'text-gray-900' : 'text-gray-400'}>
+              <li key={key} className="flex items-start gap-2 text-sm">
+                <span className={`font-medium ${enabled ? 'text-gray-900' : 'text-gray-400 line-through'}`}>
                   {getFeatureName(key as keyof typeof features.features)}
                 </span>
+                {enabled && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 font-medium">
+                    포함
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -182,7 +228,7 @@ const PlanCard: React.FC<{
             <button
               onClick={onSelectMonthly}
               disabled={isLoading}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 font-medium text-sm transition-colors flex items-center justify-center gap-2"
+              className={`w-full px-4 py-2 ${colors.buttonPrimary} text-white rounded-lg disabled:bg-gray-400 font-medium text-sm transition-colors flex items-center justify-center gap-2`}
             >
               {isLoading && <Loader size={16} className="animate-spin" />}
               월간 구독
@@ -190,7 +236,7 @@ const PlanCard: React.FC<{
             <button
               onClick={onSelectYearly}
               disabled={isLoading}
-              className="w-full px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:bg-gray-200 font-medium text-sm transition-colors flex items-center justify-center gap-2"
+              className={`w-full px-4 py-2 ${colors.buttonSecondary} rounded-lg disabled:bg-gray-200 font-medium text-sm transition-colors flex items-center justify-center gap-2`}
             >
               {isLoading && <Loader size={16} className="animate-spin" />}
               연간 구독
