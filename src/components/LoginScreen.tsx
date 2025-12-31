@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
 import { Store as StoreIcon, Lock, AlertCircle, ChevronRight, UserCircle2, ShieldCheck } from 'lucide-react';
-import { signInWithPopup, GoogleAuthProvider, signInWithCustomToken } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../firebase';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { validateOwnerPassword } from '../utils/auth';
 
 interface LoginScreenProps {
   onLogin: (userId: string, email: string) => Promise<void>;
@@ -54,42 +54,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     setLoading(true);
     try {
-        // Firebase Functions 호출하여 Custom Token 받기
-        const functions = getFunctions();
-        const loginFunction = httpsCallable(functions, 'loginWithOwnerId');
+        // Firestore에서 비밀번호 검증
+        const result = await validateOwnerPassword(userId, password);
         
-        const response = await loginFunction({ 
-            ownerId: userId, 
-            password: password 
-        });
-        
-        const result = response.data as { 
-            success: boolean; 
-            customToken: string; 
-            user: { id: string; name: string; role: string; email: string; };
-        };
-        
-        if (!result.success || !result.customToken) {
-            throw new Error('로그인 실패');
+        if (!result.valid || !result.owner) {
+            setError(result.error || '로그인에 실패했습니다.');
+            setLoading(false);
+            return;
         }
-        
-        // Custom Token으로 Firebase Auth 로그인
-        await signInWithCustomToken(auth, result.customToken);
-        
-        // onAuthStateChanged가 자동으로 호출되어 사용자 상태 업데이트
-        console.log('✅ 로그인 성공:', result.user.id);
+
+        // 로그인 성공
+        await onLogin(result.owner.id, result.owner.email || `${userId}@tireplan.kr`);
+        console.log('✅ 로그인 성공:', result.owner.id);
         
     } catch (err: any) {
         console.error('Login error:', err);
-        
-        // Firebase Functions 에러 처리
-        if (err.code === 'functions/not-found' || err.code === 'functions/permission-denied') {
-            setError('아이디 또는 비밀번호가 잘못되었습니다.');
-        } else if (err.code === 'functions/unauthenticated') {
-            setError('인증에 실패했습니다.');
-        } else {
-            setError('로그인 처리 중 오류가 발생했습니다.');
-        }
+        setError('로그인 처리 중 오류가 발생했습니다.');
     } finally {
         setLoading(false);
     }
