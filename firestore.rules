@@ -1,0 +1,261 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================
+    // 헬퍼 함수
+    // ========================================
+    
+    // 인증된 사용자 확인
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // 소유자 확인
+    function isOwner(ownerId) {
+      return isAuthenticated() && request.auth.uid == ownerId;
+    }
+    
+    // SUPER_ADMIN 확인 (owners 컬렉션에서 role 조회)
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/owners/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/owners/$(request.auth.uid)).data.role == 'SUPER_ADMIN';
+    }
+    
+    // 데이터의 소유자이거나 SUPER_ADMIN인지 확인
+    function isOwnerOrAdmin(ownerId) {
+      return isOwner(ownerId) || isSuperAdmin();
+    }
+
+    // ========================================
+    // Owners 컬렉션 (사용자 계정)
+    // ========================================
+    match /owners/{ownerId} {
+      // 자신의 정보만 읽기 가능, SUPER_ADMIN은 모든 owner 읽기 가능
+      allow read: if isOwner(ownerId) || isSuperAdmin();
+      
+      // 새 계정 생성: 인증된 사용자이고 자신의 UID로 생성
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == ownerId &&
+                       request.resource.data.keys().hasAll(['id', 'name', 'role']);
+      
+      // 자신의 정보 수정 가능, SUPER_ADMIN은 모든 owner 수정 가능
+      allow update: if isOwner(ownerId) || isSuperAdmin();
+      
+      // 삭제는 SUPER_ADMIN만 가능
+      allow delete: if isSuperAdmin();
+    }
+
+    // ========================================
+    // Stores 컬렉션 (매장 정보)
+    // ========================================
+    match /stores/{storeId} {
+      // 소유자와 SUPER_ADMIN만 읽기 가능
+      allow read: if isAuthenticated() && 
+                     (resource.data.ownerId == request.auth.uid || isSuperAdmin());
+      
+      // 생성: 인증된 사용자, ownerId 필수
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      
+      // 수정: 소유자 또는 SUPER_ADMIN
+      allow update: if isOwnerOrAdmin(resource.data.ownerId);
+      
+      // 삭제: 소유자 또는 SUPER_ADMIN
+      allow delete: if isOwnerOrAdmin(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Products 컬렉션 (제품/재고)
+    // ========================================
+    match /products/{productId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && 
+                               isOwnerOrAdmin(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Sales 컬렉션 (매출 기록)
+    // ========================================
+    match /sales/{saleId} {
+      // 읽기: 소유자 또는 SUPER_ADMIN
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      
+      // 생성: 인증된 사용자, ownerId 필수
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['id', 'date', 'totalAmount']);
+      
+      // 수정 불가 (매출 기록은 불변)
+      allow update: if false;
+      
+      // 삭제: 소유자만 가능 (관리 목적)
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // StockInHistory 컬렉션 (입고 기록)
+    // ========================================
+    match /stockInHistory/{stockId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Customers 컬렉션 (고객 정보)
+    // ========================================
+    match /customers/{customerId} {
+      // 개인정보 보호: 소유자만 접근
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Staff 컬렉션 (직원 정보)
+    // ========================================
+    match /staff/{staffId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Expenses 컬렉션 (지출 기록)
+    // ========================================
+    match /expenses/{expenseId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // FixedCosts 컬렉션 (고정비용)
+    // ========================================
+    match /fixedCosts/{costId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // LeaveRequests 컬렉션 (휴가 신청)
+    // ========================================
+    match /leaveRequests/{requestId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Reservations 컬렉션 (예약)
+    // ========================================
+    match /reservations/{reservationId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // StockTransfers 컬렉션 (재고 이동)
+    // ========================================
+    match /stockTransfers/{transferId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Shifts 컬렉션 (근무표)
+    // ========================================
+    match /shifts/{shiftId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Settings 컬렉션 (설정)
+    // ========================================
+    match /settings/{settingId} {
+      allow read: if isAuthenticated() && isOwnerOrAdmin(resource.data.ownerId);
+      allow write: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // ========================================
+    // Subscriptions 컬렉션 (구독 정보)
+    // ========================================
+    match /subscriptions/{subscriptionId} {
+      // 읽기: 소유자만
+      allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
+      
+      // 쓰기: Cloud Functions만 가능 (보안 강화)
+      allow write: if false;
+    }
+
+    // ========================================
+    // BillingKeys 컬렉션 (결제 키)
+    // ========================================
+    match /billingKeys/{billingKeyId} {
+      // 민감 정보: 소유자만 읽기 가능
+      allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
+      
+      // 쓰기: Cloud Functions만 가능
+      allow write: if false;
+    }
+
+    // ========================================
+    // PaymentHistory 컬렉션 (결제 내역)
+    // ========================================
+    match /paymentHistory/{paymentId} {
+      // 읽기: 소유자만
+      allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
+      
+      // 생성: Cloud Functions만 가능
+      allow create: if false;
+      
+      // 수정/삭제: 불가 (결제 기록은 불변)
+      allow update, delete: if false;
+    }
+
+    // ========================================
+    // UsageMetrics 컬렉션 (사용량 메트릭)
+    // ========================================
+    match /usageMetrics/{metricId} {
+      // 읽기: 소유자만
+      allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
+      
+      // 쓰기: Cloud Functions만 가능
+      allow write: if false;
+    }
+
+    // ========================================
+    // 기본 규칙 (모든 기타 문서 차단)
+    // ========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
 import { orderBy, where, limit, collection, query, getDocs, type QueryConstraint } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
 
@@ -9,7 +10,7 @@ import { PaymentMethod } from './types';
 import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift } from './types';
 
 // Firebase imports
-import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery } from './utils/firestore'; 
+import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery } from './utils/firestore'; 
 // (뒤에 더 있는 것들도 여기에 다 넣어주세요)
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -510,6 +511,7 @@ const App: React.FC = () => {
     const adminTimerRef = useRef<number | null>(null);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null); // Firebase Auth 사용자
   const [sessionRole, setSessionRole] = useState<UserRole>('STAFF'); // Role for the current app session
   const [currentStoreId, setCurrentStoreId] = useState<string>(''); 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -685,6 +687,51 @@ const App: React.FC = () => {
           setViewState('LOGIN');
       }
   }, [deviceBinding, currentUser, users]);
+
+  // Firebase Auth 상태 감지 - 사용자 로그인/로그아웃 자동 감지
+  useEffect(() => {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+          console.log('🔐 Firebase Auth state changed:', user?.uid);
+          setFirebaseUser(user);
+          
+          if (user) {
+              // Firebase UID로 Firestore에서 사용자 정보 로드
+              try {
+                  const userDoc = await getFromFirestore<OwnerAccount>(COLLECTIONS.OWNERS, user.uid);
+                  if (userDoc) {
+                      const userData: User = {
+                          id: user.uid,
+                          name: userDoc.name,
+                          role: userDoc.role,
+                          storeId: userDoc.storeId
+                      };
+                      setCurrentUser(userData);
+                      
+                      if (userDoc.role === 'STORE_ADMIN') {
+                          setViewState('STORE_SELECT');
+                          setSessionRole('STAFF');
+                      } else if (userDoc.role === 'SUPER_ADMIN') {
+                          setCurrentStoreId('ALL');
+                          setViewState('SUPER_ADMIN');
+                          setSessionRole('SUPER_ADMIN');
+                      }
+                  } else {
+                      console.error('❌ User document not found in Firestore');
+                      setViewState('LOGIN');
+                  }
+              } catch (error) {
+                  console.error('❌ Error loading user from Firestore:', error);
+                  setViewState('LOGIN');
+              }
+          } else {
+              // 로그아웃 상태
+              setCurrentUser(null);
+              setViewState('LOGIN');
+          }
+      });
+      
+      return () => unsubscribe();
+  }, []);
 
     // Firebase 데이터 로드 및 마이그레이션 + 더미 데이터 복구(컬렉션 비어있을 때만)
     useEffect(() => {
@@ -940,23 +987,11 @@ const App: React.FC = () => {
 
   // --- Auth Handlers ---
 
-  const handleLoginWithState = async (id: string, password: string): Promise<boolean> => {
-      // Check Users State (includes Master account)
-      const user = users.find(u => u.id === id);
-      if (user && user.password === password) {
-          const userData: User = { id: user.id, name: user.name, role: user.role, storeId: user.storeId };
-          setCurrentUser(userData);
-          if (user.role === 'STORE_ADMIN') {
-              setViewState('STORE_SELECT');
-              setSessionRole('STAFF');
-          } else if (user.role === 'SUPER_ADMIN') {
-              setCurrentStoreId('ALL');
-              setViewState('SUPER_ADMIN');
-              setSessionRole('SUPER_ADMIN');
-          }
-          return true;
-      }
-      return false;
+  const handleLoginWithState = async (userId: string, email: string): Promise<void> => {
+      // Firebase Auth에서 이미 로그인 처리됨
+      // LoginScreen에서 signInWithEmailAndPassword 호출 후 이 함수 실행
+      // onAuthStateChanged가 자동으로 사용자 상태를 업데이트하므로 추가 작업 불필요
+      console.log('✅ Login successful, Firebase Auth will update state');
   };
 
   const handleUpdatePassword = (newPass: string) => {
@@ -1041,7 +1076,7 @@ const App: React.FC = () => {
       setActiveTab('dashboard');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     // If we are in the App, return to Store Selection
     if (viewState === 'APP' && currentUser?.role === 'STORE_ADMIN') {
         setViewState('STORE_SELECT');
@@ -1050,19 +1085,31 @@ const App: React.FC = () => {
         setActiveTab('dashboard');
         setIsMobileMenuOpen(false);
     } else {
-        // Full Logout
-        setCurrentUser(null);
-        setCurrentStoreId('');
-        setActiveTab('dashboard');
-        setIsMobileMenuOpen(false);
-        setViewState('LOGIN');
+        // Full Logout - Firebase Auth signOut
+        try {
+            await auth.signOut();
+            setCurrentUser(null);
+            setCurrentStoreId('');
+            setActiveTab('dashboard');
+            setIsMobileMenuOpen(false);
+            setViewState('LOGIN');
+            console.log('✅ Logged out successfully');
+        } catch (error) {
+            console.error('❌ Error logging out:', error);
+        }
     }
   };
   
-  const handleFullLogout = () => {
-      setCurrentUser(null);
-      setCurrentStoreId('');
-      setViewState('LOGIN');
+  const handleFullLogout = async () => {
+      try {
+          await auth.signOut();
+          setCurrentUser(null);
+          setCurrentStoreId('');
+          setViewState('LOGIN');
+          console.log('✅ Logged out successfully');
+      } catch (error) {
+          console.error('❌ Error logging out:', error);
+      }
   };
 
   // Ensure staff mode never stays on ALL; snap back to bound store

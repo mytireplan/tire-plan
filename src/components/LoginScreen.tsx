@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
 import { Store as StoreIcon, Lock, AlertCircle, ChevronRight, UserCircle2, ShieldCheck } from 'lucide-react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase';
 
 interface LoginScreenProps {
-  onLogin: (id: string, password: string) => Promise<boolean>;
+  onLogin: (userId: string, email: string) => Promise<void>;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
@@ -23,14 +25,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     setLoading(true);
     try {
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 600));
-        const success = await onLogin(userId, password);
-        if (!success) {
+        // Firebase Auth는 이메일 기반이므로 userId를 이메일 형식으로 변환
+        // 예: 250001 -> 250001@tireplan.kr
+        const email = userId.includes('@') ? userId : `${userId}@tireplan.kr`;
+        
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const firebaseUser = userCredential.user;
+        
+        // Firebase UID를 사용하여 로그인 처리
+        await onLogin(firebaseUser.uid, email);
+        
+    } catch (err: any) {
+        console.error('Login error:', err);
+        
+        // Firebase Auth 에러 메시지 한글화
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
             setError('아이디 또는 비밀번호가 잘못되었습니다.');
+        } else if (err.code === 'auth/invalid-email') {
+            setError('유효하지 않은 아이디 형식입니다.');
+        } else if (err.code === 'auth/too-many-requests') {
+            setError('로그인 시도 횟수가 너무 많습니다. 잠시 후 다시 시도해주세요.');
+        } else {
+            setError('로그인 처리 중 오류가 발생했습니다.');
         }
-    } catch (err) {
-        setError('로그인 처리 중 오류가 발생했습니다.');
     } finally {
         setLoading(false);
     }

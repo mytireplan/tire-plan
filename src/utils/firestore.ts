@@ -7,6 +7,7 @@ import {
   deleteDoc,
   onSnapshot,
   query,
+  where,
   orderBy,
   limit,
   startAfter,
@@ -14,7 +15,7 @@ import {
   type QuerySnapshot,
   type DocumentData
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 
 // Firestore 컬렉션 경로
 const COLLECTIONS = {
@@ -34,27 +35,44 @@ const COLLECTIONS = {
   SHIFTS: 'shifts'
 };
 
-// 데이터 저장
+// 현재 로그인한 사용자의 UID 가져오기
+const getCurrentUserId = (): string | null => {
+  return auth.currentUser?.uid || null;
+};
+
+// 데이터 저장 (ownerId 자동 추가)
 export const saveToFirestore = async <T extends { id: string }>(
   collectionName: string, 
-  data: T
+  data: T,
+  skipOwnerId = false // owners 컬렉션 같은 경우 ownerId 추가 생략
 ): Promise<void> => {
   try {
     const docRef = doc(db, collectionName, data.id);
-    await setDoc(docRef, data, { merge: true });
+    
+    // ownerId 자동 추가 (owners 컬렉션 제외)
+    let dataToSave = { ...data };
+    if (!skipOwnerId && collectionName !== COLLECTIONS.OWNERS) {
+      const userId = getCurrentUserId();
+      if (userId) {
+        dataToSave = { ...dataToSave, ownerId: userId } as T;
+      }
+    }
+    
+    await setDoc(docRef, dataToSave, { merge: true });
   } catch (error) {
     console.error(`Error saving to ${collectionName}:`, error);
     throw error;
   }
 };
 
-// 데이터 일괄 저장
+// 데이터 일괄 저장 (ownerId 자동 추가)
 export const saveBulkToFirestore = async <T extends { id: string }>(
   collectionName: string,
-  dataArray: T[]
+  dataArray: T[],
+  skipOwnerId = false
 ): Promise<void> => {
   try {
-    const promises = dataArray.map(item => saveToFirestore(collectionName, item));
+    const promises = dataArray.map(item => saveToFirestore(collectionName, item, skipOwnerId));
     await Promise.all(promises);
   } catch (error) {
     console.error(`Error bulk saving to ${collectionName}:`, error);
@@ -81,12 +99,24 @@ export const getFromFirestore = async <T>(
   }
 };
 
-// 컬렉션 전체 가져오기
+// 컬렉션 전체 가져오기 (ownerId 필터 자동 적용)
 export const getAllFromFirestore = async <T>(
-  collectionName: string
+  collectionName: string,
+  applyOwnerFilter = true // owners 컬렉션 같은 경우 필터 생략
 ): Promise<T[]> => {
   try {
-    const querySnapshot = await getDocs(collection(db, collectionName));
+    const userId = getCurrentUserId();
+    
+    let q;
+    if (applyOwnerFilter && userId && collectionName !== COLLECTIONS.OWNERS) {
+      // ownerId 필터 적용
+      q = query(collection(db, collectionName), where('ownerId', '==', userId));
+    } else {
+      // 필터 없이 전체 조회 (SUPER_ADMIN 또는 owners 컬렉션)
+      q = collection(db, collectionName);
+    }
+    
+    const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => doc.data() as T);
   } catch (error) {
     console.error(`Error getting all from ${collectionName}:`, error);
@@ -94,7 +124,7 @@ export const getAllFromFirestore = async <T>(
   }
 };
 
-// 컬렉션 페이지네이션 조회 (orderBy + limit + cursor)
+// 컬렉션 페이지네이션 조회 (orderBy + limit + cursor + ownerId 필터)
 export const getCollectionPage = async <T>(
   collectionName: string,
   options: {
@@ -102,16 +132,36 @@ export const getCollectionPage = async <T>(
     orderByField?: string;
     cursorValue?: unknown;
     direction?: 'asc' | 'desc';
+    applyOwnerFilter?: boolean; // 기본값 true
   } = {}
 ): Promise<{ data: T[]; nextCursor?: unknown; hasMore: boolean }> => {
-  const { pageSize = 50, orderByField = 'id', cursorValue, direction = 'asc' } = options;
+  const { 
+    pageSize = 50, 
+    orderByField = 'id', 
+    cursorValue, 
+    direction = 'asc',
+    applyOwnerFilter = true 
+  } = options;
 
   try {
-    const baseQuery = [orderBy(orderByField, direction), limit(pageSize)];
-    const q = cursorValue
-      ? query(collection(db, collectionName), ...baseQuery, startAfter(cursorValue))
-      : query(collection(db, collectionName), ...baseQuery);
+    const userId = getCurrentUserId();
+    const constraints: QueryConstraint[] = [];
+    
+    // ownerId 필터 추가 (조건부)
+    if (applyOwnerFilter && userId && collectionName !== COLLECTIONS.OWNERS) {
+      constraints.push(where('ownerId', '==', userId));
+    }
+    
+    // 정렬 및 페이지 제한
+    constraints.push(orderBy(orderByField, direction));
+    constraints.push(limit(pageSize));
+    
+    // 커서 기반 페이지네이션
+    if (cursorValue) {
+      constraints.push(startAfter(cursorValue));
+    }
 
+    const q = query(collection(db, collectionName), ...constraints);
     const snapshot = await getDocs(q);
     const docs = snapshot.docs.map((d) => d.data() as T);
     const hasMore = snapshot.size === pageSize;
