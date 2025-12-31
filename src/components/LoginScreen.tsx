@@ -81,7 +81,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-200/30 rounded-full blur-3xl"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-200/30 rounded-full blur-3xl"></div>
 
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 z-10 animate-scale-in border border-white/50 backdrop-blur-sm">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 z-10 border border-white/50 backdrop-blur-sm">
             <div className="flex justify-center mb-6">
                 <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200 rotate-3 transition-transform hover:rotate-6">
                     <StoreIcon size={40} />
