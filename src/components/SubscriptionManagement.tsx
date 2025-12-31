@@ -161,39 +161,39 @@ const PlanCard: React.FC<{
 
       <div className="px-6 py-4">
         {!isFreePlan && (
-          <div className="mb-4 space-y-2">
+          <div className="mb-4 space-y-1">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-gray-900">
-                {(features.monthlyPrice / 1000).toFixed(0)}K
+              <span className="text-2xl font-bold text-gray-900">
+                ₩{features.monthlyPrice.toLocaleString()}
               </span>
-              <span className="text-gray-600">/월</span>
+              <span className="text-sm text-gray-600">/월</span>
             </div>
-            <p className="text-sm text-gray-500">
-              또는 연간 {(features.yearlyPrice / 1000).toFixed(0)}K (1개월 절감)
+            <p className="text-xs text-gray-500">
+              또는 연간 ₩{features.yearlyPrice.toLocaleString()} (1개월 절감)
             </p>
           </div>
         )}
 
         {isFreePlan && (
-          <div className="mb-4 text-sm font-medium text-gray-600">
+          <div className="mb-4 text-xs font-medium text-gray-600">
             무료 플랜
           </div>
         )}
 
-        <div className="mb-6 space-y-2 border-y py-4">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
+        <div className="mb-5 space-y-1.5 border-y py-3">
+          <div className="flex items-center gap-2 text-xs text-gray-600">
             <span className="font-medium">월간 판매:</span>
             <span className="text-gray-900 font-semibold">
               최대 {features.maxSalesPerMonth.toLocaleString()}건
             </span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-700">
+          <div className="flex items-center gap-2 text-xs text-gray-600">
             <span className="font-medium">등록 상품:</span>
             <span className="text-gray-900 font-semibold">
               최대 {features.maxProducts.toLocaleString()}개
             </span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-700">
+          <div className="flex items-center gap-2 text-xs text-gray-600">
             <span className="font-medium">데이터 보관:</span>
             <span className="text-gray-900 font-semibold">
               {features.dataRetentionDays}일
@@ -201,19 +201,17 @@ const PlanCard: React.FC<{
           </div>
         </div>
 
-        <div className="space-y-2 mb-6">
-          <h4 className="font-semibold text-sm text-gray-900 mb-3">포함 기능</h4>
-          <ul className="space-y-2.5">
+        <div className="space-y-1.5 mb-5">
+          <h4 className="font-semibold text-xs text-gray-900 mb-2">포함 기능</h4>
+          <ul className="space-y-1.5">
             {Object.entries(features.features).map(([key, enabled]) => (
-              <li key={key} className="flex items-start gap-2 text-sm">
-                <span className={`font-medium ${enabled ? 'text-gray-900' : 'text-gray-400 line-through'}`}>
+              <li key={key} className="flex items-center gap-2 text-xs">
+                <span className={`flex-shrink-0 ${enabled ? 'text-green-600' : 'text-gray-300'}`}>
+                  {enabled ? '✓' : '✕'}
+                </span>
+                <span className={enabled ? 'text-gray-900 font-medium' : 'text-gray-400'}>
                   {getFeatureName(key as keyof typeof features.features)}
                 </span>
-                {enabled && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 font-medium">
-                    포함
-                  </span>
-                )}
               </li>
             ))}
           </ul>
@@ -228,7 +226,7 @@ const PlanCard: React.FC<{
             <button
               onClick={onSelectMonthly}
               disabled={isLoading}
-              className={`w-full px-4 py-2 ${colors.buttonPrimary} text-white rounded-lg disabled:bg-gray-400 font-medium text-sm transition-colors flex items-center justify-center gap-2`}
+              className={`w-full px-4 py-2.5 ${colors.buttonPrimary} text-white rounded-lg disabled:bg-gray-400 font-medium text-sm transition-colors flex items-center justify-center gap-2`}
             >
               {isLoading && <Loader size={16} className="animate-spin" />}
               월간 구독
@@ -236,7 +234,7 @@ const PlanCard: React.FC<{
             <button
               onClick={onSelectYearly}
               disabled={isLoading}
-              className={`w-full px-4 py-2 ${colors.buttonSecondary} rounded-lg disabled:bg-gray-200 font-medium text-sm transition-colors flex items-center justify-center gap-2`}
+              className={`w-full px-4 py-2.5 ${colors.buttonSecondary} rounded-lg disabled:bg-gray-200 font-medium text-sm transition-colors flex items-center justify-center gap-2`}
             >
               {isLoading && <Loader size={16} className="animate-spin" />}
               연간 구독
