@@ -288,9 +288,13 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
       return filteredSalesByStore.filter(s => getSaleLocalDate(s) === boardDateStr && !s.isCanceled);
   }, [filteredSalesByStore, boardDateStr]);
 
-  // 2. Daily Stock In (For current store)
+  // 2. Daily Stock In (For current store) - Filter out consumption logs
   const dailyStockIns = useMemo(() => {
-      return stockInHistory.filter(r => r.storeId === currentStoreId && r.date.startsWith(boardDateStr));
+      return stockInHistory.filter(r => 
+        r.storeId === currentStoreId && 
+        r.date.startsWith(boardDateStr) &&
+        !r.id.startsWith('IN-CONSUME-') // Exclude consumption logs
+      );
   }, [stockInHistory, currentStoreId, boardDateStr]);
 
   // 3. Daily Transfers (From or To current store)
