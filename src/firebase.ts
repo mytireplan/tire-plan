@@ -1,7 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
-import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDT_No1C983ICcO_uc5eRG8I790Soc1B1M",
@@ -22,17 +21,9 @@ export const db = getFirestore(app);
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
 
-// Initialize Firebase Functions
-export const functions = getFunctions(app);
-
 // Set authentication persistence to LOCAL (survives browser refresh/close)
 setPersistence(auth, browserLocalPersistence).catch((error) => {
   console.error("Failed to set auth persistence:", error);
 });
-
-// 로컬 개발 시 Functions Emulator 사용 (선택사항)
-// if (import.meta.env.DEV) {
-//   connectFunctionsEmulator(functions, 'localhost', 5001);
-// }
 
 export default app;

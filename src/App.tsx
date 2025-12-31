@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
 import { orderBy, where, limit, collection, query, getDocs, type QueryConstraint } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
 
@@ -511,7 +511,6 @@ const App: React.FC = () => {
     const adminTimerRef = useRef<number | null>(null);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null); // Firebase Auth 사용자
   const [sessionRole, setSessionRole] = useState<UserRole>('STAFF'); // Role for the current app session
   const [currentStoreId, setCurrentStoreId] = useState<string>(''); 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -688,79 +687,8 @@ const App: React.FC = () => {
       }
   }, [deviceBinding, currentUser, users]);
 
-  // Firebase Auth 상태 감지 - 사용자 로그인/로그아웃 자동 감지
-  useEffect(() => {
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
-          console.log('🔐 Firebase Auth state changed:', user?.uid);
-          setFirebaseUser(user);
-          
-          if (user) {
-              // Firebase UID로 Firestore에서 사용자 정보 로드
-              try {
-                  // SUPER_ADMIN 이메일 목록
-                  const SUPER_ADMIN_EMAILS = [
-                      'mytireplan@gmail.com', // SUPER_ADMIN으로 지정
-                  ];
-                  
-                  const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(user.email || '');
-                  
-                  // SUPER_ADMIN이면 고정 ID "999999" 사용, 아니면 UID 사용
-                  const docId = isSuperAdmin ? '999999' : user.uid;
-                  
-                  let userDoc = await getFromFirestore<OwnerAccount>(COLLECTIONS.OWNERS, docId);
-                  
-                  // 신규 사용자 - 자동 생성 (소셜 로그인)
-                  if (!userDoc) {
-                      console.log('🆕 New user detected, creating owner document...');
-                      
-                      const newOwner: OwnerAccount = {
-                          id: isSuperAdmin ? '999999' : user.uid,
-                          name: user.displayName || user.email?.split('@')[0] || '사용자',
-                          email: user.email || '',
-                          role: isSuperAdmin ? 'SUPER_ADMIN' : 'STORE_ADMIN',
-                          password: '', // 소셜 로그인은 비밀번호 불필요
-                          ownerPin: '1234', // 기본 PIN
-                          phoneNumber: user.phoneNumber || '',
-                          joinDate: new Date().toISOString().slice(0, 10)
-                      };
-                      
-                      await saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, newOwner, true); // skipOwnerId=true
-                      userDoc = newOwner;
-                      console.log(`✅ New owner created (${newOwner.role}):`, user.uid);
-                  }
-                  
-                  if (userDoc) {
-                      const userData: User = {
-                          id: user.uid,
-                          name: userDoc.name,
-                          role: userDoc.role,
-                          storeId: userDoc.storeId
-                      };
-                      setCurrentUser(userData);
-                      
-                      if (userDoc.role === 'STORE_ADMIN') {
-                          setViewState('STORE_SELECT');
-                          setSessionRole('STAFF');
-                      } else if (userDoc.role === 'SUPER_ADMIN') {
-                          setCurrentStoreId('ALL');
-                          setViewState('SUPER_ADMIN');
-                          setSessionRole('SUPER_ADMIN');
-                          console.log('👑 SUPER_ADMIN 권한으로 로그인되었습니다.');
-                      }
-                  }
-              } catch (error) {
-                  console.error('❌ Error loading user from Firestore:', error);
-                  setViewState('LOGIN');
-              }
-          } else {
-              // 로그아웃 상태
-              setCurrentUser(null);
-              setViewState('LOGIN');
-          }
-      });
-      
-      return () => unsubscribe();
-  }, []);
+  // ID 기반 로그인으로 변경되어 Firebase Auth는 더 이상 필요 없음
+  // onAuthStateChanged 제거됨 - handleLoginWithState에서 직접 상태 관리
 
     // Firebase 데이터 로드 및 마이그레이션 + 더미 데이터 복구(컬렉션 비어있을 때만)
     useEffect(() => {
