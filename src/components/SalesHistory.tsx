@@ -384,6 +384,25 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       setSwapSearchBrand('ALL');
   };
 
+  // Add rental product to quick add cart
+  const addRentalProductToQuickAdd = (rentalType: 'online' | 'offline') => {
+      const rentalItem: SalesItem = {
+          id: `rental-${Date.now()}`,
+          productId: `rental-${rentalType}`,
+          productName: rentalType === 'online' ? '온라인 렌탈' : '오프라인 렌탈',
+          specification: '',
+          quantity: 1,
+          priceAtSale: 0,
+          stock: 999999,
+          category: '기타'
+      };
+      
+      setQuickAddForm(prev => ({
+          ...prev,
+          items: [...prev.items, rentalItem]
+      }));
+  };
+
   const handleInstantStockIn = () => {
     const { productName, quantity } = stockInForm as any;
       if (!productName.trim() || quantity <= 0) {
@@ -961,10 +980,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
       // Calculate total amount from items
       const totalAmount = quickAddForm.items.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
-      if (totalAmount <= 0) {
-          alert('판매 금액이 올바르지 않습니다.');
-          return;
-      }
 
       const isoString = quickAddForm.datetime ? new Date(quickAddForm.datetime).toISOString() : new Date().toISOString();
       const customer = (quickAddForm.customerName || quickAddForm.customerPhone) ? {
@@ -1070,7 +1085,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                 onClick={openQuickAddForCurrentDate}
                 className="w-full lg:w-auto bg-blue-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-sm hover:bg-blue-700 flex items-center justify-center gap-2"
             >
-                <Plus size={16}/> 이 날짜에 판매 추가
+                <Plus size={16}/> 판매추가
             </button>
             </div>
         </div>
@@ -1457,6 +1472,22 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                               >
                                   <Plus size={16} /> 상품/서비스 추가
                               </button>
+
+                              {/* Rental Product Buttons */}
+                              <div className="grid grid-cols-2 gap-2 mt-2">
+                                  <button
+                                      onClick={() => addRentalProductToQuickAdd('online')}
+                                      className="py-2 bg-green-50 border border-green-300 text-green-700 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors"
+                                  >
+                                      온라인렌탈
+                                  </button>
+                                  <button
+                                      onClick={() => addRentalProductToQuickAdd('offline')}
+                                      className="py-2 bg-purple-50 border border-purple-300 text-purple-700 rounded-lg text-sm font-bold hover:bg-purple-100 transition-colors"
+                                  >
+                                      오프라인렌탈
+                                  </button>
+                              </div>
 
                               {/* Quick Stock In Button */}
                               <button 

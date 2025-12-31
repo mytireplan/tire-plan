@@ -331,6 +331,11 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     const [mobilePriceEditId, setMobilePriceEditId] = useState<string | null>(null);
     const [mobilePriceValue, setMobilePriceValue] = useState('');
 
+  // B-Option: Mixed Payment State
+  const [isMixedPaymentOpen, setIsMixedPaymentOpen] = useState(false);
+  const [mixedPayments, setMixedPayments] = useState<{ method: PaymentMethod; amount: number }[]>([]);
+  const [mixedPaymentInput, setMixedPaymentInput] = useState<{ method: PaymentMethod | null; amount: string }>({ method: null, amount: '' });
+
   // Set default staff if only one scheduled staff is available
   useEffect(() => {
       if (confirmation.isOpen && scheduledStaff.length === 1) {
@@ -586,6 +591,49 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   const requestCheckout = (method: PaymentMethod) => {
     if (cart.length === 0) return;
     setConfirmation({ isOpen: true, method });
+  };
+
+  const requestMixedPayment = () => {
+    if (cart.length === 0) return;
+    setMixedPayments([]);
+    setMixedPaymentInput({ method: null, amount: '' });
+    setIsMixedPaymentOpen(true);
+  };
+
+  const addMixedPayment = () => {
+    if (!mixedPaymentInput.method || !mixedPaymentInput.amount) {
+      alert('결제 수단과 금액을 입력해주세요.');
+      return;
+    }
+    const amount = Number(mixedPaymentInput.amount);
+    if (amount <= 0) {
+      alert('금액은 0보다 커야 합니다.');
+      return;
+    }
+    const totalMixed = mixedPayments.reduce((sum, p) => sum + p.amount, 0) + amount;
+    if (totalMixed > cartTotal) {
+      alert(`결제 금액이 합계를 초과합니다. (합계: ${formatCurrency(cartTotal)}, 입력액: ${formatCurrency(totalMixed)})`);
+      return;
+    }
+    setMixedPayments([...mixedPayments, { method: mixedPaymentInput.method, amount }]);
+    setMixedPaymentInput({ method: null, amount: '' });
+  };
+
+  const removeMixedPayment = (index: number) => {
+    setMixedPayments(mixedPayments.filter((_, i) => i !== index));
+  };
+
+  const completeMixedPayment = () => {
+    const totalMixed = mixedPayments.reduce((sum, p) => sum + p.amount, 0);
+    if (totalMixed !== cartTotal) {
+      alert(`결제 금액이 일치하지 않습니다. (필요: ${formatCurrency(cartTotal)}, 입력: ${formatCurrency(totalMixed)})`);
+      return;
+    }
+
+    // Use first payment method for the sale (or we could combine them)
+    const primaryMethod = mixedPayments[0].method;
+    setConfirmation({ isOpen: true, method: primaryMethod });
+    setIsMixedPaymentOpen(false);
   };
 
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -925,11 +973,19 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                     <span className="text-gray-600">총 결제 금액</span>
                     <span className="text-[32px] font-bold text-blue-600">{formatCurrency(cartTotal)}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 mb-3">
                     <PaymentButton icon={CreditCard} label="카드" onClick={() => requestCheckout(PaymentMethod.CARD)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-blue-600 hover:bg-blue-700" />
                     <PaymentButton icon={Banknote} label="현금" onClick={() => requestCheckout(PaymentMethod.CASH)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-emerald-600 hover:bg-emerald-700" />
                     <PaymentButton icon={Smartphone} label="이체" onClick={() => requestCheckout(PaymentMethod.TRANSFER)} disabled={uniqueCount === 0 || totalQty === 0 || isProcessing} color="bg-violet-600 hover:bg-violet-700" />
                 </div>
+                <button 
+                    onClick={requestMixedPayment}
+                    disabled={uniqueCount === 0 || totalQty === 0 || isProcessing}
+                    className="w-full py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md"
+                >
+                    <CreditCard size={18} />
+                    복합결제 (B안)
+                </button>
             </div>
         </div>
 
@@ -1266,8 +1322,173 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 </div>
             </div>
         )}
+
+        {/* B-Option: Mixed Payment Modal */}
+        <MixedPaymentModal 
+            isOpen={isMixedPaymentOpen}
+            cartTotal={cartTotal}
+            mixedPayments={mixedPayments}
+            mixedPaymentInput={mixedPaymentInput}
+            setMixedPaymentInput={setMixedPaymentInput}
+            onAddPayment={addMixedPayment}
+            onRemovePayment={removeMixedPayment}
+            onComplete={completeMixedPayment}
+            onClose={() => setIsMixedPaymentOpen(false)}
+        />
     </>
   );
+};
+
+// B-Option: Mixed Payment Modal
+const MixedPaymentModal = ({ isOpen, cartTotal, mixedPayments, mixedPaymentInput, setMixedPaymentInput, onAddPayment, onRemovePayment, onComplete, onClose }: any) => {
+    if (!isOpen) return null;
+
+    const totalMixed = mixedPayments.reduce((sum: number, p: any) => sum + p.amount, 0);
+    const remaining = cartTotal - totalMixed;
+    const isComplete = remaining === 0;
+
+    const getPaymentMethodLabel = (method: any) => {
+        if (method === PaymentMethod.CARD) return '신용/체크카드';
+        if (method === PaymentMethod.CASH) return '현금';
+        if (method === PaymentMethod.TRANSFER) return '계좌이체';
+        return '미선택';
+    };
+
+    const getPaymentMethodColor = (method: any) => {
+        if (method === PaymentMethod.CARD) return 'bg-blue-100 text-blue-700 border-blue-200';
+        if (method === PaymentMethod.CASH) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+        if (method === PaymentMethod.TRANSFER) return 'bg-violet-100 text-violet-700 border-violet-200';
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+    };
+
+    const handleMethodSelect = (method: any, setter: any) => {
+        setter((prev: any) => ({
+            ...prev,
+            method: prev.method === method ? null : method
+        }));
+    };
+
+    const handleAmountChange = (value: string, setter: any) => {
+        const raw = value.replace(/[^0-9]/g, '');
+        setter((prev: any) => ({
+            ...prev,
+            amount: raw
+        }));
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full animate-scale-in overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-yellow-50 flex justify-between items-center shrink-0">
+                    <div>
+                        <h3 className="font-bold text-lg text-gray-900">복합결제 (B안)</h3>
+                        <p className="text-xs text-gray-500 mt-1">여러 수단으로 나누어 결제하세요</p>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-white rounded-lg transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                    {/* Total & Remaining */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg border border-orange-200">
+                            <span className="text-sm font-bold text-orange-900">합 계</span>
+                            <span className="text-xl font-bold text-orange-600">{formatCurrency(cartTotal)}</span>
+                        </div>
+                        <div className={`flex justify-between items-center p-3 rounded-lg border transition-colors ${remaining === 0 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                            <span className="text-sm font-bold text-gray-700">잔여 금액</span>
+                            <span className={`text-xl font-bold ${remaining === 0 ? 'text-green-600' : 'text-yellow-600'}`}>{formatCurrency(remaining)}</span>
+                        </div>
+                    </div>
+
+                    {/* Payment List */}
+                    {mixedPayments.length > 0 && (
+                        <div className="space-y-2">
+                            <p className="text-xs font-bold text-gray-500 uppercase">등록된 결제</p>
+                            {mixedPayments.map((payment: any, idx: number) => (
+                                <div key={idx} className={`flex justify-between items-center p-3 rounded-lg border-2 ${getPaymentMethodColor(payment.method)}`}>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-bold">{getPaymentMethodLabel(payment.method)}</span>
+                                        <span className="text-sm font-bold text-gray-700">{formatCurrency(payment.amount)}</span>
+                                    </div>
+                                    <button 
+                                        onClick={() => onRemovePayment(idx)}
+                                        className="text-red-500 hover:text-red-700 p-1 hover:bg-red-100/50 rounded transition-colors"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Input Section */}
+                    <div className="border-t pt-4 space-y-3">
+                        <p className="text-xs font-bold text-gray-500 uppercase">결제 수단 추가</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {[PaymentMethod.CARD, PaymentMethod.CASH, PaymentMethod.TRANSFER].map((method: any) => (
+                                <button 
+                                    key={method}
+                                    type="button"
+                                    onClick={() => handleMethodSelect(method, setMixedPaymentInput)}
+                                    className={`py-2 px-2 rounded-lg border-2 font-bold text-xs transition-all ${
+                                        mixedPaymentInput.method === method
+                                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                                    }`}
+                                >
+                                    {getPaymentMethodLabel(method)}
+                                </button>
+                            ))}
+                        </div>
+                        {mixedPaymentInput.method && (
+                            <input 
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="금액 입력"
+                                className="w-full p-3 border border-gray-300 rounded-lg text-right font-bold focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                value={mixedPaymentInput.amount === '' ? '' : Number(mixedPaymentInput.amount).toLocaleString()}
+                                onChange={(e) => handleAmountChange(e.target.value, setMixedPaymentInput)}
+                                autoFocus
+                            />
+                        )}
+                        <button 
+                            onClick={onAddPayment}
+                            type="button"
+                            disabled={!mixedPaymentInput.method || !mixedPaymentInput.amount}
+                            className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-bold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                        >
+                            <Plus size={16} /> 추가
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-2 shrink-0">
+                    <button 
+                        onClick={onClose}
+                        type="button"
+                        className="flex-1 py-3 border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                        취소
+                    </button>
+                    <button 
+                        onClick={onComplete}
+                        type="button"
+                        disabled={!isComplete}
+                        className={`flex-1 py-3 font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                            isComplete 
+                                ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg' 
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                    >
+                        <CreditCard size={18} />
+                        {isComplete ? '결제 완료' : `${formatCurrency(remaining)} 남음`}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // Payment Button Component
