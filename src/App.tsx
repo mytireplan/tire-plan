@@ -697,17 +697,27 @@ const App: React.FC = () => {
           if (user) {
               // Firebase UID로 Firestore에서 사용자 정보 로드
               try {
-                  let userDoc = await getFromFirestore<OwnerAccount>(COLLECTIONS.OWNERS, user.uid);
+                  // SUPER_ADMIN 이메일 목록
+                  const SUPER_ADMIN_EMAILS = [
+                      'mytireplan@gmail.com', // SUPER_ADMIN으로 지정
+                  ];
+                  
+                  const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(user.email || '');
+                  
+                  // SUPER_ADMIN이면 고정 ID "999999" 사용, 아니면 UID 사용
+                  const docId = isSuperAdmin ? '999999' : user.uid;
+                  
+                  let userDoc = await getFromFirestore<OwnerAccount>(COLLECTIONS.OWNERS, docId);
                   
                   // 신규 사용자 - 자동 생성 (소셜 로그인)
                   if (!userDoc) {
                       console.log('🆕 New user detected, creating owner document...');
                       
                       const newOwner: OwnerAccount = {
-                          id: user.uid,
+                          id: isSuperAdmin ? '999999' : user.uid,
                           name: user.displayName || user.email?.split('@')[0] || '사용자',
                           email: user.email || '',
-                          role: 'STORE_ADMIN',
+                          role: isSuperAdmin ? 'SUPER_ADMIN' : 'STORE_ADMIN',
                           password: '', // 소셜 로그인은 비밀번호 불필요
                           ownerPin: '1234', // 기본 PIN
                           phoneNumber: user.phoneNumber || '',
@@ -716,7 +726,7 @@ const App: React.FC = () => {
                       
                       await saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, newOwner, true); // skipOwnerId=true
                       userDoc = newOwner;
-                      console.log('✅ New owner created:', user.uid);
+                      console.log(`✅ New owner created (${newOwner.role}):`, user.uid);
                   }
                   
                   if (userDoc) {
@@ -735,6 +745,7 @@ const App: React.FC = () => {
                           setCurrentStoreId('ALL');
                           setViewState('SUPER_ADMIN');
                           setSessionRole('SUPER_ADMIN');
+                          console.log('👑 SUPER_ADMIN 권한으로 로그인되었습니다.');
                       }
                   }
               } catch (error) {
