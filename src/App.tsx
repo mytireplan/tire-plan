@@ -1017,10 +1017,40 @@ const App: React.FC = () => {
   // --- Auth Handlers ---
 
   const handleLoginWithState = async (userId: string, email: string): Promise<void> => {
-      // Firebase Auth에서 이미 로그인 처리됨
-      // LoginScreen에서 signInWithEmailAndPassword 호출 후 이 함수 실행
-      // onAuthStateChanged가 자동으로 사용자 상태를 업데이트하므로 추가 작업 불필요
-      console.log('✅ Login successful, Firebase Auth will update state');
+      // ID 기반 로그인 (Firebase Auth 없이 직접 처리)
+      try {
+          console.log('🔐 Attempting ID-based login:', userId);
+          
+          // Firestore에서 사용자 정보 로드
+          const userDoc = await getFromFirestore<OwnerAccount>(COLLECTIONS.OWNERS, userId);
+          
+          if (!userDoc) {
+              console.error('❌ User not found:', userId);
+              return;
+          }
+          
+          const userData: User = {
+              id: userDoc.id,
+              name: userDoc.name,
+              role: userDoc.role,
+              storeId: userDoc.storeId
+          };
+          
+          setCurrentUser(userData);
+          
+          if (userDoc.role === 'STORE_ADMIN') {
+              setViewState('STORE_SELECT');
+              setSessionRole('STAFF');
+              console.log('✅ STORE_ADMIN 로그인 완료:', userId);
+          } else if (userDoc.role === 'SUPER_ADMIN') {
+              setCurrentStoreId('ALL');
+              setViewState('SUPER_ADMIN');
+              setSessionRole('SUPER_ADMIN');
+              console.log('👑 SUPER_ADMIN 로그인 완료:', userId);
+          }
+      } catch (error) {
+          console.error('❌ Login error:', error);
+      }
   };
 
   const handleUpdatePassword = (newPass: string) => {

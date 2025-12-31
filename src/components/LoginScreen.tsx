@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { Store as StoreIcon, Lock, AlertCircle, ChevronRight, UserCircle2, ShieldCheck } from 'lucide-react';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, signInWithCustomToken } from 'firebase/auth';
 import { auth } from '../firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 interface LoginScreenProps {
   onLogin: (userId: string, email: string) => Promise<void>;
@@ -53,26 +54,39 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     setLoading(true);
     try {
-        // Firebase Auth는 이메일 기반이므로 userId를 이메일 형식으로 변환
-        // 예: 250001 -> 250001@tireplan.kr
-        const email = userId.includes('@') ? userId : `${userId}@tireplan.kr`;
+        // Firebase Functions 호출하여 Custom Token 받기
+        const functions = getFunctions();
+        const loginFunction = httpsCallable(functions, 'loginWithOwnerId');
         
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const firebaseUser = userCredential.user;
+        const response = await loginFunction({ 
+            ownerId: userId, 
+            password: password 
+        });
         
-        // Firebase UID를 사용하여 로그인 처리
-        await onLogin(firebaseUser.uid, email);
+        const result = response.data as { 
+            success: boolean; 
+            customToken: string; 
+            user: { id: string; name: string; role: string; email: string; };
+        };
+        
+        if (!result.success || !result.customToken) {
+            throw new Error('로그인 실패');
+        }
+        
+        // Custom Token으로 Firebase Auth 로그인
+        await signInWithCustomToken(auth, result.customToken);
+        
+        // onAuthStateChanged가 자동으로 호출되어 사용자 상태 업데이트
+        console.log('✅ 로그인 성공:', result.user.id);
         
     } catch (err: any) {
         console.error('Login error:', err);
         
-        // Firebase Auth 에러 메시지 한글화
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        // Firebase Functions 에러 처리
+        if (err.code === 'functions/not-found' || err.code === 'functions/permission-denied') {
             setError('아이디 또는 비밀번호가 잘못되었습니다.');
-        } else if (err.code === 'auth/invalid-email') {
-            setError('유효하지 않은 아이디 형식입니다.');
-        } else if (err.code === 'auth/too-many-requests') {
-            setError('로그인 시도 횟수가 너무 많습니다. 잠시 후 다시 시도해주세요.');
+        } else if (err.code === 'functions/unauthenticated') {
+            setError('인증에 실패했습니다.');
         } else {
             setError('로그인 처리 중 오류가 발생했습니다.');
         }
