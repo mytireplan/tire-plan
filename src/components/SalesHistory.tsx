@@ -387,14 +387,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   // Add rental product to quick add cart
   const addRentalProductToQuickAdd = (rentalType: 'online' | 'offline') => {
       const rentalItem: SalesItem = {
-          id: `rental-${Date.now()}`,
           productId: `rental-${rentalType}`,
           productName: rentalType === 'online' ? '온라인 렌탈' : '오프라인 렌탈',
           specification: '',
           quantity: 1,
-          priceAtSale: 0,
-          stock: 999999,
-          category: '기타'
+          priceAtSale: 0
       };
       
       setQuickAddForm(prev => ({

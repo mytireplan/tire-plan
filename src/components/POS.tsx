@@ -984,7 +984,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                     className="w-full py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md"
                 >
                     <CreditCard size={18} />
-                    복합결제 (B안)
+                    복합결제
                 </button>
             </div>
         </div>
@@ -1381,7 +1381,7 @@ const MixedPaymentModal = ({ isOpen, cartTotal, mixedPayments, mixedPaymentInput
             <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full animate-scale-in overflow-hidden flex flex-col max-h-[90vh]">
                 <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-yellow-50 flex justify-between items-center shrink-0">
                     <div>
-                        <h3 className="font-bold text-lg text-gray-900">복합결제 (B안)</h3>
+                        <h3 className="font-bold text-lg text-gray-900">복합결제</h3>
                         <p className="text-xs text-gray-500 mt-1">여러 수단으로 나누어 결제하세요</p>
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-white rounded-lg transition-colors">
