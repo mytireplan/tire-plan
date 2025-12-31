@@ -235,3 +235,76 @@ export interface Reservation {
   memo?: string;
   createdAt: string;
 }
+
+// Subscription Types
+export type SubscriptionPlan = 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+export type SubscriptionBillingCycle = 'MONTHLY' | 'YEARLY';
+export type SubscriptionStatus = 'ACTIVE' | 'INACTIVE' | 'CANCELED' | 'SUSPENDED';
+
+export interface SubscriptionPlanFeatures {
+  plan: SubscriptionPlan;
+  monthlyPrice: number;
+  yearlyPrice: number;
+  maxSalesPerMonth: number;
+  maxProducts: number;
+  dataRetentionDays: number;
+  features: {
+    taxInvoice: boolean;
+    advancedAnalytics: boolean;
+    staffManagement: boolean;
+    multiStore: boolean;
+    reservationSystem: boolean;
+    leaveManagement: boolean;
+  };
+}
+
+export interface BillingKey {
+  id: string;
+  ownerId: string;
+  customerKey: string; // Toss Payments customer key
+  cardNumber?: string; // Masked (e.g., "1234-****-****-5678")
+  cardCompany?: string;
+  isDefault: boolean;
+  createdAt: string;
+  expiresAt?: string;
+}
+
+export interface Subscription {
+  id: string;
+  ownerId: string;
+  storeId: string; // Primary store
+  plan: SubscriptionPlan;
+  billingCycle: SubscriptionBillingCycle;
+  status: SubscriptionStatus;
+  billingKeyId: string; // Reference to BillingKey
+  currentPeriodStart: string; // ISO string
+  currentPeriodEnd: string; // ISO string
+  nextBillingDate: string; // ISO string
+  createdAt: string;
+  updatedAt: string;
+  canceledAt?: string;
+}
+
+export interface PaymentHistory {
+  id: string;
+  ownerId: string;
+  subscriptionId: string;
+  billingKeyId: string;
+  orderId: string; // Toss Payments order ID
+  amount: number;
+  billingCycle: SubscriptionBillingCycle;
+  status: 'SUCCESS' | 'FAILED' | 'PENDING'; // Payment status
+  failureReason?: string;
+  paidAt: string; // ISO string
+  nextRetryAt?: string; // For failed payments
+  createdAt: string;
+}
+
+export interface UsageMetrics {
+  ownerId: string;
+  periodStart: string; // ISO string
+  periodEnd: string; // ISO string
+  salesCount: number;
+  productsCount: number;
+  // Add more metrics as needed
+}

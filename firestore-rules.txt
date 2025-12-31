@@ -1,0 +1,38 @@
+// Firestore Rules for Subscription System
+// Deploy this to Firebase Console > Firestore Database > Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ... existing rules ...
+
+    // Subscriptions collection - accessible only by the owner
+    match /subscriptions/{subscriptionId} {
+      allow read, write: if request.auth.uid == resource.data.ownerId || 
+                           request.auth.uid == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ownerId;
+      allow create: if request.auth != null && 
+                       request.resource.data.ownerId == request.auth.uid;
+    }
+
+    // BillingKeys collection - accessible only by the owner
+    match /billingKeys/{billingKeyId} {
+      allow read, write: if request.auth.uid == resource.data.ownerId;
+      allow create: if request.auth != null && 
+                       request.resource.data.ownerId == request.auth.uid;
+    }
+
+    // PaymentHistory collection - accessible only by the owner
+    match /paymentHistory/{paymentHistoryId} {
+      allow read: if request.auth.uid == resource.data.ownerId;
+      allow create: if request.auth != null && 
+                       request.resource.data.ownerId == request.auth.uid;
+      allow update: if false; // Payment history is immutable
+    }
+
+    // UsageMetrics collection - accessible only by the owner
+    match /usageMetrics/{usageMetricId} {
+      allow read: if request.auth.uid == resource.data.ownerId;
+      allow write: if false; // Managed by Cloud Functions only
+    }
+  }
+}
