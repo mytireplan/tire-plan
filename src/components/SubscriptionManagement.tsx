@@ -96,7 +96,7 @@ const PLAN_FEATURES: Record<SubscriptionPlan, SubscriptionPlanFeatures> = {
       advancedAnalytics: true,
       staffManagement: true,
       multiStore: true,
-      reservationSystem: false,
+      reservationSystem: true,
       leaveManagement: true,
       financialReports: true,
       staffPerformance: true,
@@ -175,7 +175,7 @@ const PlanCard: React.FC<{
 
   return (
     <div
-      className={`rounded-lg border-2 overflow-hidden transition-all ${
+      className={`rounded-lg border-2 overflow-hidden transition-all flex flex-col h-full ${
         isActive
           ? `${colors.activeBorder} shadow-lg`
           : `${colors.border} ${colors.bg} hover:shadow-md`
@@ -193,7 +193,8 @@ const PlanCard: React.FC<{
         </div>
       </div>
 
-      <div className="px-6 py-4">
+      <div className="px-6 py-4 flex flex-col h-full">
+        {/* Pricing Section */}
         {!isFreePlan && (
           <div className="mb-4 space-y-1">
             <div className="flex items-baseline gap-2">
@@ -219,7 +220,8 @@ const PlanCard: React.FC<{
           </div>
         )}
 
-        <div className="mb-5 space-y-1.5 border-y py-3">
+        {/* Limits Section */}
+        <div className="mb-4 space-y-1.5 border-b pb-3">
           <div className="flex items-center gap-2 text-xs text-gray-600">
             <span className="font-medium">지점:</span>
             <span className="text-gray-900 font-semibold">
@@ -252,28 +254,43 @@ const PlanCard: React.FC<{
           </div>
         </div>
 
-        <div className="space-y-1.5 mb-5">
+        {/* Features Section - Enabled features first, then disabled */}
+        <div className="flex-grow mb-5 overflow-y-auto">
           <h4 className="font-semibold text-xs text-gray-900 mb-2">포함 기능</h4>
           <ul className="space-y-1.5">
-            {Object.entries(features.features).map(([key, enabled]) => (
-              <li key={key} className="flex items-center gap-2 text-xs">
-                <span className={`flex-shrink-0 ${enabled ? 'text-green-600' : 'text-gray-300'}`}>
-                  {enabled ? '✓' : '✕'}
-                </span>
-                <span className={enabled ? 'text-gray-900 font-medium' : 'text-gray-400'}>
-                  {getFeatureName(key as keyof typeof features.features)}
-                </span>
-              </li>
-            ))}
+            {/* Enabled features first */}
+            {Object.entries(features.features)
+              .filter(([_, enabled]) => enabled)
+              .map(([key, _]) => (
+                <li key={key} className="flex items-center gap-2 text-xs">
+                  <span className="flex-shrink-0 text-green-600">✓</span>
+                  <span className="text-gray-900 font-medium">
+                    {getFeatureName(key as keyof typeof features.features)}
+                  </span>
+                </li>
+              ))}
+            
+            {/* Disabled features */}
+            {Object.entries(features.features)
+              .filter(([_, enabled]) => !enabled)
+              .map(([key, _]) => (
+                <li key={key} className="flex items-center gap-2 text-xs">
+                  <span className="flex-shrink-0 text-gray-300">✕</span>
+                  <span className="text-gray-400">
+                    {getFeatureName(key as keyof typeof features.features)}
+                  </span>
+                </li>
+              ))}
           </ul>
         </div>
 
+        {/* Buttons Section - Fixed at bottom */}
         {isFreePlan ? (
-          <p className="text-xs text-gray-500 text-center py-2">
+          <p className="text-xs text-gray-500 text-center py-3 border-t">
             유료 플랜으로 업그레이드하여 전체 기능을 사용하세요
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 border-t pt-3">
             <button
               onClick={onSelectMonthly}
               disabled={isLoading}
@@ -434,7 +451,7 @@ const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
       {/* Plan Selection */}
       <div>
         <h3 className="font-bold text-lg text-gray-900 mb-4">구독 플랜 선택</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-fr">
           {Object.keys(PLAN_FEATURES).map((plan) => (
             <PlanCard
               key={plan}
