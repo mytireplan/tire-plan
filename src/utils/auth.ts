@@ -6,8 +6,7 @@
  */
 
 import bcrypt from 'bcryptjs';
-import { getFromFirestore } from './firestore';
-import { COLLECTIONS } from '../types';
+import { getFromFirestore, COLLECTIONS } from './firestore';
 import type { OwnerAccount } from '../types';
 
 /**
