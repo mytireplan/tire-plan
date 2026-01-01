@@ -639,7 +639,16 @@ const App: React.FC = () => {
 
         const stockConstraints: QueryConstraint[] = [orderBy('date', 'desc'), limit(SALES_PAGE_SIZE)];
         stockInUnsubRef.current = subscribeToQuery<StockInRecord>(COLLECTIONS.STOCK_IN, stockConstraints, (data) => {
-            const sorted = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            // Normalize numeric fields to avoid string -> 0 issues when rendering
+            const normalized = data.map(r => ({
+                ...r,
+                factoryPrice: Number(r.factoryPrice ?? 0),
+                purchasePrice: Number(r.purchasePrice ?? 0),
+                quantity: Number(r.quantity ?? 0),
+                receivedQuantity: r.receivedQuantity !== undefined ? Number(r.receivedQuantity) : undefined
+            }));
+
+            const sorted = normalized.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setStockInHistory(sorted);
         });
 
