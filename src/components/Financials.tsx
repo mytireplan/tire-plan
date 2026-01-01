@@ -79,6 +79,15 @@ const Financials: React.FC<FinancialsProps> = ({
         return stockInHistory.filter(r => r.storeId === selectedStoreId);
     }, [stockInHistory, selectedStoreId]);
 
+    // Only treat real inbound purchases as cost-eligible (exclude 판매소진/소진로그, zero-qty)
+    const costEligibleStockHistory = useMemo(() => {
+        return filteredStockHistory.filter(r => {
+            const isConsumption = r.consumedAtSaleId || r.supplier === '판매소진' || r.id?.startsWith('IN-CONSUME-');
+            const qty = r.receivedQuantity ?? r.quantity ?? 0;
+            return !isConsumption && qty > 0;
+        });
+    }, [filteredStockHistory]);
+
     const filteredExpenses = useMemo(() => {
         if (selectedStoreId === 'ALL') return expenses;
         return expenses.filter(e => !e.storeId || e.storeId === selectedStoreId);
@@ -89,8 +98,8 @@ const Financials: React.FC<FinancialsProps> = ({
     // 1. Unsettled Stock (Cost = 0) Analysis
     const unsettledStockItems = useMemo(() => {
         if (!isAdmin) return [];
-        return filteredStockHistory.filter(r => r.date.startsWith(selectedMonth) && (r.purchasePrice === 0 || r.purchasePrice === undefined));
-    }, [filteredStockHistory, selectedMonth, isAdmin]);
+        return costEligibleStockHistory.filter(r => r.date.startsWith(selectedMonth) && (r.purchasePrice === 0 || r.purchasePrice === undefined));
+    }, [costEligibleStockHistory, selectedMonth, isAdmin]);
 
     // 2. Revenue
     const monthlyRevenue = useMemo(() => {
@@ -102,9 +111,12 @@ const Financials: React.FC<FinancialsProps> = ({
     // 3. Expenses Calculation
     const calculateStats = (monthStr: string) => {
          // Stock Purchases (Only count entered prices)
-         const confirmedStockCost = isAdmin ? filteredStockHistory
-            .filter(r => r.date.startsWith(monthStr))
-            .reduce((sum, r) => sum + ((r.purchasePrice || 0) * r.quantity), 0) : 0;
+            const confirmedStockCost = isAdmin ? costEligibleStockHistory
+                .filter(r => r.date.startsWith(monthStr))
+                .reduce((sum, r) => {
+                     const qty = r.receivedQuantity ?? r.quantity ?? 0;
+                     return sum + ((r.purchasePrice || 0) * qty);
+                }, 0) : 0;
         
         // Variable Expenses
         const variableCost = filteredExpenses
@@ -147,14 +159,15 @@ const Financials: React.FC<FinancialsProps> = ({
 
         // 2. Stock Records (Admin Only)
         if (isAdmin) {
-            filteredStockHistory.filter(r => r.date.startsWith(selectedMonth)).forEach(r => {
-                const amount = (r.purchasePrice || 0) * r.quantity;
+            costEligibleStockHistory.filter(r => r.date.startsWith(selectedMonth)).forEach(r => {
+                const qty = r.receivedQuantity ?? r.quantity ?? 0;
+                const amount = (r.purchasePrice || 0) * qty;
                 records.push({
                     id: r.id,
                     date: r.date,
                     type: 'STOCK',
                     category: '매입원가',
-                    description: `${r.productName} (${r.quantity}개) - ${r.supplier}`,
+                    description: `${r.productName} (${qty}개) - ${r.supplier}`,
                     amount: amount,
                     isUnsettled: r.purchasePrice === 0 || r.purchasePrice === undefined,
                     raw: r
@@ -188,7 +201,7 @@ const Financials: React.FC<FinancialsProps> = ({
             if (tableSortOrder === 'desc') return b.amount - a.amount;
             return a.amount - b.amount;
         });
-    }, [filteredExpenses, filteredStockHistory, selectedMonth, isAdmin, tableCategoryFilter, tableSortOrder, fixedCosts]);
+    }, [filteredExpenses, costEligibleStockHistory, selectedMonth, isAdmin, tableCategoryFilter, tableSortOrder, fixedCosts]);
 
     // Chart Data Generation
     const expenseChartData = useMemo(() => {
@@ -545,7 +558,7 @@ const Financials: React.FC<FinancialsProps> = ({
             {/* Batch Cost Entry Modal */}
             {showBatchCostModal && isAdmin && (
                 <BatchCostEntryModal 
-                    stockRecords={filteredStockHistory} 
+                    stockRecords={costEligibleStockHistory} 
                     onUpdateRecord={onUpdateStockInRecord} 
                     onClose={() => setShowBatchCostModal(false)}
                     currentMonth={selectedMonth}
@@ -571,7 +584,13 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
 
     useEffect(() => {
         // Filter by month first
-        let records = stockRecords.filter(r => r.date.startsWith(currentMonth));
+        const records = stockRecords
+            .filter(r => r.date.startsWith(currentMonth))
+            .filter(r => {
+                const isConsumption = r.consumedAtSaleId || r.supplier === '판매소진' || r.id?.startsWith('IN-CONSUME-');
+                const qty = r.receivedQuantity ?? r.quantity ?? 0;
+                return !isConsumption && qty > 0;
+            });
         // Sort by Date then Supplier
         records.sort((a, b) => a.date.localeCompare(b.date) || a.supplier.localeCompare(b.supplier));
         setLocalRecords(records);
@@ -662,7 +681,7 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
                                             <div className="font-bold text-gray-800">{record.productName}</div>
                                             <div className="text-xs text-blue-600">{record.specification}</div>
                                         </td>
-                                        <td className="px-4 py-2 text-center font-bold">{record.quantity}</td>
+                                        <td className="px-4 py-2 text-center font-bold">{record.receivedQuantity ?? record.quantity ?? 0}</td>
                                         <td className="px-4 py-2 text-right bg-blue-50/30 border-l border-blue-100">
                                             <input 
                                                 id={`batch-input-${idx}`}
@@ -677,7 +696,7 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
                                             />
                                         </td>
                                         <td className="px-4 py-2 text-right font-medium text-gray-600">
-                                            {formatCurrency((record.purchasePrice || 0) * record.quantity)}
+                                            {formatCurrency((record.purchasePrice || 0) * (record.receivedQuantity ?? record.quantity ?? 0))}
                                         </td>
                                     </tr>
                                 ))}

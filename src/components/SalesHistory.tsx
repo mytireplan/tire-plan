@@ -253,6 +253,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     return matches[0]?.purchasePrice || 0;
   };
 
+  const getItemCost = (item: SalesItem) => {
+    const manualCost = item.purchasePrice ?? 0;
+    if (manualCost > 0) return manualCost;
+    return getLatestCost(item.productName, item.specification);
+  };
+
+  const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
+
+  const isTireItem = (item: SalesItem) => {
+    const product = products.find(p => p.id === item.productId);
+    const category = normalizeCategory(product?.category);
+    if (category === '타이어') return true;
+    return category === '기타' && item.specification ? /\d{3}\/\d{2}/.test(item.specification) : false;
+  };
+
   const filteredSales = useMemo(() => {
     return sales.filter(sale => {
       const saleDate = new Date(sale.date);
@@ -283,7 +298,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     return filteredSales.map(sale => {
         let totalCost = 0;
         sale.items.forEach(item => {
-            const cost = getLatestCost(item.productName, item.specification);
+            const cost = getItemCost(item);
             totalCost += (cost * item.quantity);
         });
         const margin = sale.totalAmount - totalCost;
@@ -305,6 +320,19 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
         margin: acc.margin + (curr.isCanceled ? 0 : curr.metrics.margin)
     }), { revenue: 0, cost: 0, margin: 0 });
   }, [salesWithMetrics]);
+
+    const periodTireAndPayment = useMemo(() => {
+        let tireCount = 0;
+        let totalPayment = 0;
+        filteredSales.forEach(sale => {
+                if (sale.isCanceled) return;
+                totalPayment += sale.totalAmount;
+                sale.items.forEach(item => {
+                        if (isTireItem(item)) tireCount += item.quantity;
+                });
+        });
+        return { tireCount, totalPayment };
+    }, [filteredSales, products]);
 
     // const totalAmount = aggregates.revenue; (unused)
 
@@ -380,9 +408,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       }
   };
 
-  const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
-
- 
 
   // --- Display Priority Logic ---
   const getPrimaryItem = (sale: Sale) => {
@@ -1055,44 +1080,55 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       <div className="flex flex-col bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-4">
         {/* ... Header Controls ... */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-100 pb-4 gap-3">
-            <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-3">
                 <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600"><ArrowLeft size={24} /></button>
                 <h2 className="text-lg md:text-xl font-bold text-gray-800 truncate">
                     {viewMode === 'staff' ? '직원별 성과 분석' : '판매 내역 조회'}
                 </h2>
             </div>
-            <div className="flex bg-gray-100 p-1 rounded-lg w-full md:w-auto overflow-x-auto no-scrollbar items-center">
-                {(['daily', 'weekly', 'monthly', 'staff'] as const)
-                    .filter(mode => mode !== 'staff' || (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN'))
-                    .map((mode) => (
+            <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-gray-50 px-4 py-2.5 rounded-lg border border-gray-200">
+                    <button onClick={handlePrev} className="p-1 hover:bg-white rounded-full transition-all shadow-sm"><ChevronLeft size={20} /></button>
+                    <span className="text-base md:text-lg font-bold text-gray-800 min-w-[160px] text-center">{dateLabel}</span>
+                    <button onClick={handleNext} className="p-1 hover:bg-white rounded-full transition-all shadow-sm"><ChevronRight size={20} /></button>
+                </div>
+                <div className="flex bg-gray-100 p-1 rounded-lg items-center">
+                    {(['daily', 'weekly', 'monthly', 'staff'] as const)
+                        .filter(mode => mode !== 'staff' || (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN'))
+                        .map((mode) => (
+                        <button
+                            key={mode}
+                            onClick={() => setViewMode(mode)}
+                            className={`px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${viewMode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            {mode === 'daily' ? '일간' : mode === 'weekly' ? '주간' : mode === 'monthly' ? '월간' : '직원별'}
+                        </button>
+                    ))}
+                    
                     <button
-                        key={mode}
-                        onClick={() => setViewMode(mode)}
-                        className={`flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${viewMode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                        className="ml-2 p-2 text-gray-600 hover:bg-white hover:text-blue-600 rounded-md transition-all"
+                        title="날짜 선택"
                     >
-                        {mode === 'daily' ? '일간' : mode === 'weekly' ? '주간' : mode === 'monthly' ? '월간' : '직원별'}
+                        <Calendar size={18} />
                     </button>
-                ))}
-                
-                {/* Mini Calendar Toggle Button */}
-                <button
-                    onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                    className="ml-2 p-2 text-gray-600 hover:bg-white hover:text-blue-600 rounded-md transition-all"
-                    title="날짜 선택"
-                >
-                    <Calendar size={18} />
-                </button>
+                </div>
             </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-4 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200 w-full lg:w-auto justify-between lg:justify-start">
-                <button onClick={handlePrev} className="p-1 hover:bg-white rounded-full transition-all shadow-sm"><ChevronLeft size={20} /></button>
-                <span className="text-base md:text-lg font-bold text-gray-800 min-w-[140px] text-center">{dateLabel}</span>
-                <button onClick={handleNext} className="p-1 hover:bg-white rounded-full transition-all shadow-sm"><ChevronRight size={20} /></button>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+                {viewMode !== 'staff' && (
+                    <div className="bg-blue-50 px-4 py-2.5 rounded-lg border border-blue-200 text-sm text-blue-700 font-semibold flex items-center gap-3">
+                        <span>타이어 {periodTireAndPayment.tireCount.toLocaleString()}개</span>
+                        <span className="text-blue-300">•</span>
+                        <span>총 결제 {formatCurrency(periodTireAndPayment.totalPayment)}</span>
+                    </div>
+                )}
             </div>
-            <div className="grid grid-cols-1 md:flex items-center gap-3 w-full lg:w-auto">
-                 <div className="relative w-full md:w-64">
+            
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                 <div className="relative w-full sm:w-64">
                     <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input 
                         type="text" 
@@ -1103,9 +1139,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                     />
                 </div>
 
-                 <div className="grid grid-cols-2 gap-2 w-full md:w-auto">
-                    <div className="relative w-full md:w-auto">
-                        <select value={activePaymentMethod} onChange={(e) => setActivePaymentMethod(e.target.value)} className="w-full md:w-auto appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-9 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium shadow-sm">
+                <div className="flex gap-2">
+                    <div className="relative flex-1 sm:flex-none sm:w-40">
+                        <select value={activePaymentMethod} onChange={(e) => setActivePaymentMethod(e.target.value)} className="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-9 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium shadow-sm">
                             <option value="ALL">모든 결제</option>
                             <option value={PaymentMethod.CARD}>카드</option>
                             <option value={PaymentMethod.CASH}>현금</option>
@@ -1113,25 +1149,26 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                         </select>
                         <CreditCard size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     </div>
-                    <div className="relative w-full md:w-auto">
+                    <div className="relative flex-1 sm:flex-none sm:w-40">
                         <select 
                             value={activeStoreId} 
                             onChange={(e) => setActiveStoreId(e.target.value)}
                             disabled={currentUser.role === 'STAFF'} 
-                            className={`w-full md:w-auto appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-9 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium shadow-sm ${currentUser.role === 'STAFF' ? 'bg-gray-100' : ''}`}
+                            className={`w-full appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-9 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium shadow-sm ${currentUser.role === 'STAFF' ? 'bg-gray-100' : ''}`}
                         >
                             <option value="ALL">전체 매장</option>
                             {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                         <MapPin size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     </div>
-                 </div>
-            <button 
-                onClick={openQuickAddForCurrentDate}
-                className="w-full lg:w-auto bg-blue-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-sm hover:bg-blue-700 flex items-center justify-center gap-2"
-            >
-                <Plus size={16}/> 판매추가
-            </button>
+                </div>
+                
+                <button 
+                    onClick={openQuickAddForCurrentDate}
+                    className="w-full sm:w-auto bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-blue-700 flex items-center justify-center gap-2 whitespace-nowrap"
+                >
+                    <Plus size={16}/> 판매추가
+                </button>
             </div>
         </div>
       </div>
@@ -1736,6 +1773,19 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                   )}
                                               </div>
                                           </div>
+
+                                          {isAdmin && (
+                                              <div className="flex items-center gap-2 justify-end sm:mt-2 w-full sm:w-auto">
+                                                  <span className="text-xs text-gray-500">매입가</span>
+                                                  {renderEditableField(
+                                                      `item-${idx}-purchasePrice`,
+                                                      item.purchasePrice ?? '',
+                                                      (val) => handleEditChange('purchasePrice', Number(val) || 0, idx),
+                                                      'number',
+                                                      'text-sm font-bold text-right w-24 text-emerald-700'
+                                                  )}
+                                              </div>
+                                          )}
                                       </div>
                                   </div>
                                   {/* Remove Item Button */}

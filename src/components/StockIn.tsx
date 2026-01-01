@@ -227,7 +227,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
 
     // 1. Autocomplete Data
     const uniqueSuppliers = useMemo(() => 
-        Array.from(new Set(stockInHistory.map(r => r.supplier).filter(s => s && s.trim() !== '')))
+        Array.from(new Set(stockInHistory.map(r => r.supplier).filter(s => s && s.trim() !== '' && s !== '판매소진')))
     , [stockInHistory]);
 
     const sortedProductNames = useMemo(() => {
@@ -253,9 +253,9 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
             const matchesMonth = record.date.startsWith(selectedMonth);
             const matchesSupplier = selectedSupplier === 'ALL' || record.supplier === selectedSupplier;
             const matchesStore = selectedStoreFilter === 'ALL' || record.storeId === selectedStoreFilter;
-            // Hide consumption logs (자동 생성되는 판매소진 기록)
-            const isNotConsumptionLog = !record.id?.startsWith('IN-CONSUME-');
-            return matchesMonth && matchesSupplier && matchesStore && isNotConsumptionLog;
+            // Hide consumption logs (자동 생성되는 판매소진 기록) - should not appear in stock-in management
+            const isConsumptionLog = record.id?.startsWith('IN-CONSUME-') || record.supplier === '판매소진' || Boolean(record.consumedAtSaleId);
+            return matchesMonth && matchesSupplier && matchesStore && !isConsumptionLog;
         });
     }, [stockInHistory, selectedMonth, selectedSupplier, selectedStoreFilter]);
 

@@ -1864,8 +1864,9 @@ const App: React.FC = () => {
                 : currentStoreStock + qtyForStock;
             const newStockByStore = { ...product.stockByStore, [record.storeId]: nextStoreStock };
             const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-            updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId };
-                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId } as Product;
+            const updatedFactoryPrice = record.factoryPrice || product.factoryPrice || 0;
+            updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, factoryPrice: updatedFactoryPrice, ownerId: product.ownerId || recordOwnerId };
+                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, factoryPrice: updatedFactoryPrice, ownerId: product.ownerId || recordOwnerId } as Product;
                         saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
                             .then(() => console.log('✅ Product stock updated in Firestore:', updatedProduct.id))
                             .catch((err) => console.error('❌ Failed to update product stock in Firestore:', err));
@@ -1884,6 +1885,7 @@ const App: React.FC = () => {
                 category: record.category,
                 brand: record.brand,
                 specification: record.specification,
+                factoryPrice: record.factoryPrice || 0,
                 ownerId: recordOwnerId
             };
                         saveToFirestore<Product>(COLLECTIONS.PRODUCTS, newProduct)

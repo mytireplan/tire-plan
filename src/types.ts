@@ -35,6 +35,7 @@ export interface Product {
   brand?: string; // Brand name (e.g., '한국', '금호')
   barcode?: string;
   specification?: string; // e.g., 245/45R18
+  factoryPrice?: number; // Factory price from stock-in
 }
 
 export interface SalesItem {
@@ -44,6 +45,7 @@ export interface SalesItem {
   priceAtSale: number;
   specification?: string;
   brand?: string;
+  purchasePrice?: number; // Optional manual cost (admin-entered)
 }
 
 export const PaymentMethod = {
