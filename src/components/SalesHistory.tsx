@@ -253,13 +253,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     return matches[0]?.purchasePrice || 0;
   };
 
-  const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
-
   const getItemCost = (item: SalesItem) => {
     const manualCost = item.purchasePrice ?? 0;
     if (manualCost > 0) return manualCost;
     return getLatestCost(item.productName, item.specification);
   };
+
+  const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
 
   const isTireItem = (item: SalesItem) => {
     const product = products.find(p => p.id === item.productId);
