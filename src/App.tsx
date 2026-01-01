@@ -1498,11 +1498,15 @@ const App: React.FC = () => {
                 // Sum sold qty for this product by id, or fallback to name/spec match
                 const soldQty = saleToSave.items.reduce((sum, item) => {
                     const idMatch = item.productId === prod.id;
-                    const nameMatch = normalize(item.productName) === normalize(prod.name);
-                    const specMatch = normalize(item.specification) === normalize(prod.specification);
-                    const fallbackMatch = !item.productId && (prod.specification || item.specification)
-                        ? (nameMatch && specMatch)
-                        : nameMatch;
+
+                    // Fallback only when productId is missing: require BOTH name + spec to match to avoid draining sibling sizes
+                    let fallbackMatch = false;
+                    if (!item.productId) {
+                        const nameMatch = normalize(item.productName) === normalize(prod.name);
+                        const specMatch = normalize(item.specification) === normalize(prod.specification);
+                        fallbackMatch = nameMatch && specMatch; // never allow name-only match
+                    }
+
                     return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
                 }, 0);
 
@@ -1700,8 +1704,14 @@ const App: React.FC = () => {
                   const hasKeyMatch = allNameSpecKeys.has(key);
                   if ((!hasIdMatch && !hasKeyMatch) || prod.id === '99999') return prod;
 
-                  const oldQty = prevTracked ? (prevQtyMap[prod.id] || prevNameSpecMap[key] || 0) : 0;
-                  const newQty = newTracked ? (newQtyMap[prod.id] || newNameSpecMap[key] || 0) : 0;
+                  // Only allow fallback to name+spec when productId is absent; never name-only
+                  const safePrevQty = prevQtyMap[prod.id] ?? 0;
+                  const safeNewQty = newQtyMap[prod.id] ?? 0;
+                  const fallbackPrev = prevNameSpecMap[key] ?? 0;
+                  const fallbackNew = newNameSpecMap[key] ?? 0;
+
+                  const oldQty = prevTracked ? (safePrevQty || (prevQtyMap[prod.id] ? safePrevQty : fallbackPrev)) : 0;
+                  const newQty = newTracked ? (safeNewQty || (newQtyMap[prod.id] ? safeNewQty : fallbackNew)) : 0;
                   const delta = newQty - oldQty; // positive => more sold now -> reduce stock
 
                   const safeStockByStore = prod.stockByStore || {};
