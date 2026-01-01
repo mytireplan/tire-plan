@@ -1237,6 +1237,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                 <tr>
                                     <th className="px-4 py-3 text-center w-[100px]">시간</th>
                                     <th className="px-4 py-3 text-left">규격 / 브랜드 / 모델</th>
+                                    <th className="px-4 py-3 text-center w-[80px]">수량</th>
                                     <th className="px-4 py-3 text-right w-[120px]">결제 금액</th>
                                     {isAdmin && <th className="px-4 py-3 text-right w-[120px]">매입가</th>}
                                     {isAdmin && <th className="px-4 py-3 text-right w-[120px]">마진</th>}
@@ -1248,7 +1249,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {salesWithMetrics.length === 0 ? (
-                                    <tr><td colSpan={isAdmin ? 7 : 6} className="px-6 py-12 text-center text-gray-500 space-y-3">
+                                    <tr><td colSpan={isAdmin ? 8 : 6} className="px-6 py-12 text-center text-gray-500 space-y-3">
                                         <p className="text-sm">해당 날짜에 등록된 판매 내역이 없습니다. 지금 바로 판매 내역을 추가할 수 있습니다.</p>
                                         <div className="flex justify-center">
                                             <button onClick={openQuickAddForCurrentDate} className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-sm shadow-sm hover:bg-blue-700 flex items-center gap-2">
@@ -1283,6 +1284,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                         {sale.items.length > 1 && <span className="text-gray-400 text-xs ml-1">외 {sale.items.length - 1}건</span>}
                                                     </span>
                                                 </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-center text-gray-800 font-bold whitespace-nowrap">
+                                                {sale.items.reduce((sum, item) => sum + (item.quantity || 0), 0)}개
                                             </td>
                                             <td className="px-4 py-3 text-right whitespace-nowrap">
                                                 <div className="flex items-center justify-end gap-2">
