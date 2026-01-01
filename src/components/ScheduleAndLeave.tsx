@@ -28,7 +28,7 @@ const formatDateLabel = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
 const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId, onShiftRangeChange }) => {
   const [anchorDate, setAnchorDate] = useState(new Date());
-  const [selectedStoreId, setSelectedStoreId] = useState<string>(stores[0]?.id || '');
+  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'WEEK' | 'MONTH'>('WEEK');
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
