@@ -111,8 +111,18 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
   // Normalize an ISO string into a local-date string (YYYY-MM-DD) to avoid timezone drift.
   const isoToLocalDate = (iso: string) => {
     const d = new Date(iso);
-    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-    return local.toISOString().slice(0, 10);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Date 객체를 로컬 YYYY-MM-DD 문자열로 변환
+  const dateToLocalString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   const deriveGroupIdFromId = (id: string) => {
@@ -305,7 +315,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                 <div className="grid" style={{ gridTemplateColumns: `140px repeat(7, 1fr)` }}>
                   <div className="bg-white border-b border-gray-100 px-3 py-3 font-bold text-gray-700">직원</div>
                   {weekDays.map(d => (
-                    <div key={d.toISOString()} className="bg-white border-b border-gray-100 px-4 py-3 font-bold text-gray-700 text-center">
+                    <div key={dateToLocalString(d)} className="bg-white border-b border-gray-100 px-4 py-3 font-bold text-gray-700 text-center">
                       {formatDateLabel(d)}<span className="text-xs text-gray-400 ml-1">({['일','월','화','수','목','금','토'][d.getDay()]})</span>
                     </div>
                   ))}
@@ -322,7 +332,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                         {staff.name}
                       </div>
                       {weekDays.map(d => {
-                        const dateStr = d.toISOString().slice(0, 10);
+                        const dateStr = dateToLocalString(d);
                         const dayShifts = shifts.filter(s => s.staffId === staff.id && s.start.slice(0, 10) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                         const hasLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr);
                         const isDragging = dragSelection?.active && dragSelection.staffId === staff.id && dateStr >= dragSelection.start && dateStr <= dragSelection.end;
@@ -449,8 +459,8 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
               <div className="grid grid-cols-7 gap-2 auto-rows-[minmax(110px,1fr)]">
                 {cells.map((d, idx) => {
                   if (!d) return <div key={`e-${idx}`} className="bg-gray-50 rounded-lg"/>;
-                  const dateStr = d.toISOString().slice(0,10);
-                  const dayShifts = shifts.filter(s => s.start.slice(0,10) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
+                  const dateStr = dateToLocalString(d);
+                  const dayShifts = shifts.filter(s => s.start.slice(0, 10) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                   const dayLeaves = leaveRequests.filter(l => l.date === dateStr);
                   return (
                     <div

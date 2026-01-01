@@ -1,20 +1,41 @@
 
 import React, { useState } from 'react';
-import { Store as StoreIcon, Lock, AlertCircle, ChevronRight, UserCircle2, ShieldCheck } from 'lucide-react';
+import { Store as StoreIcon, Lock, AlertCircle, ChevronRight, UserCircle2, ShieldCheck, CheckCircle } from 'lucide-react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../firebase';
-import { validateOwnerPassword, isAccountLocked } from '../utils/auth';
+import { validateOwnerPassword, isAccountLocked, registerOwner, requestPasswordReset, validateEmail, validatePasswordStrength } from '../utils/auth';
 
 interface LoginScreenProps {
   onLogin: (userId: string, email: string) => Promise<void>;
 }
 
+type ViewMode = 'login' | 'register' | 'reset-password';
+
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+  const [viewMode, setViewMode] = useState<ViewMode>('login');
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
+  
+  // 회원가입 필드
+  const [registerData, setRegisterData] = useState({
+    id: '',
+    name: '',
+    email: '',
+    password: '',
+    passwordConfirm: '',
+    phoneNumber: '',
+    businessName: ''
+  });
+
+  // 비밀번호 찾기 필드
+  const [resetData, setResetData] = useState({
+    id: '',
+    email: ''
+  });
 
   // Google 로그인 핸들러
   const handleGoogleLogin = async () => {
@@ -81,6 +102,108 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
+  // 회원가입 핸들러
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    // 필수 입력 확인
+    if (!registerData.id || !registerData.name || !registerData.email || !registerData.password || !registerData.phoneNumber) {
+      setError('필수 항목을 모두 입력해주세요.');
+      return;
+    }
+
+    // 이메일 형식 확인
+    if (!validateEmail(registerData.email)) {
+      setError('올바른 이메일 형식이 아닙니다.');
+      return;
+    }
+
+    // 비밀번호 확인
+    if (registerData.password !== registerData.passwordConfirm) {
+      setError('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    // 비밀번호 강도 확인
+    const pwCheck = validatePasswordStrength(registerData.password);
+    if (!pwCheck.valid) {
+      setError(pwCheck.message || '비밀번호 조건을 확인해주세요.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await registerOwner({
+        id: registerData.id,
+        name: registerData.name,
+        email: registerData.email,
+        password: registerData.password,
+        phoneNumber: registerData.phoneNumber,
+        businessName: registerData.businessName
+      });
+
+      if (!result.success) {
+        setError(result.error || '회원가입에 실패했습니다.');
+        return;
+      }
+
+      setSuccess('회원가입이 완료되었습니다! 로그인해주세요.');
+      setTimeout(() => {
+        setViewMode('login');
+        setShowEmailLogin(true);
+        setUserId(registerData.id);
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setError('회원가입 처리 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 비밀번호 찾기 핸들러
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!resetData.id || !resetData.email) {
+      setError('아이디와 이메일을 입력해주세요.');
+      return;
+    }
+
+    if (!validateEmail(resetData.email)) {
+      setError('올바른 이메일 형식이 아닙니다.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await requestPasswordReset(resetData.id, resetData.email);
+
+      if (!result.success) {
+        setError(result.error || '비밀번호 재설정에 실패했습니다.');
+        return;
+      }
+
+      setSuccess(`임시 비밀번호가 발송되었습니다: ${result.tempPassword} (개발용 표시)`);
+      setTimeout(() => {
+        setViewMode('login');
+        setShowEmailLogin(true);
+        setUserId(resetData.id);
+      }, 5000);
+
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      setError('비밀번호 재설정 처리 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 relative overflow-hidden">
         {/* Decorative Background Elements */}
@@ -95,8 +218,167 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             </div>
             
             <h2 className="text-2xl font-bold text-center text-slate-800 mb-1">SmartPOS ERP</h2>
-            <p className="text-center text-slate-500 mb-8 text-sm">통합 매장 관리 시스템</p>
+            <p className="text-center text-slate-500 mb-8 text-sm">
+                {viewMode === 'register' ? '신규 점주 등록' : viewMode === 'reset-password' ? '비밀번호 찾기' : '통합 매장 관리 시스템'}
+            </p>
 
+            {viewMode === 'register' ? (
+                /* 회원가입 화면 */
+                <form onSubmit={handleRegister} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">점주 고유번호 (ID)</label>
+                        <input 
+                            type="text" 
+                            placeholder="예: 250003"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={registerData.id}
+                            onChange={(e) => setRegisterData({...registerData, id: e.target.value})}
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">이름</label>
+                        <input 
+                            type="text" 
+                            placeholder="홍길동"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={registerData.name}
+                            onChange={(e) => setRegisterData({...registerData, name: e.target.value})}
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">이메일</label>
+                        <input 
+                            type="email" 
+                            placeholder="example@tireplan.kr"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={registerData.email}
+                            onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">연락처</label>
+                        <input 
+                            type="tel" 
+                            placeholder="010-1234-5678"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={registerData.phoneNumber}
+                            onChange={(e) => setRegisterData({...registerData, phoneNumber: e.target.value})}
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">비밀번호 (최소 4자, 숫자 포함)</label>
+                        <input 
+                            type="password" 
+                            placeholder="비밀번호"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={registerData.password}
+                            onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">비밀번호 확인</label>
+                        <input 
+                            type="password" 
+                            placeholder="비밀번호 확인"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={registerData.passwordConfirm}
+                            onChange={(e) => setRegisterData({...registerData, passwordConfirm: e.target.value})}
+                            required
+                        />
+                    </div>
+
+                    {error && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2">
+                            <AlertCircle size={16} className="text-red-500" />
+                            <p className="text-xs text-red-600 font-bold">{error}</p>
+                        </div>
+                    )}
+                    {success && (
+                        <div className="p-3 rounded-lg bg-green-50 border border-green-100 flex items-center gap-2">
+                            <CheckCircle size={16} className="text-green-500" />
+                            <p className="text-xs text-green-600 font-bold">{success}</p>
+                        </div>
+                    )}
+
+                    <button 
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-70"
+                    >
+                        {loading ? '처리 중...' : '회원가입'}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('login')}
+                        className="w-full py-2 text-sm text-slate-500 hover:text-slate-700"
+                    >
+                        ← 로그인으로 돌아가기
+                    </button>
+                </form>
+            ) : viewMode === 'reset-password' ? (
+                /* 비밀번호 찾기 화면 */
+                <form onSubmit={handlePasswordReset} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">점주 고유번호 (ID)</label>
+                        <input 
+                            type="text" 
+                            placeholder="예: 250001"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={resetData.id}
+                            onChange={(e) => setResetData({...resetData, id: e.target.value})}
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">등록된 이메일</label>
+                        <input 
+                            type="email" 
+                            placeholder="example@tireplan.kr"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={resetData.email}
+                            onChange={(e) => setResetData({...resetData, email: e.target.value})}
+                            required
+                        />
+                    </div>
+
+                    {error && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2">
+                            <AlertCircle size={16} className="text-red-500" />
+                            <p className="text-xs text-red-600 font-bold">{error}</p>
+                        </div>
+                    )}
+                    {success && (
+                        <div className="p-3 rounded-lg bg-green-50 border border-green-100 flex items-center gap-2">
+                            <CheckCircle size={16} className="text-green-500" />
+                            <p className="text-xs text-green-600 font-bold">{success}</p>
+                        </div>
+                    )}
+
+                    <button 
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-70"
+                    >
+                        {loading ? '처리 중...' : '임시 비밀번호 발송'}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('login')}
+                        className="w-full py-2 text-sm text-slate-500 hover:text-slate-700"
+                    >
+                        ← 로그인으로 돌아가기
+                    </button>
+                </form>
+            ) : (
+                /* 로그인 화면 */
+                <>
             {!showEmailLogin ? (
               <>
                 {/* Google 로그인 */}
@@ -227,8 +509,37 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     >
                         ← 다른 방법으로 로그인
                     </button>
+
+                    {/* 회원가입 / 비밀번호 찾기 링크 */}
+                    <div className="mt-4 flex items-center justify-center gap-4 text-sm">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setViewMode('register');
+                                setError('');
+                                setSuccess('');
+                            }}
+                            className="text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                            회원가입
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setViewMode('reset-password');
+                                setError('');
+                                setSuccess('');
+                            }}
+                            className="text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                            비밀번호 찾기
+                        </button>
+                    </div>
                 </form>
               </>
+            )}
+            </>
             )}
         </div>
     </div>

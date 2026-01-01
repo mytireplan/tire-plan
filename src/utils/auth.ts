@@ -6,7 +6,7 @@
  */
 
 import bcrypt from 'bcryptjs';
-import { getFromFirestore, COLLECTIONS } from './firestore';
+import { getFromFirestore, saveToFirestore, COLLECTIONS } from './firestore';
 import type { User } from '../types';
 
 /**
@@ -149,4 +149,112 @@ export const validateOwnerPassword = async (
 export const hashPassword = async (password: string): Promise<string> => {
   const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(password, salt);
+};
+
+/**
+ * 이메일 형식 검증
+ */
+export const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+/**
+ * 회원가입 (신규 점주 등록)
+ */
+export const registerOwner = async (data: {
+  id: string; // 점주 고유번호
+  name: string;
+  email: string;
+  password: string;
+  phoneNumber: string;
+  businessName?: string;
+}): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // 이메일 형식 검증
+    if (!validateEmail(data.email)) {
+      return { success: false, error: '올바른 이메일 형식이 아닙니다.' };
+    }
+
+    // 비밀번호 복잡도 검증
+    const passwordCheck = validatePasswordStrength(data.password);
+    if (!passwordCheck.valid) {
+      return { success: false, error: passwordCheck.message };
+    }
+
+    // 중복 ID 확인
+    const existing = await getFromFirestore<User>(COLLECTIONS.OWNERS, data.id);
+    if (existing) {
+      return { success: false, error: '이미 사용 중인 ID입니다.' };
+    }
+
+    // 비밀번호 해싱
+    const passwordHash = await hashPassword(data.password);
+
+    // 새 계정 생성
+    const newOwner: User = {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      passwordHash,
+      phoneNumber: data.phoneNumber,
+      role: 'STORE_ADMIN',
+      emailVerified: false,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    };
+
+    // Firestore에 저장
+    await saveToFirestore(COLLECTIONS.OWNERS, newOwner, true);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    return { success: false, error: '회원가입 처리 중 오류가 발생했습니다.' };
+  }
+};
+
+/**
+ * 비밀번호 재설정 요청 (이메일로 임시 비밀번호 발송)
+ */
+export const requestPasswordReset = async (
+  id: string,
+  email: string
+): Promise<{ success: boolean; error?: string; tempPassword?: string }> => {
+  try {
+    // 사용자 확인
+    const owner = await getFromFirestore<User>(COLLECTIONS.OWNERS, id);
+    
+    if (!owner) {
+      return { success: false, error: '존재하지 않는 계정입니다.' };
+    }
+
+    if (owner.email !== email) {
+      return { success: false, error: '등록된 이메일과 일치하지 않습니다.' };
+    }
+
+    // 임시 비밀번호 생성 (6자리 숫자)
+    const tempPassword = Math.floor(100000 + Math.random() * 900000).toString();
+    const tempPasswordHash = await hashPassword(tempPassword);
+
+    // 임시 비밀번호로 업데이트
+    const updatedOwner: User = {
+      ...owner,
+      passwordHash: tempPasswordHash,
+      password: undefined // 평문 비밀번호 제거
+    };
+
+    await saveToFirestore(COLLECTIONS.OWNERS, updatedOwner, true);
+
+    // TODO: 실제로는 이메일 발송 서비스 연동 (SendGrid, AWS SES 등)
+    console.log(`📧 임시 비밀번호: ${tempPassword}`);
+
+    return { 
+      success: true, 
+      tempPassword // 개발용: 실제로는 이메일로만 전송
+    };
+  } catch (error: any) {
+    console.error('Password reset error:', error);
+    return { success: false, error: '비밀번호 재설정 처리 중 오류가 발생했습니다.' };
+  }
 };
