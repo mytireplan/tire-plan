@@ -441,6 +441,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           alert('상품명과 수량을 입력해주세요.');
           return;
       }
+      if (stockInForm.category === '타이어' && !stockInForm.specification.trim()) {
+          alert('타이어는 규격(사이즈)을 반드시 입력해야 합니다.');
+          return;
+      }
             const consumptionQty = stockInForm.quantity;
       
       const record: StockInRecord = {

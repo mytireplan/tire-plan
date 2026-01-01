@@ -149,6 +149,12 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
             return;
         }
 
+        // 타이어는 규격 필수
+        if (formData.category === '타이어' && !trimmedSpec) {
+            alert('타이어는 규격(사이즈)을 반드시 입력해야 합니다.');
+            return;
+        }
+
         // Safety check: If storeId is still empty or ALL (should be fixed by useEffect, but just in case)
         const finalStoreId = formData.storeId === 'ALL' || !formData.storeId ? stores[0]?.id : formData.storeId;
 
