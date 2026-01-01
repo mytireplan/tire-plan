@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Store as StoreIcon, Lock, AlertCircle, ChevronRight, UserCircle2, ShieldCheck } from 'lucide-react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../firebase';
-import { validateOwnerPassword } from '../utils/auth';
+import { validateOwnerPassword, isAccountLocked } from '../utils/auth';
 
 interface LoginScreenProps {
   onLogin: (userId: string, email: string) => Promise<void>;
@@ -49,6 +49,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     if (!userId.trim() || !password.trim()) {
         setError('아이디와 비밀번호를 입력해주세요.');
+        return;
+    }
+
+    // 계정 잠금 확인
+    if (isAccountLocked(userId)) {
+        setError('너무 많은 로그인 실패로 계정이 잠겼습니다. 30분 후 다시 시도해주세요.');
         return;
     }
 
