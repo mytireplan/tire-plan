@@ -262,16 +262,21 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   // Logic: If Admin, use selected store. If Staff, strictly use currentStoreId.
   const activeStoreId = currentUser.role === 'STAFF' ? currentStoreId : adminSelectedStoreId;
 
+  // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (타임존 이슈 방지)
+  const dateToLocalString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const isoToLocalDate = (iso: string) => {
-      const d = new Date(iso);
-      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-      return local.toISOString().slice(0, 10);
+    const d = new Date(iso);
+    return dateToLocalString(d);
   };
 
   const todayKey = useMemo(() => {
-      const now = new Date();
-      const local = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return local.toISOString().slice(0, 10);
+    return dateToLocalString(new Date());
   }, []);
 
   const scheduledStaffIds = useMemo(() => {
