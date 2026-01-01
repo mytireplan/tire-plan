@@ -1876,10 +1876,56 @@ const App: React.FC = () => {
   };
 
     const handleUpdateStockInRecord = (r: StockInRecord) => {
+            // Find the old record to calculate the difference
+            const oldRecord = stockInHistory.find(old => old.id === r.id);
+            
             setStockInHistory(prev => prev.map(old => old.id === r.id ? r : old));
             saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, r)
                 .then(() => console.log('✅ Stock-in record updated in Firestore:', r.id))
                 .catch((err) => console.error('❌ Failed to update stock-in record in Firestore:', err));
+            
+            // Update product stock if quantity changed
+            if (oldRecord && r.productId) {
+                const oldQty = oldRecord.receivedQuantity ?? oldRecord.quantity ?? 0;
+                const newQty = r.receivedQuantity ?? r.quantity ?? 0;
+                const isConsumed = Boolean(r.consumedAtSaleId);
+                
+                // Only adjust stock for non-consumed records
+                if (!isConsumed && oldQty !== newQty) {
+                    const qtyDiff = newQty - oldQty;
+                    console.log(`📦 Stock quantity changed for ${r.productName}: ${oldQty} → ${newQty} (diff: ${qtyDiff})`);
+                    
+                    setProducts(prev => {
+                        const productIndex = prev.findIndex(p => p.id === r.productId);
+                        if (productIndex < 0) {
+                            console.warn('⚠️ Product not found for stock update:', r.productId);
+                            return prev;
+                        }
+                        
+                        const updatedProducts = [...prev];
+                        const product = updatedProducts[productIndex];
+                        const currentStoreStock = product.stockByStore[r.storeId] || 0;
+                        const newStoreStock = Math.max(0, currentStoreStock + qtyDiff);
+                        const newStockByStore = { ...product.stockByStore, [r.storeId]: newStoreStock };
+                        const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                        
+                        const updatedProduct = { 
+                            ...product, 
+                            stockByStore: newStockByStore, 
+                            stock: newTotalStock 
+                        };
+                        
+                        updatedProducts[productIndex] = updatedProduct;
+                        
+                        // Save to Firestore
+                        saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
+                            .then(() => console.log('✅ Product stock updated after quantity change:', updatedProduct.id, `${currentStoreStock} → ${newStoreStock}`))
+                            .catch((err) => console.error('❌ Failed to update product stock:', err));
+                        
+                        return updatedProducts;
+                    });
+                }
+            }
     };
         const handleDeleteStockInRecord = (id: string) => {
             setStockInHistory(prev => prev.filter(r => r.id !== id));

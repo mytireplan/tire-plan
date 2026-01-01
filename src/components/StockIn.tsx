@@ -194,6 +194,20 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
         onUpdateStockInRecord({ ...record, purchasePrice: numValue });
     };
 
+    const handleUpdateQuantity = (record: StockInRecord, val: number) => {
+        // Don't allow editing consumed records (from sales)
+        if (record.consumedAtSaleId) {
+            alert('판매로 소진된 입고 내역은 수정할 수 없습니다.');
+            return;
+        }
+        const newQty = Math.max(0, val);
+        onUpdateStockInRecord({ 
+            ...record, 
+            quantity: newQty,
+            receivedQuantity: newQty 
+        });
+    };
+
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -565,8 +579,19 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                                     <div className="text-gray-900 font-medium truncate max-w-[160px]" title={record.productName}>{record.productName}</div>
                                                     <div className="text-xs text-gray-500">{record.specification}</div>
                                                 </td>
-                                                <td className="px-4 py-3 text-center font-bold text-blue-600 align-middle whitespace-nowrap">
-                                                    +{record.receivedQuantity ?? record.quantity}
+                                                <td className="px-4 py-3 text-center align-middle whitespace-nowrap">
+                                                    {isAdminView && !record.consumedAtSaleId ? (
+                                                        <input 
+                                                            type="number" 
+                                                            min="0"
+                                                            className="w-16 p-1 text-sm border border-gray-300 rounded text-center focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none font-bold bg-blue-50 focus:bg-white text-blue-600"
+                                                            value={record.receivedQuantity ?? record.quantity}
+                                                            onChange={(e) => handleUpdateQuantity(record, Number(e.target.value))}
+                                                            title="입고 수량 수정"
+                                                        />
+                                                    ) : (
+                                                        <span className="font-bold text-blue-600">+{record.receivedQuantity ?? record.quantity}</span>
+                                                    )}
                                                 </td>
                                                 {isAdminView && (
                                                     <>
