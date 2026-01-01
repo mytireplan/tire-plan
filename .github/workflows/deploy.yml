@@ -28,33 +28,22 @@ jobs:
       - name: Sync dist to Lightsail
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.LIGHTSAIL_HOST }}
-          username: ${{ secrets.LIGHTSAIL_USER }}
-          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
-          port: ${{ secrets.LIGHTSAIL_PORT || '22' }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || '22' }}
           source: dist
           target: /home/ubuntu/tire-plan
           rm: true
 
-      - name: Restart static server on Lightsail
+      - name: Restart Nginx on Lightsail
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.LIGHTSAIL_HOST }}
-          username: ${{ secrets.LIGHTSAIL_USER }}
-          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
-          port: ${{ secrets.LIGHTSAIL_PORT || '22' }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || '22' }}
           script: |
             set -e
-            APP_DIR=/home/ubuntu/tire-plan
-            cd "$APP_DIR"
-
-            # Ensure serve is available to host static dist
-            if ! command -v serve >/dev/null 2>&1; then
-              sudo npm install -g serve
-            fi
-
-            # Restart PM2 serving the built dist
-            pm2 stop tire-plan || true
-            pm2 delete tire-plan || true
-            pm2 start "serve -s $APP_DIR/dist -l 5173" --name "tire-plan"
-            pm2 save
+            sudo systemctl reload nginx
+            echo "✅ Nginx reloaded successfully"
