@@ -32,14 +32,21 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'WEEK' | 'MONTH'>('WEEK');
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const dateToLocalString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [shiftDraft, setShiftDraft] = useState({
     groupId: '',
     staffId: '',
     storeId: stores[0]?.id || '',
-    dateStart: new Date().toISOString().slice(0, 10),
-    dateEnd: new Date().toISOString().slice(0, 10),
+    dateStart: dateToLocalString(new Date()),
+    dateEnd: dateToLocalString(new Date()),
     memo: '',
     shiftType: 'REGULAR' as Shift['shiftType']
   });
@@ -102,7 +109,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
     const days: string[] = [];
     const cursor = new Date(start);
     while (cursor <= end) {
-      days.push(cursor.toISOString().slice(0, 10));
+      days.push(dateToLocalString(cursor));
       cursor.setDate(cursor.getDate() + 1);
     }
     return days;
@@ -114,14 +121,6 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  // Date 객체를 로컬 YYYY-MM-DD 문자열로 변환
-  const dateToLocalString = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
 
@@ -285,7 +284,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
               </div>
               <button
                 onClick={() => {
-                  const todayStr = new Date().toISOString().slice(0, 10);
+                  const todayStr = dateToLocalString(new Date());
                   const resolvedStoreId = resolveStoreId();
                   setShiftDraft(prev => ({
                     ...prev,

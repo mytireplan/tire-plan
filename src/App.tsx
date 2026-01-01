@@ -290,10 +290,16 @@ const generateMockExpenses = (): ExpenseRecord[] => {
         date.setDate(today.getDate() - i);
         const cat = categories[Math.floor(Math.random() * categories.length)];
         const storeId = demoStoreIds[Math.floor(Math.random() * demoStoreIds.length)];
+        const dateToLocalString = (d: Date): string => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
         
         expenses.push({
             id: `E-${date.getTime()}`,
-            date: date.toISOString().slice(0, 10),
+            date: dateToLocalString(date),
             category: cat,
             description: `${cat} 지출`,
             amount: Math.floor(Math.random() * 40000) + 8000,
@@ -546,7 +552,13 @@ const App: React.FC = () => {
         const storeFilter = currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : null;
 
         const today = new Date();
-        const todayISO = today.toISOString().slice(0, 10); // YYYY-MM-DD
+        const dateToLocalString = (date: Date): string => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        const todayISO = dateToLocalString(today); // YYYY-MM-DD
 
         const constraints: QueryConstraint[] = [orderBy('date', 'desc'), limit(50), where('date', '>=', todayISO)];
         if (storeFilter) {

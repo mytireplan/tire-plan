@@ -20,14 +20,15 @@ interface StockInProps {
 
 const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, products, onStockIn, currentUser, stockInHistory, currentStoreId, onUpdateStockInRecord, onDeleteStockInRecord, tireModels: _unusedTireModels }) => {
     const isAdminView = currentUser.role === 'STORE_ADMIN' || currentUser.role === 'SUPER_ADMIN';
-    const getTodayLocal = () => {
-        const now = new Date();
-        const offset = now.getTimezoneOffset() * 60000;
-        return new Date(now.getTime() - offset).toISOString().split('T')[0];
+    const dateToLocalString = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     };
     // --- Form State ---
     const [formData, setFormData] = useState({
-        date: getTodayLocal(),
+        date: dateToLocalString(new Date()),
         storeId: (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : (stores[0]?.id || ''),
         supplier: '',
         category: '타이어',
@@ -46,7 +47,13 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     });
 
     // --- Verification & History State ---
-    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const getLocalYearMonth = (): string => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        return `${year}-${month}`;
+    };
+    const [selectedMonth, setSelectedMonth] = useState(getLocalYearMonth()); // YYYY-MM
     const [selectedSupplier, setSelectedSupplier] = useState<string>('ALL');
     const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('ALL'); // New Store Filter
 

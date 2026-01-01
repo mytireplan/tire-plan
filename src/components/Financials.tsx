@@ -43,9 +43,16 @@ const Financials: React.FC<FinancialsProps> = ({
     const [tableCategoryFilter, setTableCategoryFilter] = useState<string>('ALL');
     const [tableSortOrder] = useState<'desc' | 'asc'>('desc');
 
+    const dateToLocalString = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     // Expense Form State
     const [expenseForm, setExpenseForm] = useState({
-        date: new Date().toISOString().slice(0, 10),
+        date: dateToLocalString(new Date()),
         category: EXPENSE_CATEGORIES[0],
         description: '',
         amount: '',
