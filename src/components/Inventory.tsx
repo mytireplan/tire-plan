@@ -124,6 +124,15 @@ const handleSave = async (e: React.FormEvent) => {
   e.preventDefault();
   if (!editingProduct.name || editingProduct.price === undefined) return;
 
+  // 타이어는 규격(사이즈) 필수
+  if ((editingProduct.category || categories[0]) === '타이어') {
+      const spec = (editingProduct.specification || '').trim();
+      if (!spec) {
+          alert('타이어는 규격(사이즈)을 반드시 입력해야 합니다.');
+          return;
+      }
+  }
+
   // Calculate total stock from store inputs
     const rawStockByStore: Record<string, number> = editingProduct.stockByStore || {};
     const stockByStore: Record<string, number> = {};
@@ -490,6 +499,8 @@ const handleSave = async (e: React.FormEvent) => {
                                     setEditingProduct({...editingProduct, specification: val});
                                 }}
                                 placeholder="예: 245/45R18"
+                                required={editingProduct.category === '타이어'}
+                                title={editingProduct.category === '타이어' ? '타이어는 규격(사이즈) 필수' : undefined}
                             />
                         </div>
                         <div>
