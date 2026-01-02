@@ -461,9 +461,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   };
 
   const handleInstantStockIn = () => {
-    const { productName, quantity } = stockInForm as any;
+    const { productName, quantity, supplier } = stockInForm as any;
       if (!productName.trim() || quantity <= 0) {
           alert('상품명과 수량을 입력해주세요.');
+          return;
+      }
+      if (!supplier.trim()) {
+          alert('거래처를 입력해주세요.');
           return;
       }
       if (stockInForm.category === '타이어' && !stockInForm.specification.trim()) {
@@ -508,16 +512,32 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           id: targetProductId,
           name: record.productName,
           price: 0, // Price is 0 initially, will be calculated by fixed logic
-          stock: record.quantity,
-          stockByStore: { [record.storeId]: record.quantity },
+          stock: consumptionQty, // 실제 입고된 수량 사용
+          stockByStore: { [record.storeId]: consumptionQty },
           category: record.category,
           brand: record.brand,
           specification: record.specification
       };
 
       // 3. Add to Sale List with correct quantity
-      // If insufficient stock warning triggered, automatically add with swapTarget context
-      if (insufficientStockProduct) {
+      // If sufficient stock, automatically add to the current sale if it's in edit mode
+      if (selectedSale && editFormData) {
+          // We're editing a sale, add the product automatically
+          let newItems = [...editFormData.items];
+          
+          newItems.push({
+              productId: proxyProduct.id,
+              productName: proxyProduct.name,
+              brand: proxyProduct.brand,
+              specification: proxyProduct.specification,
+              quantity: consumptionQty,
+              priceAtSale: proxyProduct.price
+          });
+          
+          newItems = recalculateUnitPrices(newItems, getLockedBudget());
+          setEditFormData({ ...editFormData, items: newItems });
+          setHasUnsavedChanges(true);
+      } else if (insufficientStockProduct) {
           // We have swapTarget set from the warning popup
           if (swapTarget?.isEditMode && editFormData) {
               let newItems = [...editFormData.items];
@@ -2105,13 +2125,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                          </div>
                          
                          <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">거래처 (선택)</label>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">거래처 <span className="text-red-500">*필수</span></label>
                             <input 
                                 type="text" 
                                 placeholder="거래처명"
                                 className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                 value={stockInForm.supplier}
                                 onChange={e => setStockInForm({...stockInForm, supplier: e.target.value})}
+                                required
                             />
                          </div>
 

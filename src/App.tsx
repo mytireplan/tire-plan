@@ -1905,7 +1905,9 @@ const App: React.FC = () => {
   };
   const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
             const isConsumed = Boolean(record.consumedAtSaleId);
-            const qtyForStock = isConsumed ? 0 : (record.receivedQuantity ?? record.quantity ?? 0);
+            // For consumed items, calculate the final stock after deduction
+            const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
+            const qtyForStock = isConsumed ? 0 : receivedQty;
 
       const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
 
