@@ -1327,7 +1327,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center text-gray-800 font-bold whitespace-nowrap">
-                                                {sale.items.reduce((sum, item) => sum + (item.quantity || 0), 0)}개
+                                                {sale.items.reduce((sum, item) => sum + (isTireItem(item) ? (item.quantity || 0) : 0), 0)}개
                                             </td>
                                             <td className="px-4 py-3 text-right whitespace-nowrap">
                                                 <div className="flex items-center justify-end gap-2">
