@@ -1314,7 +1314,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                     {sale.isCanceled && (
                                                         <span className="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-red-200">취소됨</span>
                                                     )}
-                                                    {sale.items[0].productId === '99999' && !sale.isCanceled && (
+                                                    {sale.items[0].productId === '99999' && !sale.isCanceled && !displayItem.specification && !displayItem.brand && (
                                                         <span className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0.5 rounded font-bold border border-orange-200 animate-pulse">⚠️ 우선결제</span>
                                                     )}
                                                     <span className={`text-sm font-bold truncate ${sale.isCanceled ? 'text-red-400 line-through' : 'text-blue-600'}`}>

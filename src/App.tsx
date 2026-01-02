@@ -800,7 +800,47 @@ const App: React.FC = () => {
                     // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
                     await seedIfEmpty<OwnerAccount>('owners', COLLECTIONS.OWNERS, ownersWithDefaults, DEFAULT_OWNER_ACCOUNTS, setUsers);
                     await seedIfEmpty<StoreAccount>('stores', COLLECTIONS.STORES, firestoreStores.data, INITIAL_STORE_ACCOUNTS, setStores);
-                    await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, INITIAL_PRODUCTS, (data) => setProducts(normalizeProducts(data)));
+                    
+                    // 판매 기록을 바탕으로 제품 재고 재계산 후 시드
+                    const seedProducts = async () => {
+                        const sortedSales = INITIAL_SALES.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                        const productsWithAdjustedStock = INITIAL_PRODUCTS.map(prod => {
+                            if (prod.id === '99999') return prod;
+                            
+                            const safeStockByStore = prod.stockByStore || {};
+                            const newStockByStore = { ...safeStockByStore };
+                            
+                            sortedSales.forEach(sale => {
+                                if (sale.isCanceled || !sale.inventoryAdjusted) return;
+                                
+                                const soldQty = sale.items.reduce((sum, item) => {
+                                    const idMatch = item.productId === prod.id;
+                                    
+                                    let fallbackMatch = false;
+                                    if (!item.productId) {
+                                        const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+                                        const nameMatch = normalize(item.productName) === normalize(prod.name);
+                                        const specMatch = normalize(item.specification) === normalize(prod.specification);
+                                        fallbackMatch = nameMatch && specMatch;
+                                    }
+                                    
+                                    return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
+                                }, 0);
+                                
+                                if (soldQty > 0) {
+                                    newStockByStore[sale.storeId] = Math.max(0, (newStockByStore[sale.storeId] || 0) - soldQty);
+                                }
+                            });
+                            
+                            const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                            return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+                        });
+                        
+                        return productsWithAdjustedStock;
+                    };
+                    
+                    const adjustedProducts = await seedProducts();
+                    await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, adjustedProducts, (data) => setProducts(normalizeProducts(data)));
                     await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesPage, INITIAL_SALES, setSales);
                     await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomersAll, INITIAL_CUSTOMERS, setCustomers);
                     await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockInPage.data, INITIAL_STOCK_HISTORY, setStockInHistory);
@@ -814,8 +854,45 @@ const App: React.FC = () => {
                     // 프로덕션에서는 Firestore 값만 사용 (비어 있어도 시드하지 않음)
                     setUsers(ownersWithDefaults);
                     setStores(firestoreStores.data);
-                    setProducts(normalizedFetchedProducts);
-                    setSales(firestoreSalesPage.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                    
+                    // 판매 기록을 바탕으로 제품 재고 재계산
+                    const sortedSales = firestoreSalesPage.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    const productsWithAdjustedStock = normalizedFetchedProducts.map(prod => {
+                        if (prod.id === '99999') return prod; // 우선결제 상품 제외
+                        
+                        const safeStockByStore = prod.stockByStore || {};
+                        const newStockByStore = { ...safeStockByStore };
+                        
+                        // 모든 판매 기록을 순회하며 재고 조정
+                        sortedSales.forEach(sale => {
+                            if (sale.isCanceled || !sale.inventoryAdjusted) return;
+                            
+                            const soldQty = sale.items.reduce((sum, item) => {
+                                const idMatch = item.productId === prod.id;
+                                
+                                // fallback match: id가 없으면 name+spec으로 매칭
+                                let fallbackMatch = false;
+                                if (!item.productId) {
+                                    const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+                                    const nameMatch = normalize(item.productName) === normalize(prod.name);
+                                    const specMatch = normalize(item.specification) === normalize(prod.specification);
+                                    fallbackMatch = nameMatch && specMatch;
+                                }
+                                
+                                return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
+                            }, 0);
+                            
+                            if (soldQty > 0) {
+                                newStockByStore[sale.storeId] = Math.max(0, (newStockByStore[sale.storeId] || 0) - soldQty);
+                            }
+                        });
+                        
+                        const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                        return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
+                    });
+                    
+                    setProducts(productsWithAdjustedStock);
+                    setSales(sortedSales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
                     setCustomers(firestoreCustomersAll);
                     setStockInHistory(firestoreStockInPage.data);
                     setExpenses(firestoreExpensesPage.data);
@@ -826,7 +903,7 @@ const App: React.FC = () => {
                     setStaffList(firestoreStaffPage.data);
                 }
 
-                console.log('✅ Initial data loaded (paged, one-time fetch)');
+                console.log('✅ Initial data loaded (paged, one-time fetch, inventory recalculated)');
             } catch (error) {
                 console.error('❌ Error loading/seeding data from Firestore:', error);
             }
