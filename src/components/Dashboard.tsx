@@ -278,8 +278,16 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
     const card = daySales.filter(s => s.paymentMethod === PaymentMethod.CARD).reduce((sum, s) => sum + s.totalAmount, 0);
     const transfer = daySales.filter(s => s.paymentMethod === PaymentMethod.TRANSFER).reduce((sum, s) => sum + s.totalAmount, 0);
     
-    return { revenue, cash, card, transfer };
+    // Calculate total tire quantity sold
+    const tireQuantity = daySales.reduce((sum, s) => sum + (s.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0), 0);
+    
+    return { revenue, cash, card, transfer, tireQuantity };
   };
+
+  // Calculate total tire quantity for the entire month
+  const monthlyTireQuantity = useMemo(() => {
+    return monthlySales.reduce((sum, s) => sum + (s.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0), 0);
+  }, [monthlySales]);
 
   // --- Staff Status Board Logic (Daily) ---
   
@@ -818,10 +826,16 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
       {/* Sales Calendar Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-100 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 whitespace-nowrap">
-                <Calendar className="text-blue-600" size={20} /> 
-                {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 매출 캘린더
-            </h3>
+            <div className="flex flex-col gap-1">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 whitespace-nowrap">
+                  <Calendar className="text-blue-600" size={20} /> 
+                  {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 매출 캘린더
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-slate-700">타이어 총 판매량:</span>
+                <span className="text-xl font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200">{formatNumber(monthlyTireQuantity)}개</span>
+              </div>
+            </div>
             <div className="flex items-center gap-2 flex-wrap">
                 {prevMonthDailyAverage > 0 && (
                     <span className="text-[10px] sm:text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 font-medium whitespace-nowrap">
@@ -855,7 +869,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                         {calendarDays.map((date, index) => {
                             if (!date) return <div key={`empty-${index}`} className="min-h-[80px] md:h-28 bg-gray-50/50 rounded-lg"></div>;
                             
-                            const { revenue, cash, card, transfer } = getDailyStats(date);
+                            const { revenue, cash, card, transfer, tireQuantity } = getDailyStats(date);
                             const isToday = new Date().toDateString() === date.toDateString();
                             const isSunday = date.getDay() === 0;
                             const isSaturday = date.getDay() === 6;
@@ -882,11 +896,16 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                     `}>
                                         {date.getDate()}
                                     </span>
-                                    {revenue > 0 && (
+                                    {(revenue > 0 || tireQuantity > 0) && (
                                         <div className="text-right flex flex-col items-end gap-0.5 mt-1 w-full">
                                             <div className={`font-bold text-[13px] leading-tight tracking-tight truncate max-w-full ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
                                                 {formatCurrency(revenue)}
                                             </div>
+                                            {tireQuantity > 0 && (
+                                                <div className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                                                    타이어 {tireQuantity}개
+                                                </div>
+                                            )}
                                             <div className="flex flex-col items-end text-[9px] text-gray-500 font-medium leading-snug mt-1 gap-0.5 w-full">
                                                 {card > 0 && (
                                                     <span className="flex items-center gap-1 text-blue-500 truncate max-w-full">
@@ -914,7 +933,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
             ) : (
                 <div className="flex flex-col gap-2">
                     {calendarList.map(date => {
-                        const { revenue, cash, card, transfer } = getDailyStats(date);
+                        const { revenue, cash, card, transfer, tireQuantity } = getDailyStats(date);
                         const isToday = new Date().toDateString() === date.toDateString();
                         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                         const isHighRevenue = prevMonthDailyAverage > 0 && revenue > prevMonthDailyAverage;
@@ -940,6 +959,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                             {card > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full flex items-center gap-1 truncate max-w-[140px]"><CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만</span>}
                                             {cash > 0 && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full flex items-center gap-1 truncate max-w-[140px]"><Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만</span>}
                                             {transfer > 0 && <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full flex items-center gap-1 truncate max-w-[140px]"><Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만</span>}
+                                            {tireQuantity > 0 && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold truncate max-w-[140px]">타이어 {tireQuantity}개</span>}
                                         </div>
                                     </div>
                                 </div>
