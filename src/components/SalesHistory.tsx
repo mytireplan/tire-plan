@@ -1327,7 +1327,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center text-gray-800 font-bold whitespace-nowrap">
-                                                {sale.items.reduce((sum, item) => sum + (isTireItem(item) ? (item.quantity || 0) : 0), 0)}개
+                                                {(() => {
+                                                    const tireQty = sale.items.reduce((sum, item) => sum + (isTireItem(item) ? (item.quantity || 0) : 0), 0);
+                                                    return tireQty > 0 ? `${tireQty}개` : '-';
+                                                })()}
                                             </td>
                                             <td className="px-4 py-3 text-right whitespace-nowrap">
                                                 <div className="flex items-center justify-end gap-2">
@@ -1766,9 +1769,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                        <div 
                                                           onClick={() => !selectedSale.isCanceled && setActiveEditField(`item-${idx}-qty`)}
                                                           className={`cursor-pointer hover:bg-gray-100 rounded px-2 py-1 -mx-1 border border-transparent hover:border-gray-200 transition-colors text-sm font-medium text-right ${selectedSale.isCanceled ? 'cursor-default' : ''}`}
-                                                          title="클릭하여 수정"
+                                                          title={isTireItem(item) ? "클릭하여 수정" : ""}
                                                        >
-                                                           {item.quantity}
+                                                           {isTireItem(item) ? item.quantity : '-'}
                                                        </div>
                                                   )}
                                               </div>
