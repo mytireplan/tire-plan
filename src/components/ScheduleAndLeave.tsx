@@ -143,14 +143,29 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
 
   useEffect(() => {
     if (!onShiftRangeChange) return;
-    const year = anchorDate.getFullYear();
-    const month = anchorDate.getMonth();
-    const monthStart = new Date(year, month, 1);
-    const monthEnd = new Date(year, month + 1, 0);
-    const startStr = monthStart.toISOString();
-    const endStr = new Date(monthEnd.setHours(23, 59, 59, 999)).toISOString();
+    let startStr: string;
+    let endStr: string;
+    
+    if (viewMode === 'WEEK') {
+      // For week view, include the entire week (Mon-Sun) which may span months
+      const weekStart = startOfWeek(anchorDate);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+      startStr = weekStart.toISOString();
+      endStr = weekEnd.toISOString();
+    } else {
+      // For month view, use month boundaries
+      const year = anchorDate.getFullYear();
+      const month = anchorDate.getMonth();
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      startStr = monthStart.toISOString();
+      endStr = new Date(monthEnd.setHours(23, 59, 59, 999)).toISOString();
+    }
+    
     onShiftRangeChange(startStr, endStr);
-  }, [anchorDate, onShiftRangeChange]);
+  }, [anchorDate, viewMode, onShiftRangeChange]);
 
   const submitShift = () => {
     if (!shiftDraft.staffId || !shiftDraft.storeId) return;
