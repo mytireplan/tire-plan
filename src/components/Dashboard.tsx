@@ -902,29 +902,29 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                                 <div className={`font-bold text-[13px] leading-tight tracking-tight truncate max-w-full ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
                                                     {formatCurrency(revenue)}
                                                 </div>
-                                                <div className="flex flex-col items-end text-[9px] text-gray-500 font-medium leading-snug mt-1 gap-0.5 w-full">
-                                                    {card > 0 && (
-                                                        <span className="flex items-center gap-1 text-blue-500 truncate max-w-full">
-                                                            <CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만
-                                                        </span>
-                                                    )}
-                                                    {cash > 0 && (
-                                                        <span className="flex items-center gap-1 text-emerald-600 truncate max-w-full">
-                                                            <Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만
-                                                        </span>
-                                                    )}
-                                                    {transfer > 0 && (
-                                                        <span className="flex items-center gap-1 text-violet-600 truncate max-w-full">
-                                                            <Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만
-                                                        </span>
-                                                    )}
-                                                </div>
                                             </div>
-                                            {tireQuantity > 0 && (
-                                                <div className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                                                    타이어 {tireQuantity}개
-                                                </div>
-                                            )}
+                                            <div className="flex flex-col items-start text-[9px] text-gray-500 font-medium leading-snug gap-0.5 w-full">
+                                                {tireQuantity > 0 && (
+                                                    <span className="font-bold text-blue-700 bg-blue-100 px-1 py-0.5 rounded-full whitespace-nowrap text-[10px]">
+                                                        타이어 {tireQuantity}개
+                                                    </span>
+                                                )}
+                                                {card > 0 && (
+                                                    <span className="flex items-center gap-1 text-blue-500 truncate max-w-full">
+                                                        <CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만
+                                                    </span>
+                                                )}
+                                                {cash > 0 && (
+                                                    <span className="flex items-center gap-1 text-emerald-600 truncate max-w-full">
+                                                        <Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만
+                                                    </span>
+                                                )}
+                                                {transfer > 0 && (
+                                                    <span className="flex items-center gap-1 text-violet-600 truncate max-w-full">
+                                                        <Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
