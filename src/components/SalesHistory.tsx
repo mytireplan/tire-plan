@@ -1329,7 +1329,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                             <td className="px-4 py-3 text-center text-gray-800 font-bold whitespace-nowrap">
                                                 {(() => {
                                                     const tireQty = sale.items.reduce((sum, item) => sum + (isTireItem(item) ? (item.quantity || 0) : 0), 0);
-                                                    return tireQty > 0 ? `${tireQty}개` : '-';
+                                                    const hasNonTire = sale.items.some(item => !isTireItem(item));
+                                                    return hasNonTire ? '-' : `${tireQty}개`;
                                                 })()}
                                             </td>
                                             <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -1767,8 +1768,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                        </div>
                                                   ) : (
                                                        <div 
-                                                          onClick={() => !selectedSale.isCanceled && setActiveEditField(`item-${idx}-qty`)}
-                                                          className={`cursor-pointer hover:bg-gray-100 rounded px-2 py-1 -mx-1 border border-transparent hover:border-gray-200 transition-colors text-sm font-medium text-right ${selectedSale.isCanceled ? 'cursor-default' : ''}`}
+                                                          onClick={() => !selectedSale.isCanceled && isTireItem(item) && setActiveEditField(`item-${idx}-qty`)}
+                                                          className={`cursor-pointer hover:bg-gray-100 rounded px-2 py-1 -mx-1 border border-transparent hover:border-gray-200 transition-colors text-sm font-medium text-right ${selectedSale.isCanceled || !isTireItem(item) ? 'cursor-default' : ''}`}
                                                           title={isTireItem(item) ? "클릭하여 수정" : ""}
                                                        >
                                                            {isTireItem(item) ? item.quantity : '-'}
