@@ -332,7 +332,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                       </div>
                       {weekDays.map(d => {
                         const dateStr = dateToLocalString(d);
-                        const dayShifts = shifts.filter(s => s.staffId === staff.id && s.start.slice(0, 10) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
+                        const dayShifts = shifts.filter(s => s.staffId === staff.id && isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                         const hasLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr);
                         const isDragging = dragSelection?.active && dragSelection.staffId === staff.id && dateStr >= dragSelection.start && dateStr <= dragSelection.end;
                         return (
@@ -459,7 +459,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                 {cells.map((d, idx) => {
                   if (!d) return <div key={`e-${idx}`} className="bg-gray-50 rounded-lg"/>;
                   const dateStr = dateToLocalString(d);
-                  const dayShifts = shifts.filter(s => s.start.slice(0, 10) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
+                  const dayShifts = shifts.filter(s => isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                   const dayLeaves = leaveRequests.filter(l => l.date === dateStr);
                   return (
                     <div
