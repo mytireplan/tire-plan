@@ -130,7 +130,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
                               className="text-xs text-blue-600 border-b border-blue-300 bg-transparent focus:bg-white focus:outline-none focus:border-blue-500 px-1 flex-1"
                               value={item.specification || ''}
                               onChange={(e) => onUpdateSpecification(item.cartItemId, e.target.value)}
-                              placeholder="사이즈 입력 (예: 245/45R18)"
+                              placeholder="(예: 245/45R18, 정비, 렌탈종류 등)"
                           />
                       ) : (
                           item.specification && <span className="text-xs text-blue-600">{item.specification}</span>

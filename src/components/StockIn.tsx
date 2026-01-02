@@ -253,8 +253,8 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
             const matchesMonth = record.date.startsWith(selectedMonth);
             const matchesSupplier = selectedSupplier === 'ALL' || record.supplier === selectedSupplier;
             const matchesStore = selectedStoreFilter === 'ALL' || record.storeId === selectedStoreFilter;
-            // Hide consumption logs (자동 생성되는 판매소진 기록) - should not appear in stock-in management
-            const isConsumptionLog = record.id?.startsWith('IN-CONSUME-') || record.supplier === '판매소진' || Boolean(record.consumedAtSaleId);
+            // Hide only auto-generated consumption logs; show sales-origin instant stock-ins
+            const isConsumptionLog = record.id?.startsWith('IN-CONSUME-') || record.supplier === '판매소진';
             return matchesMonth && matchesSupplier && matchesStore && !isConsumptionLog;
         });
     }, [stockInHistory, selectedMonth, selectedSupplier, selectedStoreFilter]);

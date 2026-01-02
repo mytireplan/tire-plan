@@ -98,6 +98,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const [insufficientStockProduct, setInsuffcientStockProduct] = useState<Product | null>(null);
   const [isStockWarningOpen, setIsStockWarningOpen] = useState(false);
 
+  // --- Inline Edit State for List ---
+  const [inlineEditPurchasePriceSaleId, setInlineEditPurchasePriceSaleId] = useState<string | null>(null);
+  const [inlineEditMemoSaleId, setInlineEditMemoSaleId] = useState<string | null>(null);
+  const [inlineEditMemo, setInlineEditMemo] = useState<string>('');
+  const [inlineEditPurchasePrice, setInlineEditPurchasePrice] = useState<Record<string, string>>({});
+
   // --- Immediate Stock In State ---
   const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
   const [stockInForm, setStockInForm] = useState({
@@ -1335,14 +1341,17 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                     salesWithMetrics.map((sale) => {
                                         const displayItem = getPrimaryItem(sale);
                                         return (
-                                        <tr key={sale.id} onClick={() => setSelectedSale(sale)} className={`hover:bg-blue-50 cursor-pointer transition-colors ${sale.isCanceled ? 'bg-gray-50' : ''}`}>
+                                        <tr key={sale.id} className={`hover:bg-blue-50 transition-colors ${sale.isCanceled ? 'bg-gray-50' : ''}`}>
                                             <td className="px-4 py-3 text-center text-gray-500 font-medium whitespace-nowrap text-xs truncate">
                                                 {new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                                 {sale.isEdited && !sale.isCanceled && (
                                                     <span className="block text-[9px] text-blue-500 font-bold mt-0.5">(수정됨)</span>
                                                 )}
                                             </td>
-                                            <td className="px-4 py-3 whitespace-nowrap overflow-hidden">
+                                            <td 
+                                                onClick={() => setSelectedSale(sale)} 
+                                                className="px-4 py-3 whitespace-nowrap overflow-hidden cursor-pointer"
+                                            >
                                                 <div className="flex items-center gap-2">
                                                     {sale.isCanceled && (
                                                         <span className="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-red-200">취소됨</span>
@@ -1375,8 +1384,50 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                 </div>
                                             </td>
                                             {isAdmin && (
-                                                <td className="px-4 py-3 text-right text-gray-500 text-xs whitespace-nowrap">
-                                                    {sale.isCanceled ? '-' : formatCurrency(sale.metrics.totalCost)}
+                                                <td 
+                                                    className="px-4 py-3 text-right text-gray-500 text-xs whitespace-nowrap"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (sale.isCanceled) return;
+                                                        setInlineEditPurchasePriceSaleId(sale.id);
+                                                        if (!inlineEditPurchasePrice[sale.id]) {
+                                                            const firstItemCost = sale.items[0]?.purchasePrice || 0;
+                                                            setInlineEditPurchasePrice({ ...inlineEditPurchasePrice, [sale.id]: firstItemCost ? formatNumber(firstItemCost) : '' });
+                                                        }
+                                                    }}
+                                                >
+                                                    {sale.isCanceled ? '-' : (
+                                                        inlineEditPurchasePriceSaleId === sale.id ? (
+                                                            <input 
+                                                                type="text"
+                                                                inputMode="numeric"
+                                                                autoFocus
+                                                                className="w-24 px-2 py-1 text-xs border border-blue-300 rounded text-right focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                                value={inlineEditPurchasePrice[sale.id] || ''}
+                                                                placeholder="0"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value.replace(/[^0-9]/g, '');
+                                                                    setInlineEditPurchasePrice({ ...inlineEditPurchasePrice, [sale.id]: val ? formatNumber(val) : '' });
+                                                                }}
+                                                                onBlur={() => {
+                                                                    const rawVal = (inlineEditPurchasePrice[sale.id] || '').replace(/[^0-9]/g, '');
+                                                                    const numVal = Number(rawVal) || 0;
+                                                                    // Update first item's purchase price
+                                                                    const updatedItems = [...sale.items];
+                                                                    updatedItems[0] = { ...updatedItems[0], purchasePrice: numVal };
+                                                                    onUpdateSale({ ...sale, items: updatedItems, isEdited: true });
+                                                                    setInlineEditPurchasePriceSaleId(null);
+                                                                }}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') e.currentTarget.blur();
+                                                                    if (e.key === 'Escape') { setInlineEditPurchasePriceSaleId(null); }
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <span className="cursor-pointer hover:text-blue-600">{formatCurrency(sale.metrics.totalCost)}</span>
+                                                        )
+                                                    )}
                                                 </td>
                                             )}
                                             {isAdmin && (
@@ -1391,8 +1442,40 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                             <td className="px-4 py-3 text-left text-sm text-gray-600 whitespace-nowrap truncate">
                                                 {isStoreSelected ? sale.staffName : <>{stores.find(s => s.id === sale.storeId)?.name} <span className="text-gray-400">({sale.staffName})</span></>}
                                             </td>
-                                            <td className="px-4 py-3 text-left whitespace-nowrap overflow-hidden">
-                                                <div className="truncate text-xs text-gray-500" title={sale.memo}>{sale.memo}</div>
+                                            <td 
+                                                className="px-4 py-3 text-left whitespace-nowrap overflow-hidden"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (sale.isCanceled) return;
+                                                    setInlineEditMemoSaleId(sale.id);
+                                                    setInlineEditMemo(sale.memo || '');
+                                                }}
+                                            >
+                                                {sale.isCanceled ? (
+                                                    <div className="truncate text-xs text-gray-500" title={sale.memo}>{sale.memo}</div>
+                                                ) : (
+                                                    inlineEditMemoSaleId === sale.id ? (
+                                                        <input 
+                                                            type="text"
+                                                            autoFocus
+                                                            className="w-full px-2 py-1 text-xs border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                            value={inlineEditMemo}
+                                                            placeholder="메모 입력"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onChange={(e) => setInlineEditMemo(e.target.value)}
+                                                            onBlur={() => {
+                                                                onUpdateSale({ ...sale, memo: inlineEditMemo, isEdited: true });
+                                                                setInlineEditMemoSaleId(null);
+                                                            }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') e.currentTarget.blur();
+                                                                if (e.key === 'Escape') { setInlineEditMemoSaleId(null); }
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="truncate text-xs text-gray-500 cursor-pointer hover:text-blue-600" title={sale.memo}>{sale.memo || '메모 추가'}</div>
+                                                    )
+                                                )}
                                             </td>
                                         </tr>
                                         );
