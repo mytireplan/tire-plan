@@ -17,6 +17,7 @@ interface SalesHistoryProps {
   onSwapProduct: (saleId: string, originalItemId: string, newProduct: Product) => void;
   onUpdateSale: (sale: Sale) => void;
   onCancelSale: (saleId: string) => void;
+  onDeleteSale: (saleId: string) => void;
     onQuickAddSale: (sale: Sale, options?: { adjustInventory?: boolean }) => void;
   onStockIn: (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => void;
   categories: string[];
@@ -28,7 +29,7 @@ interface SalesHistoryProps {
 
 type ViewMode = 'daily' | 'weekly' | 'monthly' | 'staff';
 
-const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, shifts, staffList }) => {
+const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onDeleteSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, shifts, staffList }) => {
   
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -42,6 +43,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
     const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
       const toLocalInputValue = (date: Date) => {
           const year = date.getFullYear();
@@ -1325,11 +1328,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                         {isStoreSelected ? '담당자' : '지점 / 담당자'}
                                     </th>
                                     <th className="px-4 py-3 text-left w-[180px]">메모</th>
+                                    {isAdmin && <th className="px-4 py-3 text-center w-[60px]">삭제</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {salesWithMetrics.length === 0 ? (
-                                    <tr><td colSpan={isAdmin ? 8 : 6} className="px-6 py-12 text-center text-gray-500 space-y-3">
+                                    <tr><td colSpan={isAdmin ? 9 : 6} className="px-6 py-12 text-center text-gray-500 space-y-3">
                                         <p className="text-sm">해당 날짜에 등록된 판매 내역이 없습니다. 지금 바로 판매 내역을 추가할 수 있습니다.</p>
                                         <div className="flex justify-center">
                                             <button onClick={openQuickAddForCurrentDate} className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-sm shadow-sm hover:bg-blue-700 flex items-center gap-2">
@@ -1477,6 +1481,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                     )
                                                 )}
                                             </td>
+                                            {isAdmin && (
+                                                <td className="px-4 py-3 text-center whitespace-nowrap">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSaleToDelete(sale.id);
+                                                            setShowDeleteConfirm(true);
+                                                        }}
+                                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="판매 내역 삭제"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            )}
                                         </tr>
                                         );
                                     })
@@ -2028,6 +2047,31 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                   <div className="flex gap-2 justify-end">
                       <button onClick={() => setShowCancelConfirm(false)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50">닫기</button>
                       <button onClick={() => { setShowCancelConfirm(false); confirmCancelSale(); }} className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700">취소 진행</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && saleToDelete && (
+          <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
+                  <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
+                      <Trash2 size={18} className="text-red-500" /> 판매 내역 삭제
+                  </div>
+                  <p className="text-sm text-gray-600">해당 판매 내역을 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+                  <div className="flex gap-2 justify-end">
+                      <button onClick={() => { setShowDeleteConfirm(false); setSaleToDelete(null); }} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50">취소</button>
+                      <button 
+                          onClick={() => { 
+                              onDeleteSale(saleToDelete); 
+                              setShowDeleteConfirm(false); 
+                              setSaleToDelete(null); 
+                          }} 
+                          className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700"
+                      >
+                          삭제
+                      </button>
                   </div>
               </div>
           </div>

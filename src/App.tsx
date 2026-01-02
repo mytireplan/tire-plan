@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
-import { orderBy, where, limit, collection, query, getDocs, type QueryConstraint } from 'firebase/firestore';
+import { orderBy, where, limit, collection, query, getDocs, doc, deleteDoc, type QueryConstraint } from 'firebase/firestore';
 import { db, auth } from './firebase';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
@@ -1903,6 +1903,21 @@ const App: React.FC = () => {
                 .then(() => console.log('✅ Sale canceled in Firestore:', canceledSale.id))
                 .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
   };
+
+  const handleDeleteSale = (saleId: string) => {
+      const targetSale = sales.find(s => s.id === saleId);
+      if (!targetSale) return;
+
+      // Remove from local state
+      setSales(prev => prev.filter(s => s.id !== saleId));
+
+      // Delete from Firestore
+      const saleRef = doc(db, COLLECTIONS.SALES, saleId);
+      deleteDoc(saleRef)
+          .then(() => console.log('✅ Sale deleted from Firestore:', saleId))
+          .catch((err) => console.error('❌ Failed to delete sale from Firestore:', err));
+  };
+
   const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
             const isConsumed = Boolean(record.consumedAtSaleId);
             // For consumed items, calculate the final stock after deduction
@@ -2519,7 +2534,7 @@ const App: React.FC = () => {
                 sales={visibleSales} stores={visibleStores} products={visibleProducts} filter={historyFilter} 
                 onBack={() => setActiveTab('dashboard')} currentUser={effectiveUser} currentStoreId={currentStoreId}
                 stockInHistory={visibleStockHistory} onSwapProduct={() => {/* swap logic */}}
-                onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
+                onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onDeleteSale={handleDeleteSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
                 categories={categories} tireBrands={tireBrands} tireModels={TIRE_MODELS}
                 shifts={shifts} staffList={staffList}
                 />
