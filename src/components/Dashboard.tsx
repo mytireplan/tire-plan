@@ -832,7 +832,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                   {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 매출 캘린더
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-700">타이어 총 판매량:</span>
+                <span className="text-sm font-semibold text-slate-700">타이어 총 판매량:</span>
                 <span className="text-base font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">{formatNumber(monthlyTireQuantity)}개</span>
               </div>
             </div>
@@ -891,20 +891,18 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                           'border-gray-100 hover:border-blue-300 bg-white hover:shadow-md hover:-translate-y-1'}
                                     `}
                                 >
-                                    <div className="flex items-start justify-between w-full">
-                                        <span className={`text-[11px] md:text-sm font-medium 
-                                            ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-700'}
-                                        `}>
-                                            {date.getDate()}
-                                        </span>
-                                        {tireQuantity > 0 && (
-                                            <div className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1 py-0.5 rounded-full whitespace-nowrap">
-                                                타이어 {tireQuantity}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <span className={`text-[11px] md:text-sm font-medium 
+                                        ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-700'}
+                                    `}>
+                                        {date.getDate()}
+                                    </span>
                                     {(revenue > 0 || tireQuantity > 0) && (
                                         <div className="text-right flex flex-col items-end gap-0.5 mt-1 w-full">
+                                            {tireQuantity > 0 && (
+                                                <div className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap mb-1">
+                                                    타이어 {tireQuantity}개
+                                                </div>
+                                            )}
                                             <div className={`font-bold text-[13px] leading-tight tracking-tight truncate max-w-full ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
                                                 {formatCurrency(revenue)}
                                             </div>
