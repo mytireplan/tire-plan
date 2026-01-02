@@ -857,53 +857,12 @@ const App: React.FC = () => {
                     await seedIfEmpty<StockTransferRecord>('stock transfers', COLLECTIONS.TRANSFERS, firestoreTransfersPage.data, INITIAL_TRANSFER_HISTORY || [], setTransferHistory);
                     await seedIfEmpty<Staff>('staff', COLLECTIONS.STAFF, firestoreStaffPage.data, INITIAL_STAFF, setStaffList);
                 } else {
-                    // 프로덕션에서는 Firestore 값만 사용 (비어 있어도 시드하지 않음)
+                    // 프로덕션에서는 Firestore 저장된 값을 그대로 사용 (재계산 하지 않음)
+                    // handleSaleComplete에서 이미 재고 조정이 발생했으므로, 중복 감소를 방지하기 위해 저장된 값 사용
                     setUsers(ownersWithDefaults);
                     setStores(firestoreStores.data);
-                    
-                    // 판매 기록을 바탕으로 제품 재고 재계산
-                    const sortedSales = firestoreSalesPage.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                    const productsWithAdjustedStock = normalizedFetchedProducts.map(prod => {
-                        if (prod.id === '99999') return prod; // 우선결제 상품 제외
-                        
-                        const safeStockByStore = prod.stockByStore || {};
-                        const newStockByStore = { ...safeStockByStore };
-                        
-                        // 모든 판매 기록을 순회하며 재고 조정
-                        sortedSales.forEach(sale => {
-                            if (sale.isCanceled || !sale.inventoryAdjusted) return;
-                            
-                            const soldQty = sale.items.reduce((sum, item) => {
-                                // Only match by productId when available - most reliable
-                                if (item.productId) {
-                                    return item.productId === prod.id ? sum + item.quantity : sum;
-                                }
-                                
-                                // Fallback to name+spec match ONLY if both are non-empty
-                                const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
-                                const itemName = normalize(item.productName);
-                                const itemSpec = normalize(item.specification);
-                                const prodName = normalize(prod.name);
-                                const prodSpec = normalize(prod.specification);
-                                
-                                // Both name and spec must match, and both must be non-empty
-                                const fallbackMatch = itemName && itemSpec && prodName && prodSpec && 
-                                                    itemName === prodName && itemSpec === prodSpec;
-                                
-                                return fallbackMatch ? sum + item.quantity : sum;
-                            }, 0);
-                            
-                            if (soldQty > 0) {
-                                newStockByStore[sale.storeId] = Math.max(0, (newStockByStore[sale.storeId] || 0) - soldQty);
-                            }
-                        });
-                        
-                        const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-                        return { ...prod, stockByStore: newStockByStore, stock: newTotalStock };
-                    });
-                    
-                    setProducts(productsWithAdjustedStock);
-                    setSales(sortedSales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                    setProducts(normalizeProducts(normalizedFetchedProducts));
+                    setSales(firestoreSalesPage);
                     setCustomers(firestoreCustomersAll);
                     setStockInHistory(firestoreStockInPage.data);
                     setExpenses(firestoreExpensesPage.data);
