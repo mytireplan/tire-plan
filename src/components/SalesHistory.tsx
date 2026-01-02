@@ -1815,6 +1815,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                       </div>
                       
                       <div>
+                          <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Edit3 size={16}/> 관리자 메모</h4>
+                          {selectedSale.isCanceled ? (
+                              <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">{editFormData.memo}</div>
+                          ) : (
+                              <textarea 
+                                  className="w-full p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-shadow"
+                                  rows={3}
+                                  placeholder="판매 관련 특이사항 기록"
+                                  value={editFormData.memo || ''}
+                                  onChange={(e) => handleEditChange('memo', e.target.value)}
+                              />
+                          )}
+                      </div>
+
+                      <div>
                           <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><UserIcon size={16}/> 고객 및 차량 정보</h4>
                           <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-2">
                                 <div className="flex justify-between items-center min-h-[28px]">
@@ -1842,21 +1857,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                     </div>
                                 </div>
                           </div>
-                      </div>
-
-                      <div>
-                          <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Edit3 size={16}/> 관리자 메모</h4>
-                          {selectedSale.isCanceled ? (
-                              <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">{editFormData.memo}</div>
-                          ) : (
-                              <textarea 
-                                  className="w-full p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-shadow"
-                                  rows={3}
-                                  placeholder="판매 관련 특이사항 기록"
-                                  value={editFormData.memo || ''}
-                                  onChange={(e) => handleEditChange('memo', e.target.value)}
-                              />
-                          )}
                       </div>
                   </div>
                   
