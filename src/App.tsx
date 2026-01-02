@@ -814,17 +814,23 @@ const App: React.FC = () => {
                                 if (sale.isCanceled || !sale.inventoryAdjusted) return;
                                 
                                 const soldQty = sale.items.reduce((sum, item) => {
-                                    const idMatch = item.productId === prod.id;
-                                    
-                                    let fallbackMatch = false;
-                                    if (!item.productId) {
-                                        const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
-                                        const nameMatch = normalize(item.productName) === normalize(prod.name);
-                                        const specMatch = normalize(item.specification) === normalize(prod.specification);
-                                        fallbackMatch = nameMatch && specMatch;
+                                    // Only match by productId when available - most reliable
+                                    if (item.productId) {
+                                        return item.productId === prod.id ? sum + item.quantity : sum;
                                     }
                                     
-                                    return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
+                                    // Fallback to name+spec match ONLY if both are non-empty
+                                    const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+                                    const itemName = normalize(item.productName);
+                                    const itemSpec = normalize(item.specification);
+                                    const prodName = normalize(prod.name);
+                                    const prodSpec = normalize(prod.specification);
+                                    
+                                    // Both name and spec must match, and both must be non-empty
+                                    const fallbackMatch = itemName && itemSpec && prodName && prodSpec && 
+                                                        itemName === prodName && itemSpec === prodSpec;
+                                    
+                                    return fallbackMatch ? sum + item.quantity : sum;
                                 }, 0);
                                 
                                 if (soldQty > 0) {
@@ -868,18 +874,23 @@ const App: React.FC = () => {
                             if (sale.isCanceled || !sale.inventoryAdjusted) return;
                             
                             const soldQty = sale.items.reduce((sum, item) => {
-                                const idMatch = item.productId === prod.id;
-                                
-                                // fallback match: id가 없으면 name+spec으로 매칭
-                                let fallbackMatch = false;
-                                if (!item.productId) {
-                                    const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
-                                    const nameMatch = normalize(item.productName) === normalize(prod.name);
-                                    const specMatch = normalize(item.specification) === normalize(prod.specification);
-                                    fallbackMatch = nameMatch && specMatch;
+                                // Only match by productId when available - most reliable
+                                if (item.productId) {
+                                    return item.productId === prod.id ? sum + item.quantity : sum;
                                 }
                                 
-                                return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
+                                // Fallback to name+spec match ONLY if both are non-empty
+                                const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+                                const itemName = normalize(item.productName);
+                                const itemSpec = normalize(item.specification);
+                                const prodName = normalize(prod.name);
+                                const prodSpec = normalize(prod.specification);
+                                
+                                // Both name and spec must match, and both must be non-empty
+                                const fallbackMatch = itemName && itemSpec && prodName && prodSpec && 
+                                                    itemName === prodName && itemSpec === prodSpec;
+                                
+                                return fallbackMatch ? sum + item.quantity : sum;
                             }, 0);
                             
                             if (soldQty > 0) {
@@ -1574,17 +1585,22 @@ const App: React.FC = () => {
 
                 // Sum sold qty for this product by id, or fallback to name/spec match
                 const soldQty = saleToSave.items.reduce((sum, item) => {
-                    const idMatch = item.productId === prod.id;
-
-                    // Fallback only when productId is missing: require BOTH name + spec to match to avoid draining sibling sizes
-                    let fallbackMatch = false;
-                    if (!item.productId) {
-                        const nameMatch = normalize(item.productName) === normalize(prod.name);
-                        const specMatch = normalize(item.specification) === normalize(prod.specification);
-                        fallbackMatch = nameMatch && specMatch; // never allow name-only match
+                    // Only match by productId when available - most reliable
+                    if (item.productId) {
+                        return item.productId === prod.id ? sum + item.quantity : sum;
                     }
 
-                    return (idMatch || fallbackMatch) ? sum + item.quantity : sum;
+                    // Fallback to name+spec match ONLY if both are non-empty
+                    const itemName = normalize(item.productName);
+                    const itemSpec = normalize(item.specification);
+                    const prodName = normalize(prod.name);
+                    const prodSpec = normalize(prod.specification);
+                    
+                    // Both name and spec must match, and both must be non-empty
+                    const fallbackMatch = itemName && itemSpec && prodName && prodSpec && 
+                                        itemName === prodName && itemSpec === prodSpec;
+
+                    return fallbackMatch ? sum + item.quantity : sum;
                 }, 0);
 
                 if (soldQty <= 0) return prod;
