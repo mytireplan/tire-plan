@@ -414,7 +414,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     </div>
                 </div>
 
-                {/* 이메일 로그인으로 전환 */}
+                {/* 고유번호 로그인으로 전환 */}
                 <button
                     type="button"
                     onClick={() => {
@@ -423,7 +423,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     }}
                     className="w-full mt-6 py-3 bg-slate-100 rounded-xl font-bold text-slate-700 hover:bg-slate-200 transition-all"
                 >
-                    ✉️ 이메일로 로그인
+                    🔐 고유번호 로그인
                 </button>
 
                 <div className="mt-8 text-center">
