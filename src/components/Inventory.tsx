@@ -27,7 +27,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
   
   // Low Stock Logic
   const [filterLowStock, setFilterLowStock] = useState(false);
-  const [lowStockThreshold, setLowStockThreshold] = useState(5);
+  const [lowStockThreshold, setLowStockThreshold] = useState(3);
     const [hideZeroStock, setHideZeroStock] = useState(false);
   
   // Category Management State
