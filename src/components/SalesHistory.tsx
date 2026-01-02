@@ -532,7 +532,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
               // If we opened via 상품명(재고연동) 교체, replace that row; otherwise append
               const hasReplaceIndex = swapTarget?.isEditMode && typeof swapTarget.itemIndex === 'number' && swapTarget.itemIndex >= 0 && !swapTarget.isAdding;
-              if (hasReplaceIndex) {
+              if (hasReplaceIndex && swapTarget?.itemIndex !== undefined) {
                   newItems[swapTarget.itemIndex] = {
                       productId: proxyProduct.id,
                       productName: proxyProduct.name,
