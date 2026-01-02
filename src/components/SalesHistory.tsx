@@ -519,25 +519,42 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           specification: record.specification
       };
 
-      // 3. Add to Sale List with correct quantity
-      // If sufficient stock, automatically add to the current sale if it's in edit mode
-      if (selectedSale && editFormData) {
-          // We're editing a sale, add the product automatically
-          let newItems = [...editFormData.items];
-          
-          newItems.push({
-              productId: proxyProduct.id,
-              productName: proxyProduct.name,
-              brand: proxyProduct.brand,
-              specification: proxyProduct.specification,
-              quantity: consumptionQty,
-              priceAtSale: proxyProduct.price
-          });
-          
-          newItems = recalculateUnitPrices(newItems, getLockedBudget());
-          setEditFormData({ ...editFormData, items: newItems });
-          setHasUnsavedChanges(true);
-      } else if (insufficientStockProduct) {
+      // 3. Add/replace in Sale List with correct quantity
+      const replaceOrAppendItem = () => {
+          if (selectedSale && editFormData) {
+              let newItems = [...editFormData.items];
+
+              // If we opened via 상품명(재고연동) 교체, replace that row; otherwise append
+              const hasReplaceIndex = swapTarget?.isEditMode && typeof swapTarget.itemIndex === 'number' && swapTarget.itemIndex >= 0 && !swapTarget.isAdding;
+              if (hasReplaceIndex) {
+                  newItems[swapTarget.itemIndex] = {
+                      productId: proxyProduct.id,
+                      productName: proxyProduct.name,
+                      brand: proxyProduct.brand,
+                      specification: proxyProduct.specification,
+                      quantity: consumptionQty,
+                      priceAtSale: proxyProduct.price
+                  } as SalesItem;
+              } else {
+                  newItems.push({
+                      productId: proxyProduct.id,
+                      productName: proxyProduct.name,
+                      brand: proxyProduct.brand,
+                      specification: proxyProduct.specification,
+                      quantity: consumptionQty,
+                      priceAtSale: proxyProduct.price
+                  });
+              }
+
+              newItems = recalculateUnitPrices(newItems, getLockedBudget());
+              setEditFormData({ ...editFormData, items: newItems });
+              setHasUnsavedChanges(true);
+          }
+      };
+
+      replaceOrAppendItem();
+
+      if (insufficientStockProduct) {
           // We have swapTarget set from the warning popup
           if (swapTarget?.isEditMode && editFormData) {
               let newItems = [...editFormData.items];
@@ -570,7 +587,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
               setQuickAddForm(prev => ({ ...prev, items: newItems }));
           }
       } else {
-          // Normal flow without insufficient stock warning - directly add to cart
+          // Normal flow without insufficient stock warning
           if (swapTarget?.isQuickAddCart) {
               // Quick-add cart
               let newItems = [...quickAddForm.items];
@@ -584,10 +601,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
               });
               setQuickAddForm(prev => ({ ...prev, items: newItems }));
           } else if (swapTarget?.isEditMode && editFormData) {
-              // Sales detail edit mode
-              let newItems = [...editFormData.items];
-              
               if (swapTarget.isAdding) {
+                  // 추가 모드에서는 기존 로직대로 append
+                  let newItems = [...editFormData.items];
                   newItems.push({
                       productId: proxyProduct.id,
                       productName: proxyProduct.name,
@@ -596,11 +612,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                       quantity: consumptionQty,
                       priceAtSale: proxyProduct.price
                   });
-              }
-              
-              newItems = recalculateUnitPrices(newItems, getLockedBudget());
-              setEditFormData({ ...editFormData, items: newItems });
-              setHasUnsavedChanges(true);
+                  newItems = recalculateUnitPrices(newItems, getLockedBudget());
+                  setEditFormData({ ...editFormData, items: newItems });
+                  setHasUnsavedChanges(true);
+              } // 교체 모드는 replaceOrAppendItem에서 처리
           } else {
               // Fallback to executeSwap
               executeSwap({ ...proxyProduct, _swapQuantity: consumptionQty });
@@ -623,12 +638,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           });
       }
 
+      // 닫기 및 원래 판매 상세로 복귀
       setIsStockInModalOpen(false);
-      // Close Swap modal if it's open for quick-add cart
-      if (swapTarget?.isQuickAddCart) {
-          setIsSwapModalOpen(false);
-          setSwapTarget(null);
-      }
+      setIsSwapModalOpen(false);
+      setSwapTarget(null);
       // Reset states
       setInsuffcientStockProduct(null);
       setIsStockWarningOpen(false);
