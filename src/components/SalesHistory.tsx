@@ -1375,8 +1375,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                             <td className="px-4 py-3 text-center text-gray-800 font-bold whitespace-nowrap">
                                                 {(() => {
                                                     const tireQty = sale.items.reduce((sum, item) => sum + (isTireItem(item) ? (item.quantity || 0) : 0), 0);
-                                                    const hasNonTire = sale.items.some(item => !isTireItem(item));
-                                                    return hasNonTire ? '-' : `${tireQty}개`;
+                                                    return tireQty > 0 ? `${tireQty}개` : '-';
                                                 })()}
                                             </td>
                                             <td className="px-4 py-3 text-right whitespace-nowrap">
