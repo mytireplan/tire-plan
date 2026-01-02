@@ -832,8 +832,8 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                   {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 매출 캘린더
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-600">타이어 총 판매량:</span>
-                <span className="text-lg font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">{formatNumber(monthlyTireQuantity)}개</span>
+                <span className="text-xs font-semibold text-slate-700">타이어 총 판매량:</span>
+                <span className="text-base font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">{formatNumber(monthlyTireQuantity)}개</span>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -891,24 +891,24 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                           'border-gray-100 hover:border-blue-300 bg-white hover:shadow-md hover:-translate-y-1'}
                                     `}
                                 >
-                                    <span className={`text-[11px] md:text-sm font-medium 
-                                        ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-700'}
-                                    `}>
-                                        {date.getDate()}
-                                    </span>
-                                    {(revenue > 0 || tireQuantity > 0) && (
-                                        <div className="flex flex-col justify-between h-full">
-                                            <div className="text-right flex flex-col items-end gap-0.5 mt-1 w-full">
-                                                <div className={`font-bold text-[13px] leading-tight tracking-tight truncate max-w-full ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
-                                                    {formatCurrency(revenue)}
-                                                </div>
+                                    <div className="flex items-start justify-between w-full">
+                                        <span className={`text-[11px] md:text-sm font-medium 
+                                            ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-700'}
+                                        `}>
+                                            {date.getDate()}
+                                        </span>
+                                        {tireQuantity > 0 && (
+                                            <div className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1 py-0.5 rounded-full whitespace-nowrap">
+                                                타이어 {tireQuantity}
                                             </div>
-                                            <div className="flex flex-col items-start text-[9px] text-gray-500 font-medium leading-snug gap-0.5 w-full">
-                                                {tireQuantity > 0 && (
-                                                    <span className="font-bold text-blue-700 bg-blue-100 px-1 py-0.5 rounded-full whitespace-nowrap text-[10px]">
-                                                        타이어 {tireQuantity}개
-                                                    </span>
-                                                )}
+                                        )}
+                                    </div>
+                                    {(revenue > 0 || tireQuantity > 0) && (
+                                        <div className="text-right flex flex-col items-end gap-0.5 mt-1 w-full">
+                                            <div className={`font-bold text-[13px] leading-tight tracking-tight truncate max-w-full ${isHighRevenue ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                                {formatCurrency(revenue)}
+                                            </div>
+                                            <div className="flex flex-col items-end text-[9px] text-gray-500 font-medium leading-snug mt-1 gap-0.5 w-full">
                                                 {card > 0 && (
                                                     <span className="flex items-center gap-1 text-blue-500 truncate max-w-full">
                                                         <CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만
@@ -961,7 +961,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                             {card > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full flex items-center gap-1 truncate max-w-[140px]"><CreditCard size={12} /> {formatCurrency(Math.round(card/10000))}만</span>}
                                             {cash > 0 && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full flex items-center gap-1 truncate max-w-[140px]"><Banknote size={12} /> {formatCurrency(Math.round(cash/10000))}만</span>}
                                             {transfer > 0 && <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full flex items-center gap-1 truncate max-w-[140px]"><Smartphone size={12} /> {formatCurrency(Math.round(transfer/10000))}만</span>}
-                                            {tireQuantity > 0 && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold truncate max-w-[140px]">타이어 {tireQuantity}개</span>}
+                                            {tireQuantity > 0 && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[9px] font-bold truncate max-w-[140px]">타이어 {tireQuantity}개</span>}
                                         </div>
                                     </div>
                                 </div>
