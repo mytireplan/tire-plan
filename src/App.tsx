@@ -24,6 +24,7 @@ import ScheduleAndLeave from './components/ScheduleAndLeave';
 import ReservationSystem from './components/ReservationSystem';
 import LoginScreen from './components/LoginScreen';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
+import AdminDashboard from './components/AdminDashboard';
 import StoreSelectionScreen from './components/StoreSelectionScreen';
 
 // Owner account persisted in Firestore
@@ -493,7 +494,7 @@ const INITIAL_TRANSFER_HISTORY: StockTransferRecord[] = [
 // Demo seeding guard: only seed mock data when explicitly enabled.
 const SHOULD_SEED_DEMO = import.meta.env.VITE_SEED_DEMO === 'true';
 
-type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin';
+type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin' | 'admin';
 
 type ViewState = 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
 
@@ -2139,6 +2140,7 @@ const App: React.FC = () => {
     const isAdmin = effectiveUser?.role === 'STORE_ADMIN'; 
     const items = [
       { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, show: true, type: 'CORE' },
+      { id: 'admin', label: '관리자 대시보드', icon: PieChart, show: isAdmin && !managerSession, type: 'ADMIN' },
       { id: 'pos', label: '판매 (POS)', icon: ShoppingCart, show: true, type: 'CORE' },
       { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: true, type: 'CORE' },
       { id: 'history', label: '판매 내역', icon: List, show: true, type: 'CORE' }, 
@@ -2436,6 +2438,14 @@ const App: React.FC = () => {
                 currentUser={effectiveUser} currentStoreId={currentStoreId}
                 stockInHistory={visibleStockHistory} transferHistory={transferHistory} expenses={visibleExpenses}
                 isSidebarOpen={isSidebarOpen} leaveRequests={leaveRequests}
+                />
+            )}
+            {activeTab === 'admin' && (
+                <AdminDashboard
+                sales={visibleSales} stores={visibleStores}
+                staffList={visibleStaff}
+                leaveRequests={leaveRequests}
+                currentUser={effectiveUser}
                 />
             )}
             {activeTab === 'pos' && (
