@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { Sale, Store, Staff, LeaveRequest } from '../types';
 import { PaymentMethod } from '../types';
 import { 
@@ -26,7 +26,6 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  Legend, 
   ResponsiveContainer, 
   PieChart, 
   Pie, 
@@ -41,6 +40,8 @@ interface AdminDashboardProps {
   leaveRequests: LeaveRequest[];
   currentUser: any;
 }
+
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
 // --- UI 헬퍼 컴포넌트 ---
 const SectionWrapper = ({ title, children, defaultOpen = true }: any) => {
@@ -171,15 +172,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
     return { total, suppliers };
   }, [filteredSales]);
 
+  // 정비 데이터 계산 (간단히 품목 수로 계산)
+  const maintenanceData = useMemo(() => {
+    const items: { name: string; count: number; revenue: number }[] = [];
+    const itemMap = new Map<string, { count: number; revenue: number }>();
+
+    filteredSales.forEach(s => {
+      s.items?.forEach(item => {
+        if (!itemMap.has(item.productName)) {
+          itemMap.set(item.productName, { count: 0, revenue: 0 });
+        }
+        const existing = itemMap.get(item.productName)!;
+        itemMap.set(item.productName, {
+          count: existing.count + item.quantity,
+          revenue: existing.revenue + (item.price * item.quantity)
+        });
+      });
+    });
+
+    itemMap.forEach((data, name) => {
+      items.push({ name, ...data });
+    });
+
+    items.sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      totalCount: items.reduce((sum, item) => sum + item.count, 0),
+      totalRevenue: items.reduce((sum, item) => sum + item.revenue, 0),
+      items: items.slice(0, 4)
+    };
+  }, [filteredSales]);
+
   // 매장별 성과 비교
   const storePerformanceData = useMemo(() => {
     return stores.map(store => {
       const storeSales = filteredSales.filter(s => s.storeId === store.id);
       const revenue = Math.round(storeSales.reduce((sum, s) => sum + s.totalAmount, 0) / 1000); // 천 단위
       const tires = storeSales.reduce((sum, s) => sum + (s.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0), 0);
-      
-      // 정비 항목 (items 중 타이어가 아닌 것으로 추정)
-      const maint = storeSales.reduce((sum, s) => sum + (s.items?.filter(item => !item.productName?.includes('타이어')).length || 0), 0);
+      const maint = storeSales.reduce((sum, s) => sum + (s.items?.length || 0), 0);
       
       return { name: store.name, revenue, tires, maint };
     });
@@ -189,33 +219,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const daysInMonth = useMemo(() => new Date(year, month + 1, 0).getDate(), [year, month]);
   const startDay = useMemo(() => new Date(year, month, 1).getDay(), [year, month]);
 
-  // 일별 매출
+  // 일별 매출 및 타이어 판매
   const dailySalesMap = useMemo(() => {
     const map = new Map<number, { revenue: number; count: number; tires: number }>();
     filteredSales.forEach(s => {
       const day = new Date(s.date).getDate();
       const existing = map.get(day) || { revenue: 0, count: 0, tires: 0 };
+      const tireQty = s.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
       map.set(day, {
         revenue: existing.revenue + s.totalAmount,
         count: existing.count + 1,
-        tires: existing.tires + (s.items?.reduce((sum, item) => sum + item.quantity, 0) || 0)
+        tires: existing.tires + tireQty
       });
     });
     return map;
   }, [filteredSales]);
 
-  // 직원 휴무 일정 필터
+  // 다가오는 휴무 (7일 이내)
   const upcomingLeaves = useMemo(() => {
     const today = new Date();
+    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    
     return leaveRequests
       .filter(lr => {
-        const leaveDate = new Date(lr.date);
-        return leaveDate >= today && leaveDate <= new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000); // 7일 이내
+        if (lr.status !== 'APPROVED') return false;
+        const startDate = new Date(lr.startDate);
+        return startDate >= today && startDate <= nextWeek;
       })
       .slice(0, 3);
   }, [leaveRequests]);
-
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
@@ -234,9 +266,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
             className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium shadow-sm outline-none focus:ring-2 ring-blue-500 h-10"
           >
             <option value="ALL">전체 매장</option>
-            {stores.map(store => (
-              <option key={store.id} value={store.id}>{store.name}</option>
-            ))}
+            {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
 
           {/* 월별 이동 네비게이션 */}
@@ -265,36 +295,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
 
       <main className="max-w-7xl mx-auto space-y-6">
         
-        {/* 1. 매출 캘린더 */}
+        {/* 1. 매출 캘린더 (접었다 폈다) */}
         <SectionWrapper title={`${month + 1}월 매출 현황 (캘린더)`} defaultOpen={false}>
           <div className="grid grid-cols-7 gap-1 min-h-[400px]">
             {['일','월','화','수','목','금','토'].map(d => (
               <div key={d} className="text-center py-2 text-xs font-bold text-slate-400 border-b border-slate-100">{d}</div>
             ))}
             
-            {/* 공백 */}
+            {/* 공백 채우기 (시작 요일 전까지) */}
             {Array.from({length: startDay}).map((_, i) => (
               <div key={`empty-${i}`} className="min-h-[80px] bg-slate-50/30 border border-transparent" />
             ))}
 
-            {/* 실제 날짜 */}
+            {/* 실제 날짜 Grid */}
             {Array.from({length: daysInMonth}).map((_, i) => {
               const day = i + 1;
               const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
-              const dailyData = dailySalesMap.get(day);
-
+              const dayData = dailySalesMap.get(day);
+              
               return (
                 <div key={day} className={`min-h-[80px] p-2 border border-slate-50 hover:bg-blue-50 transition-colors cursor-pointer group ${isToday ? 'bg-blue-50/50' : ''}`}>
                   <span className={`text-xs font-medium ${isToday ? 'text-blue-600 font-bold' : 'text-slate-400'} group-hover:text-blue-600`}>
                     {day}
                   </span>
-                  {dailyData && (
+                  {dayData && (
                     <div className="mt-1 space-y-1">
                       <div className="text-[9px] bg-blue-100 text-blue-700 px-1 rounded font-bold truncate">
-                        {formatCurrency(Math.round(dailyData.revenue / 1000000))}M
+                        {(dayData.revenue / 1000000).toFixed(1)}M
                       </div>
                       <div className="text-[9px] bg-green-100 text-green-700 px-1 rounded font-bold truncate">
-                        {dailyData.count}건
+                        {dayData.tires}개
                       </div>
                     </div>
                   )}
@@ -304,15 +334,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
           </div>
         </SectionWrapper>
 
-        {/* 2. 카드 섹션 */}
+        {/* 2. 카드 섹션 (접었다 폈다) */}
         <SectionWrapper title={`${month + 1}월 주요 지표 요약`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            {/* 월별 총 매출 */}
+            {/* 월별 총 매출 카드 */}
             <StatCard 
               title="월별 총 매출"
               value={formatCurrency(revenueData.total)}
-              subValue={`${filteredSales.length} 건의 거래`}
+              subValue={`총 ${filteredSales.length}건`}
               icon={DollarSign}
               color="bg-blue-500"
               detailContent={
@@ -328,29 +358,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                     </div>
                   ))}
                   <div className="mt-2 h-2 w-full bg-slate-200 rounded-full flex overflow-hidden">
-                    {revenueData.breakdown.map((item, idx) => {
-                      const width = revenueData.total > 0 ? (item.value / revenueData.total) * 100 : 0;
-                      const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-orange-500'];
-                      return (
-                        <div key={idx} className={colors[idx]} style={{width: `${width}%`}} />
-                      );
-                    })}
+                    {revenueData.breakdown.map((item, idx) => (
+                      <div 
+                        key={idx}
+                        className={`h-full ${idx === 0 ? 'bg-blue-500' : idx === 1 ? 'bg-emerald-500' : 'bg-orange-500'}`} 
+                        style={{width: `${revenueData.total > 0 ? (item.value / revenueData.total * 100) : 0}%`}} 
+                      />
+                    ))}
                   </div>
                 </div>
               }
             />
 
-            {/* 월별 타이어 판매 */}
+            {/* 월별 타이어 판매 수량 카드 */}
             <StatCard 
               title="총 타이어 판매량"
               value={`${formatNumber(tireSalesData.total)} 개`}
-              subValue={`${tireSalesData.suppliers.length}개 브랜드`}
+              subValue={`총 ${tireSalesData.suppliers.length}개 브랜드`}
               icon={Truck}
               color="bg-emerald-500"
               detailContent={
                 <div className="space-y-3">
                   <p className="text-xs font-bold text-slate-500 mb-2">브랜드별 판매 순위</p>
-                  {tireSalesData.suppliers.map((s, idx) => (
+                  {tireSalesData.suppliers.slice(0, 4).map((s, idx) => (
                     <div key={idx} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className={`w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}`}>
@@ -365,26 +395,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
               }
             />
 
-            {/* 정비 실적 */}
+            {/* 월별 정비 수량 및 매출 카드 */}
             <StatCard 
-              title="정비 건수"
-              value={`${storePerformanceData.reduce((sum, s) => sum + s.maint, 0)} 건`}
-              subValue="월별 정비 현황"
+              title="정비 수량 및 매출"
+              value={`${maintenanceData.totalCount} 건`}
+              subValue={formatCurrency(maintenanceData.totalRevenue)}
               icon={Settings}
               color="bg-orange-500"
               detailContent={
                 <div className="space-y-3">
-                  <p className="text-xs font-bold text-slate-500 mb-2">매장별 정비 실적</p>
+                  <p className="text-xs font-bold text-slate-500 mb-2">항목별 정비 실적</p>
                   <div className="max-h-[150px] overflow-y-auto space-y-2 pr-1">
-                    {storePerformanceData.map((item, idx) => (
+                    {maintenanceData.items.map((item, idx) => (
                       <div key={idx} className="bg-white p-2 rounded-lg border border-slate-200 flex flex-col gap-1">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-bold text-slate-700">{item.name}</span>
-                          <span className="text-xs text-blue-600 font-bold">{item.maint} 건</span>
+                          <span className="text-xs text-blue-600 font-bold">{item.count} 건</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-slate-400">매출</span>
-                          <span className="text-[10px] text-slate-600">{formatCurrency(item.revenue * 1000)}</span>
+                          <span className="text-[10px] text-slate-400">합계 매출</span>
+                          <span className="text-[10px] text-slate-600">{formatCurrency(item.revenue)}</span>
                         </div>
                       </div>
                     ))}
@@ -396,7 +426,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
           </div>
         </SectionWrapper>
 
-        {/* 3. 그래프 섹션 */}
+        {/* 3. 그래프 섹션 - 매장별 점유율 및 비교 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
@@ -469,21 +499,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total</p>
                 <p className="text-xl font-black text-slate-800">
-                  {storePerformanceData.reduce((acc, curr) => acc + curr[chartType], 0).toLocaleString()}
+                  {storePerformanceData.reduce((acc, curr) => acc + (curr[chartType] || 0), 0).toLocaleString()}
                 </p>
               </div>
             </div>
             <div className="mt-4 grid grid-cols-1 gap-2">
               {storePerformanceData.map((item, idx) => {
-                const total = storePerformanceData.reduce((acc, curr) => acc + curr[chartType], 0);
-                const percent = total > 0 ? Math.round((item[chartType] / total) * 100) : 0;
+                const total = storePerformanceData.reduce((acc, curr) => acc + (curr[chartType] || 0), 0);
+                const percentage = total > 0 ? Math.round(((item[chartType] || 0) / total) * 100) : 0;
                 return (
                   <div key={item.name} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{backgroundColor: COLORS[idx]}} />
                       <span className="text-slate-600">{item.name}</span>
                     </div>
-                    <span className="font-bold text-slate-800">{percent}%</span>
+                    <span className="font-bold text-slate-800">
+                      {percentage}%
+                    </span>
                   </div>
                 );
               })}
@@ -494,7 +526,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
         {/* 4. 공지사항 & 직원 휴무 */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           
-          {/* 공지사항 */}
+          {/* 공지사항 (좌측 3개분할) */}
           <div className="lg:col-span-3 bg-slate-900 rounded-2xl p-6 text-white overflow-hidden relative">
             <div className="flex items-center justify-between mb-4 relative z-10">
               <h2 className="text-lg font-bold flex items-center gap-2">
@@ -506,7 +538,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
             <div className="space-y-3 relative z-10">
               {[
                 { tag: "중요", title: "1월 설 연휴 휴무 안내", date: "2026.01.03" },
-                { tag: "이벤트", title: "타이어 교체 20% 할인 프로모션 시작", date: "2026.01.02" },
+                { tag: "이벤트", title: "엔진오일 교환 20% 할인 프로모션 시작", date: "2026.01.02" },
                 { tag: "업데이트", title: "시스템 정기 점검 안내 (01:00 ~ 03:00)", date: "2025.12.31" },
               ].map((n, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-white bg-opacity-5 hover:bg-opacity-10 rounded-xl transition-all cursor-pointer border border-transparent hover:border-white/10">
@@ -523,41 +555,50 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
             <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-blue-600 rounded-full blur-[80px] opacity-20" />
           </div>
 
-          {/* 직원 휴무 일정 */}
+          {/* 직원 휴무 일정 (우측 2개분할) */}
           <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <UserX size={20} className="text-red-500" />
                 직원 휴무 일정
               </h2>
-              <div className="bg-red-50 text-red-600 text-[10px] px-2 py-1 rounded-full font-bold">{upcomingLeaves.length}명</div>
+              <div className="bg-red-50 text-red-600 text-[10px] px-2 py-1 rounded-full font-bold">이번주 {upcomingLeaves.length}명</div>
             </div>
             <div className="space-y-3">
-              {upcomingLeaves.length > 0 ? (
-                upcomingLeaves.map((leave, i) => (
+              {upcomingLeaves.length > 0 ? upcomingLeaves.map((leave, i) => {
+                const staff = staffList.find(s => s.id === leave.staffId);
+                const store = stores.find(s => s.id === staff?.storeId);
+                const startDate = new Date(leave.startDate);
+                const endDate = new Date(leave.endDate);
+                const dateStr = startDate.toLocaleDateString() === endDate.toLocaleDateString() 
+                  ? `${startDate.getMonth() + 1}.${String(startDate.getDate()).padStart(2, '0')}`
+                  : `${startDate.getMonth() + 1}.${String(startDate.getDate()).padStart(2, '0')} ~ ${endDate.getMonth() + 1}.${String(endDate.getDate()).padStart(2, '0')}`;
+
+                return (
                   <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-red-50 group transition-all cursor-pointer">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center border border-slate-200 shadow-sm group-hover:border-red-200">
                         <Clock size={14} className="text-slate-400 group-hover:text-red-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-700">{leave.staffName}</p>
-                        <p className="text-[10px] text-slate-400 font-medium">{leave.date}</p>
+                        <p className="text-sm font-bold text-slate-700">{staff?.name || '직원'}</p>
+                        <p className="text-[10px] text-slate-400 font-medium">{store?.name || ''} · {leave.reason || '휴가'}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-bold text-slate-600 group-hover:text-red-600">{leave.date}</p>
+                      <p className="text-xs font-bold text-slate-600 group-hover:text-red-600">{dateStr}</p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-sm text-slate-400">예정된 휴무가 없습니다.</p>
+                );
+              }) : (
+                <div className="text-center py-8 text-slate-400 text-sm">
+                  예정된 휴무가 없습니다.
                 </div>
               )}
             </div>
+            {/* 데이터가 없을 때의 장식적인 요소 */}
             <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex justify-center">
-              <button className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors">휴무 일정 보기 +</button>
+              <button className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors">휴무 일정 등록 +</button>
             </div>
           </div>
 
