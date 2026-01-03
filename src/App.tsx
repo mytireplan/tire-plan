@@ -2462,6 +2462,10 @@ const App: React.FC = () => {
                             staffList={visibleStaff}
                             leaveRequests={leaveRequests}
                             currentUser={effectiveUser}
+                            onNavigateToLeaveSchedule={() => {
+                              localStorage.setItem('scheduleDefaultType', 'OFF');
+                              setActiveTab('leave');
+                            }}
                         />
                     ) : (
                         <Dashboard 

@@ -41,6 +41,7 @@ interface AdminDashboardProps {
   staffList: Staff[];
   leaveRequests: LeaveRequest[];
   currentUser: any;
+  onNavigateToLeaveSchedule?: () => void;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
@@ -105,7 +106,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, onClick, detailCo
   );
 };
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, currentUser }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, currentUser, onNavigateToLeaveSchedule }) => {
   const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL');
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -162,16 +163,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
     return { total, breakdown };
   }, [filteredSales]);
 
-  // 타이어 판매 계산
+  // 타이어 판매 계산 (타이어만 필터링)
   const tireSalesData = useMemo(() => {
-    const total = filteredSales.reduce((sum, s) => sum + (s.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0), 0);
+    // 타이어만 필터링 (productName에 '타이어' 포함)
+    const total = filteredSales.reduce((sum, s) => {
+      const tireQty = s.items?.reduce((itemSum, item) => {
+        const isTire = item.productName?.includes('타이어');
+        return itemSum + (isTire ? item.quantity : 0);
+      }, 0) || 0;
+      return sum + tireQty;
+    }, 0);
     
-    // 브랜드별 집계
+    // 브랜드별 집계 (타이어만)
     const brandMap = new Map<string, number>();
     filteredSales.forEach(s => {
       s.items?.forEach(item => {
-        const brand = item.brand || '기타';
-        brandMap.set(brand, (brandMap.get(brand) || 0) + item.quantity);
+        const isTire = item.productName?.includes('타이어');
+        if (isTire) {
+          const brand = item.brand || '기타';
+          brandMap.set(brand, (brandMap.get(brand) || 0) + item.quantity);
+        }
       });
     });
 
@@ -217,9 +228,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const storePerformanceData = useMemo(() => {
     return stores.map(store => {
       const storeSales = filteredSales.filter(s => s.storeId === store.id);
-      const revenue = Math.round(storeSales.reduce((sum, s) => sum + s.totalAmount, 0) / 1000); // 천 단위
-      const tires = storeSales.reduce((sum, s) => sum + (s.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0), 0);
-      const maint = storeSales.reduce((sum, s) => sum + (s.items?.length || 0), 0);
+      // 매출: 실제 금액 (천 단위로 표시하기 위해 1000으로 나눔)
+      const revenueTotal = storeSales.reduce((sum, s) => sum + s.totalAmount, 0);
+      const revenue = Math.round(revenueTotal / 1000); // 천 단위 (차트에서 1 = 천원)
+      
+      // 타이어 판매 개수 (타이어만 필터링)
+      const tires = storeSales.reduce((sum, s) => {
+        const tireQty = s.items?.reduce((itemSum, item) => {
+          const isTire = item.productName?.includes('타이어');
+          return itemSum + (isTire ? item.quantity : 0);
+        }, 0) || 0;
+        return sum + tireQty;
+      }, 0);
+      
+      // 정비 건수 (타이어가 아닌 상품 항목 수)
+      const maint = storeSales.reduce((sum, s) => {
+        const maintCount = s.items?.filter(item => !item.productName?.includes('타이어')).length || 0;
+        return sum + maintCount;
+      }, 0);
       
       return { name: store.name, revenue, tires, maint };
     });
@@ -229,13 +255,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const daysInMonth = useMemo(() => new Date(year, month + 1, 0).getDate(), [year, month]);
   const startDay = useMemo(() => new Date(year, month, 1).getDay(), [year, month]);
 
-  // 일별 매출 및 타이어 판매
+  // 일별 매출 및 타이어 판매 (타이어만 필터링)
   const dailySalesMap = useMemo(() => {
     const map = new Map<number, { revenue: number; count: number; tires: number }>();
     filteredSales.forEach(s => {
       const day = new Date(s.date).getDate();
       const existing = map.get(day) || { revenue: 0, count: 0, tires: 0 };
-      const tireQty = s.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+      // 타이어만 계산
+      const tireQty = s.items?.reduce((sum, item) => {
+        const isTire = item.productName?.includes('타이어');
+        return sum + (isTire ? item.quantity : 0);
+      }, 0) || 0;
       map.set(day, {
         revenue: existing.revenue + s.totalAmount,
         count: existing.count + 1,
@@ -344,7 +374,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                         {formatCurrency(dayData.revenue)}
                       </div>
                       <div className="text-[9px] bg-green-100 text-green-700 px-1 rounded font-bold truncate">
-                        {dayData.tires}개
+                        타이어 {dayData.tires}개
                       </div>
                     </div>
                   )}
@@ -454,20 +484,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                 <BarChart3 className="text-blue-600" size={20} />
                 매장별 성과 비교
               </h2>
-              <div className="flex bg-slate-100 p-1 rounded-lg self-start">
-                {[
-                  { id: 'revenue', label: '매출' },
-                  { id: 'tires', label: '타이어' },
-                  { id: 'maint', label: '정비' }
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setChartType(t.id as any)}
-                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${chartType === t.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-2 self-start">
+                <div className="flex bg-slate-100 p-1 rounded-lg">
+                  {[
+                    { id: 'revenue', label: '매출' },
+                    { id: 'tires', label: '타이어' },
+                    { id: 'maint', label: '정비' }
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setChartType(t.id as any)}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${chartType === t.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {chartType === 'revenue' && (
+                  <p className="text-[11px] text-slate-500 font-medium">※ 매출은 천 단위로 표시됩니다 (1 = ₩1,000)</p>
+                )}
+                {chartType === 'tires' && (
+                  <p className="text-[11px] text-slate-500 font-medium">※ 타이어 개수 (개)</p>
+                )}
+                {chartType === 'maint' && (
+                  <p className="text-[11px] text-slate-500 font-medium">※ 정비 항목 수 (개)</p>
+                )}
               </div>
             </div>
             
@@ -628,8 +669,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
             <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex justify-center">
               <button 
                 onClick={() => {
-                  // ScheduleAndLeave로 이동 및 휴무 타입 선택 상태 전달
-                  window.dispatchEvent(new CustomEvent('navigateToScheduleWithType', { detail: { type: 'LEAVE' } }));
+                  if (onNavigateToLeaveSchedule) {
+                    onNavigateToLeaveSchedule();
+                  }
                 }}
                 className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1"
               >
