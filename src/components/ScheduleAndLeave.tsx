@@ -141,6 +141,16 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
 
   const resolveStoreId = () => selectedStoreId || currentStoreId || shiftDraft.storeId || stores[0]?.id || '';
 
+  // localStorage에서 기본 근무 타입 읽기 (관리자 대시보드에서 휴무 추가 시)
+  useEffect(() => {
+    const defaultType = localStorage.getItem('scheduleDefaultType');
+    if (defaultType === 'LEAVE') {
+      setShiftDraft(prev => ({ ...prev, shiftType: 'OFF' }));
+      setIsShiftModalOpen(true);
+      localStorage.removeItem('scheduleDefaultType');
+    }
+  }, []);
+
   useEffect(() => {
     if (!onShiftRangeChange) return;
     let startStr: string;

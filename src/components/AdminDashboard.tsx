@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Sale, Store, Staff, LeaveRequest } from '../types';
 import { PaymentMethod } from '../types';
 import { 
@@ -17,7 +17,9 @@ import {
   Banknote,
   Wallet,
   UserX,
-  Clock
+  Clock,
+  Plus,
+  X as XIcon
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -107,6 +109,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL');
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [announcements, setAnnouncements] = useState([
+    { id: '1', tag: "중요", title: "1월 설 연휴 휴무 안내", date: "2026.01.03" },
+    { id: '2', tag: "이벤트", title: "엔진오일 교환 20% 할인 프로모션 시작", date: "2026.01.02" },
+    { id: '3', tag: "업데이트", title: "시스템 정기 점검 안내 (01:00 ~ 03:00)", date: "2025.12.31" },
+  ]);
+  const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
+  const [newAnnouncement, setNewAnnouncement] = useState({ tag: '이벤트', title: '', content: '' });
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -314,14 +324,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
               const dayData = dailySalesMap.get(day);
               
               return (
-                <div key={day} className={`min-h-[80px] p-2 border border-slate-50 hover:bg-blue-50 transition-colors cursor-pointer group ${isToday ? 'bg-blue-50/50' : ''}`}>
+                <div 
+                  key={day} 
+                  onClick={() => {
+                    if (dayData) {
+                      // 날짜 클릭 시 판매내역 탭으로 이동하고 해당 날짜의 판매 필터링
+                      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      window.dispatchEvent(new CustomEvent('navigateToDailyHistory', { detail: { date: dateString } }));
+                    }
+                  }}
+                  className={`min-h-[80px] p-2 border border-slate-50 transition-colors group ${dayData ? 'hover:bg-blue-50 cursor-pointer' : ''} ${isToday ? 'bg-blue-50/50' : ''}`}
+                >
                   <span className={`text-xs font-medium ${isToday ? 'text-blue-600 font-bold' : 'text-slate-400'} group-hover:text-blue-600`}>
                     {day}
                   </span>
                   {dayData && (
                     <div className="mt-1 space-y-1">
                       <div className="text-[9px] bg-blue-100 text-blue-700 px-1 rounded font-bold truncate">
-                        {(dayData.revenue / 1000000).toFixed(1)}M
+                        {formatCurrency(dayData.revenue)}
                       </div>
                       <div className="text-[9px] bg-green-100 text-green-700 px-1 rounded font-bold truncate">
                         {dayData.tires}개
@@ -533,15 +553,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                 <Bell size={20} className="text-blue-400" />
                 공지사항 및 알림
               </h2>
-              <button className="text-xs text-slate-400 hover:text-white">전체보기</button>
+              <div className="flex gap-2">
+                <button className="text-xs text-slate-400 hover:text-white">전체보기</button>
+                <button 
+                  onClick={() => setShowAddAnnouncement(true)}
+                  className="text-xs text-slate-400 hover:text-blue-400 hover:bg-white/10 px-2 py-1 rounded-md transition-all flex items-center gap-1"
+                >
+                  <Plus size={14} /> 추가
+                </button>
+              </div>
             </div>
             <div className="space-y-3 relative z-10">
-              {[
-                { tag: "중요", title: "1월 설 연휴 휴무 안내", date: "2026.01.03" },
-                { tag: "이벤트", title: "엔진오일 교환 20% 할인 프로모션 시작", date: "2026.01.02" },
-                { tag: "업데이트", title: "시스템 정기 점검 안내 (01:00 ~ 03:00)", date: "2025.12.31" },
-              ].map((n, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-white bg-opacity-5 hover:bg-opacity-10 rounded-xl transition-all cursor-pointer border border-transparent hover:border-white/10">
+              {announcements.map((n, i) => (
+                <div 
+                  key={n.id} 
+                  onClick={() => setSelectedAnnouncement(n)}
+                  className="flex items-center justify-between p-3 bg-white bg-opacity-5 hover:bg-opacity-10 rounded-xl transition-all cursor-pointer border border-transparent hover:border-white/10"
+                >
                   <div className="flex items-center gap-3">
                     <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${n.tag === '중요' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}>
                       {n.tag}
@@ -596,15 +624,142 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                 </div>
               )}
             </div>
-            {/* 데이터가 없을 때의 장식적인 요소 */}
+            {/* 휴무 일정 등록 버튼 */}
             <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex justify-center">
-              <button className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors">휴무 일정 등록 +</button>
+              <button 
+                onClick={() => {
+                  // ScheduleAndLeave로 이동 및 휴무 타입 선택 상태 전달
+                  window.dispatchEvent(new CustomEvent('navigateToScheduleWithType', { detail: { type: 'LEAVE' } }));
+                }}
+                className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1"
+              >
+                <Plus size={14} /> 휴무 일정 등록
+              </button>
             </div>
           </div>
 
         </div>
 
       </main>
+      
+      {/* 공지사항 추가 모달 */}
+      {showAddAnnouncement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-96 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-800">공지사항 추가</h3>
+              <button 
+                onClick={() => setShowAddAnnouncement(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <XIcon size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-slate-600 block mb-1">태그</label>
+                <select 
+                  value={newAnnouncement.tag}
+                  onChange={(e) => setNewAnnouncement({...newAnnouncement, tag: e.target.value})}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option>중요</option>
+                  <option>이벤트</option>
+                  <option>업데이트</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-600 block mb-1">제목</label>
+                <input 
+                  type="text"
+                  value={newAnnouncement.title}
+                  onChange={(e) => setNewAnnouncement({...newAnnouncement, title: e.target.value})}
+                  placeholder="제목을 입력하세요"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-slate-600 block mb-1">내용</label>
+                <textarea 
+                  value={newAnnouncement.content}
+                  onChange={(e) => setNewAnnouncement({...newAnnouncement, content: e.target.value})}
+                  placeholder="내용을 입력하세요"
+                  rows={4}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <button 
+                  onClick={() => setShowAddAnnouncement(false)}
+                  className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-slate-700 font-bold hover:bg-slate-50"
+                >
+                  취소
+                </button>
+                <button 
+                  onClick={() => {
+                    if (newAnnouncement.title.trim()) {
+                      const today = new Date();
+                      const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+                      setAnnouncements([
+                        { 
+                          id: String(announcements.length + 1),
+                          tag: newAnnouncement.tag, 
+                          title: newAnnouncement.title, 
+                          date: dateStr,
+                          content: newAnnouncement.content
+                        },
+                        ...announcements
+                      ]);
+                      setNewAnnouncement({ tag: '이벤트', title: '', content: '' });
+                      setShowAddAnnouncement(false);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+                >
+                  추가
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 공지사항 상세 모달 */}
+      {selectedAnnouncement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-96 shadow-xl max-h-96 overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${selectedAnnouncement.tag === '중요' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}>
+                {selectedAnnouncement.tag}
+              </span>
+              <button 
+                onClick={() => setSelectedAnnouncement(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <XIcon size={20} />
+              </button>
+            </div>
+            
+            <h3 className="text-lg font-bold text-slate-800 mb-2">{selectedAnnouncement.title}</h3>
+            <p className="text-xs text-slate-400 mb-4">{selectedAnnouncement.date}</p>
+            
+            <p className="text-sm text-slate-700 leading-relaxed mb-4">
+              {selectedAnnouncement.content || '상세 내용이 없습니다.'}
+            </p>
+
+            <button 
+              onClick={() => setSelectedAnnouncement(null)}
+              className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold hover:bg-slate-200"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
       
       <footer className="max-w-7xl mx-auto mt-12 mb-8 text-center text-slate-400 text-xs font-medium">
         © 2026 Tire & Auto Dashboard Pro. All rights reserved.

@@ -886,6 +886,29 @@ const App: React.FC = () => {
   // 데이터 변경 시 Firestore 자동 저장
     // Removed bulk auto-save effects to avoid duplicate writes with real-time subscriptions.
 
+  // 달력 날짜 클릭 시 판매내역으로 이동하는 이벤트 리스너
+  useEffect(() => {
+    const handleNavigateToDailyHistory = (event: any) => {
+      const dateStr = event.detail.date;
+      setHistoryFilter({ dateFrom: dateStr, dateTo: dateStr });
+      setActiveTab('history');
+    };
+
+    const handleNavigateToScheduleWithType = (event: any) => {
+      const type = event.detail.type; // 'LEAVE' for 휴무
+      // ScheduleAndLeave에서 근무 추가 시 타입을 휴무로 미리 선택
+      localStorage.setItem('scheduleDefaultType', type);
+      setActiveTab('leave');
+    };
+
+    window.addEventListener('navigateToDailyHistory', handleNavigateToDailyHistory);
+    window.addEventListener('navigateToScheduleWithType', handleNavigateToScheduleWithType);
+    return () => {
+      window.removeEventListener('navigateToDailyHistory', handleNavigateToDailyHistory);
+      window.removeEventListener('navigateToScheduleWithType', handleNavigateToScheduleWithType);
+    };
+  }, []);
+
   // Compute effective user to pass down
   const effectiveUser = useMemo(() => {
     if (!currentUser) return null;
@@ -2140,7 +2163,6 @@ const App: React.FC = () => {
     const isAdmin = effectiveUser?.role === 'STORE_ADMIN'; 
     const items = [
       { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, show: true, type: 'CORE' },
-      { id: 'admin', label: '관리자 대시보드', icon: PieChart, show: isAdmin && !managerSession, type: 'ADMIN' },
       { id: 'pos', label: '판매 (POS)', icon: ShoppingCart, show: true, type: 'CORE' },
       { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: true, type: 'CORE' },
       { id: 'history', label: '판매 내역', icon: List, show: true, type: 'CORE' }, 
@@ -2432,13 +2454,30 @@ const App: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 max-w-7xl mx-auto w-full print:p-0 print:overflow-visible">
             {activeTab === 'dashboard' && (
-                <Dashboard 
-                sales={visibleSales} stores={visibleStores} 
-                onNavigateToHistory={(f) => { setHistoryFilter(f); setActiveTab('history'); }}
-                currentUser={effectiveUser} currentStoreId={currentStoreId}
-                stockInHistory={visibleStockHistory} transferHistory={transferHistory} expenses={visibleExpenses}
-                isSidebarOpen={isSidebarOpen} leaveRequests={leaveRequests}
-                />
+                <>
+                    {effectiveUser?.role === 'STORE_ADMIN' ? (
+                        <AdminDashboard
+                            sales={visibleSales} 
+                            stores={visibleStores}
+                            staffList={visibleStaff}
+                            leaveRequests={leaveRequests}
+                            currentUser={effectiveUser}
+                        />
+                    ) : (
+                        <Dashboard 
+                            sales={visibleSales} 
+                            stores={visibleStores} 
+                            onNavigateToHistory={(f) => { setHistoryFilter(f); setActiveTab('history'); }}
+                            currentUser={effectiveUser} 
+                            currentStoreId={currentStoreId}
+                            stockInHistory={visibleStockHistory} 
+                            transferHistory={transferHistory} 
+                            expenses={visibleExpenses}
+                            isSidebarOpen={isSidebarOpen} 
+                            leaveRequests={leaveRequests}
+                        />
+                    )}
+                </>
             )}
             {activeTab === 'admin' && (
                 <AdminDashboard
