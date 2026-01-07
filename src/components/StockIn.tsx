@@ -55,7 +55,17 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     };
     const [selectedMonth, setSelectedMonth] = useState(getLocalYearMonth()); // YYYY-MM
     const [selectedSupplier, setSelectedSupplier] = useState<string>('ALL');
-    const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('ALL'); // New Store Filter
+    // 매장별 입고 데이터 분리: 현재 사용자의 매장으로 자동 설정
+    const getInitialStoreFilter = (): string => {
+        if (currentUser.role === 'STAFF' && currentStoreId) {
+            return currentStoreId;
+        }
+        if (currentUser.role === 'STORE_ADMIN' && currentStoreId && currentStoreId !== 'ALL') {
+            return currentStoreId;
+        }
+        return 'ALL';
+    };
+    const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>(getInitialStoreFilter);
 
     const [verificationImage, setVerificationImage] = useState<string | null>(null);
     const [isComparing, setIsComparing] = useState(false);
@@ -75,6 +85,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     useEffect(() => {
         if (currentUser.role === 'STAFF' && currentStoreId) {
             setFormData(prev => ({ ...prev, storeId: currentStoreId }));
+            setSelectedStoreFilter(currentStoreId);
         } else if (currentUser.role === 'STORE_ADMIN') {
             // Fix: Ensure a valid store is selected if currently 'ALL' or empty
             setFormData(prev => {
@@ -83,6 +94,10 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                 }
                 return prev;
             });
+            // STORE_ADMIN은 자신의 매장만 볼 수 있게
+            if (currentStoreId && currentStoreId !== 'ALL') {
+                setSelectedStoreFilter(currentStoreId);
+            }
         }
     }, [currentStoreId, currentUser, stores]);
 
@@ -474,16 +489,22 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                         {isAdminView && (
                             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
                                 <StoreIcon size={16} className="text-gray-500" />
-                                <select
-                                    value={selectedStoreFilter}
-                                    onChange={(e) => setSelectedStoreFilter(e.target.value)}
-                                    className="text-sm font-bold text-gray-700 outline-none bg-transparent cursor-pointer appearance-none pr-4"
-                                >
-                                    <option value="ALL">전체 지점</option>
+                                {currentUser.role === 'SUPER_ADMIN' ? (
+                                    <select
+                                        value={selectedStoreFilter}
+                                        onChange={(e) => setSelectedStoreFilter(e.target.value)}
+                                        className="text-sm font-bold text-gray-700 outline-none bg-transparent cursor-pointer appearance-none pr-4"
+                                    >
+                                        <option value="ALL">전체 지점</option>
                                         {stores.map(s => (
                                             <option key={s.id} value={s.id}>{s.name}</option>
                                         ))}
-                                </select>
+                                    </select>
+                                ) : (
+                                    <span className="text-sm font-bold text-gray-700">
+                                        {stores.find(s => s.id === selectedStoreFilter)?.name || selectedStoreFilter}
+                                    </span>
+                                )}
                             </div>
                         )}
 
