@@ -1790,7 +1790,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                       </button>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
                       {selectedSale.isCanceled && (
                           <div className="bg-red-50 border border-red-200 p-4 rounded-xl text-center">
                               <AlertTriangle size={32} className="text-red-500 mx-auto mb-2"/>
@@ -1799,23 +1799,26 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                           </div>
                       )}
 
-                      <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center">
+                      <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex justify-between items-center">
                           <div>
-                              <div className="text-xs text-blue-500 font-bold uppercase mb-1">결제 완료 금액 (변경 불가)</div>
+                              <div className="text-xs text-blue-500 font-bold uppercase mb-0.5">결제 완료 금액 (변경 불가)</div>
                               <div className={`text-2xl font-bold ${selectedSale.isCanceled ? 'text-red-500 line-through' : 'text-blue-700'}`}>
                                   {formatCurrency(lockedTotalAmount)}
                               </div>
-                              <div className="text-[10px] text-blue-600 mt-1 font-semibold">상품/수량 변경 시 단가가 자동 조정됩니다.</div>
+                              <div className="text-[10px] text-blue-600 mt-0.5 font-semibold">상품/수량 변경 시 단가가 자동 조정됩니다.</div>
                           </div>
                          <div className="text-right">
                              <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold bg-white shadow-sm mb-1 ${selectedSale.paymentMethod === PaymentMethod.CARD ? 'text-blue-600' : selectedSale.paymentMethod === PaymentMethod.CASH ? 'text-emerald-600' : 'text-violet-600'}`}>
                                 {getPaymentLabel(selectedSale.paymentMethod)}
                              </div>
-                             <div className="text-xs text-gray-500">{new Date(selectedSale.date).toLocaleString()}</div>
+                             <div className="text-xs text-gray-500 mb-1">{new Date(selectedSale.date).toLocaleString()}</div>
+                             <div className="text-xs text-emerald-700 font-bold flex items-center justify-end gap-1">
+                                <BadgeCheck size={12}/> {editFormData.staffName || '-'}
+                             </div>
                          </div>
                       </div>
 
-                      <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 text-sm">
                           <span className="text-gray-600 font-medium">재고 반영 상태</span>
                           <span className={`font-bold ${selectedSale.inventoryAdjusted === false ? 'text-amber-700' : 'text-emerald-700'}`}>
                               {selectedSale.inventoryAdjusted === false ? '미반영' : '반영됨'}
@@ -1823,12 +1826,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                       </div>
                       
                       <div>
-                          <div className="flex justify-between items-center mb-3">
+                          <div className="flex justify-between items-center mb-2">
                               <h4 className="font-bold text-gray-800 flex items-center gap-2"><ShoppingBag size={16}/> 구매 상품</h4>
                           </div>
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                               {editFormData.items.map((item, idx) => (
-                              <div key={idx} className={`flex flex-col p-3 rounded-lg border ${item.productId === '99999' ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100'}`}>
+                              <div key={idx} className={`flex flex-col p-2.5 rounded-lg border ${item.productId === '99999' ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100'}`}>
                                   <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-between items-start">
                                       <div className="flex-1 sm:mr-4 w-full">
                                           <div className="space-y-1">
@@ -1945,7 +1948,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                           {!selectedSale.isCanceled && (
                               <button 
                                 onClick={() => openAddModal(selectedSale.id)}
-                                className="w-full mt-3 py-2 border border-dashed border-blue-300 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                                className="w-full mt-2 py-1.5 border border-dashed border-blue-300 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
                               >
                                   <Plus size={16} /> 상품/서비스 추가
                               </button>
@@ -1953,13 +1956,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                       </div>
                       
                       <div>
-                          <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Edit3 size={16}/> 관리자 메모</h4>
+                          <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><Edit3 size={16}/> 관리자 메모</h4>
                           {selectedSale.isCanceled ? (
-                              <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">{editFormData.memo}</div>
+                              <div className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">{editFormData.memo}</div>
                           ) : (
                               <textarea 
-                                  className="w-full p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-shadow"
-                                  rows={3}
+                                  className="w-full p-2.5 bg-yellow-50 border border-yellow-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-shadow"
+                                  rows={2}
                                   placeholder="판매 관련 특이사항 기록"
                                   value={editFormData.memo || ''}
                                   onChange={(e) => handleEditChange('memo', e.target.value)}
@@ -1968,37 +1971,27 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                       </div>
 
                       <div>
-                          <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><BadgeCheck size={16} className="text-emerald-600"/> 담당자</h4>
-                          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 space-y-2">
-                                <div className="flex justify-between items-center min-h-[28px]">
-                                    <span className="text-sm text-gray-600 font-medium">판매직원명</span>
-                                    <div className="text-sm font-bold text-emerald-700">{editFormData.staffName || '-'}</div>
-                                </div>
-                          </div>
-                      </div>
-
-                      <div>
-                          <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><UserIcon size={16}/> 고객 및 차량 정보</h4>
-                          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-2">
-                                <div className="flex justify-between items-center min-h-[28px]">
+                          <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><UserIcon size={16}/> 고객 및 차량 정보</h4>
+                          <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-1.5">
+                                <div className="flex justify-between items-center min-h-[24px]">
                                     <span className="text-sm text-gray-500 w-20">고객명</span>
                                     <div className="flex-1 text-right">
                                         {renderEditableField('customer.name', editFormData.customer?.name || '', (val) => handleEditChange('customer.name', val), 'text', 'text-sm font-medium')}
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center min-h-[28px]">
+                                <div className="flex justify-between items-center min-h-[24px]">
                                     <span className="text-sm text-gray-500 w-20">연락처</span>
                                     <div className="flex-1 text-right">
                                         {renderEditableField('customer.phoneNumber', editFormData.customer?.phoneNumber || '', handlePhoneChange, 'text', 'text-sm font-medium')}
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center min-h-[28px]">
+                                <div className="flex justify-between items-center min-h-[24px]">
                                     <span className="text-sm text-gray-500 w-20">차량번호</span>
                                     <div className="flex-1 text-right">
                                         {renderEditableField('vehicleNumber', editFormData.vehicleNumber || '', (val) => handleEditChange('vehicleNumber', val), 'text', 'text-sm font-bold text-blue-600')}
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center min-h-[28px]">
+                                <div className="flex justify-between items-center min-h-[24px]">
                                     <span className="text-sm text-gray-500 w-20">차종</span>
                                     <div className="flex-1 text-right">
                                         {renderEditableField('customer.carModel', editFormData.customer?.carModel || '', (val) => handleEditChange('customer.carModel', val), 'text', 'text-sm font-medium')}
