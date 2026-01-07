@@ -35,23 +35,23 @@ jobs:
       - name: Add Lightsail host key
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.LIGHTSAIL_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy to Lightsail
         run: |
-          echo "DEBUG: LIGHTSAIL_IP = ${{ secrets.LIGHTSAIL_IP }}"
+          echo "DEBUG: SSH_HOST = ${{ secrets.SSH_HOST }}"
           echo "DEBUG: SSH_KEY exists = $([ -n '${{ secrets.SSH_KEY }}' ] && echo 'yes' || echo 'no')"
           
           # Clean and create remote directory
-          ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} "sudo rm -rf /home/ubuntu/tire-plan/dist && sudo mkdir -p /home/ubuntu/tire-plan"
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.SSH_HOST }} "sudo rm -rf /home/ubuntu/tire-plan/dist && sudo mkdir -p /home/ubuntu/tire-plan"
           
           # Copy dist folder
-          scp -r dist ubuntu@${{ secrets.LIGHTSAIL_IP }}:/home/ubuntu/tire-plan/
+          scp -i ~/.ssh/deploy_key -r dist ubuntu@${{ secrets.SSH_HOST }}:/home/ubuntu/tire-plan/
           
           # Set permissions
-          ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} "sudo chown -R www-data:www-data /home/ubuntu/tire-plan/dist"
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.SSH_HOST }} "sudo chown -R www-data:www-data /home/ubuntu/tire-plan/dist"
           
           # Reload nginx
-          ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} "sudo systemctl reload nginx"
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.SSH_HOST }} "sudo systemctl reload nginx"
           
           echo "✅ Deployment complete!"
