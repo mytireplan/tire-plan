@@ -50,8 +50,8 @@ jobs:
         run: |
           ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} << 'EOF'
           set -e
-          APP_NAME="${APP_NAME}"
-          REMOTE_PATH="${REMOTE_PATH}"
+          APP_NAME="tire-plan"
+          REMOTE_PATH="/home/ubuntu/tire-plan"
 
           # Stop existing app if running
           if command -v pm2 >/dev/null 2>&1; then
@@ -80,7 +80,7 @@ jobs:
           if ! command -v pm2 >/dev/null 2>&1; then
             sudo npm install -g pm2
           fi
-          pm2 start "npm run preview" --name "$APP_NAME"
+          pm2 start "npm run preview" --name "$APP_NAME" --cwd "$REMOTE_PATH"
           pm2 save
           EOF
 name: Deploy to Lightsail

@@ -704,7 +704,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                 let store = stores.find(s => s.id === storeId);
                 
                 // leave.date는 ISO 문자열 (YYYY-MM-DD)
-                const [year, month, day] = leave.date.split('-');
+                const [, month, day] = leave.date.split('-');
                 const dateStr = `${parseInt(month)}.${parseInt(day)}`;
 
                 return (
