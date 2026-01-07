@@ -293,7 +293,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           const matchesProduct = sale.items?.some(item => {
               const productName = item.productName?.toLowerCase() || '';
               const specification = item.specification?.toLowerCase() || '';
-              return productName.includes(term) || specification.includes(term);
+              // Normalize specification for number-only search (245/45R18 -> 2454518)
+              const normalizedSpec = specification.replace(/[\/R]/g, '');
+              const normalizedTerm = term.replace(/[\/R]/g, '');
+              
+              return productName.includes(term) || 
+                     specification.includes(term) || 
+                     normalizedSpec.includes(normalizedTerm);
           });
           
           if (!vehicle.includes(term) && !phone.includes(term) && !matchesProduct) return false;
@@ -1174,7 +1180,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                     <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input 
                         type="text" 
-                        placeholder="차량번호/전화번호/상품명/사이즈" 
+                        placeholder="차량번호/전화번호/상품명/규격(예:2454518)" 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
