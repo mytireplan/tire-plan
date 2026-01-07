@@ -39,6 +39,9 @@ jobs:
 
       - name: Deploy to Lightsail
         run: |
+          echo "DEBUG: LIGHTSAIL_IP = ${{ secrets.LIGHTSAIL_IP }}"
+          echo "DEBUG: SSH_KEY exists = $([ -n '${{ secrets.SSH_KEY }}' ] && echo 'yes' || echo 'no')"
+          
           # Clean and create remote directory
           ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} "sudo rm -rf /home/ubuntu/tire-plan/dist && sudo mkdir -p /home/ubuntu/tire-plan"
           
