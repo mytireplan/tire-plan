@@ -36,6 +36,7 @@ interface CheckoutForm {
     staffId: string;
     vehicleNumber: string;
     discount: number;
+    memo: string;
 }
 
 interface CartItemRowProps {
@@ -45,7 +46,6 @@ interface CartItemRowProps {
     onUpdatePrice: (cartItemId: string, newPrice: number) => void;
     priceEditId: string | null;
     onSetPriceEditId: (cartItemId: string | null) => void;
-    onUpdateMemo: (cartItemId: string, memo: string) => void;
     onUpdateName: (cartItemId: string, name: string) => void;
     onUpdateSpecification: (cartItemId: string, specification: string) => void;
 }
@@ -60,7 +60,6 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
     onUpdatePrice, 
     priceEditId, 
     onSetPriceEditId,
-    onUpdateMemo,
     onUpdateName,
     onUpdateSpecification
 }) => {
@@ -205,23 +204,6 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
                   </button>
               </div>
           </div>
-          
-          {/* Memo Input for Dummy/Unstocked Product */}
-          {isTempProduct && (
-              <div className="mt-2">
-                  <label className="text-[10px] font-bold text-orange-600 mb-1 block">메모 (선택사항)</label>
-                  <input 
-                      type="text" 
-                      className="w-full p-2 text-xs border border-orange-200 rounded bg-white focus:bg-white focus:border-orange-400 outline-none placeholder-gray-400 text-gray-800 font-medium shadow-sm"
-                      placeholder="예: 한국타이어 235/55R19 2본 (퀵)"
-                      value={item.memo || ''}
-                      onChange={(e) => onUpdateMemo(item.cartItemId, e.target.value)}
-                  />
-                  <div className="text-[10px] text-orange-400 mt-1 flex items-center gap-1">
-                      <AlertTriangle size={10} /> 나중에 정식 상품으로 매칭 가능합니다.
-                  </div>
-              </div>
-          )}
       </div>
     );
 };
@@ -318,7 +300,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   const [checkoutForm, setCheckoutForm] = useState<CheckoutForm>({
       staffId: '', // Default to empty, force selection
       vehicleNumber: '',
-      discount: 0
+      discount: 0,
+      memo: ''
   });
 
   const [customerForm, setCustomerForm] = useState<CustomerForm>({
@@ -522,10 +505,6 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       };
       setCart(prev => [...prev, rentalItem]);
   };
-
-  const updateMemo = (cartItemId: string, memo: string) => {
-      setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, memo } : item));
-  };
   
   const updateName = (cartItemId: string, name: string) => {
       setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, name } : item));
@@ -702,13 +681,6 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     setConfirmation({ isOpen: false, method: null });
     setIsProcessing(true);
 
-    // Aggregate memos from cart items
-    // If it's the dummy item, just use the memo. If normal item, prepend name.
-    const itemMemos = cart
-        .filter(item => item.memo && item.memo.trim() !== '')
-        .map(item => item.id === '99999' ? item.memo : `[${item.name}]: ${item.memo}`)
-        .join(', ');
-
         setTimeout(() => {
             const customerPayload = (customerForm.name || checkoutForm.vehicleNumber) ? {
                 name: customerForm.name || '방문고객',
@@ -732,7 +704,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 paymentMethod: method,
                 staffName: salesStaff ? salesStaff.name : '미지정', // Save selected staff name
                 vehicleNumber: checkoutForm.vehicleNumber, // Save vehicle number
-                memo: itemMemos, // Save aggregated memo
+                memo: checkoutForm.memo || '', // Save memo from checkout form
                 isTaxInvoiceRequested: customerForm.requestTaxInvoice,
                 items: cart.map(buildSaleItem),
                 ...(customerPayload ? { customer: customerPayload } : {})
@@ -753,7 +725,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
           name: '', phoneNumber: '', carModel: '', agreedToPrivacy: false, requestTaxInvoice: false,
           businessNumber: '', companyName: '', email: ''
       });
-    setCheckoutForm({ staffId: '', vehicleNumber: '', discount: 0 });
+    setCheckoutForm({ staffId: '', vehicleNumber: '', discount: 0, memo: '' });
       setIsProcessing(false);
       alert('결제가 완료되었습니다!');
     }, 800);
@@ -966,7 +938,6 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                             onUpdatePrice={updatePrice} 
                             priceEditId={priceEditId} 
                             onSetPriceEditId={setPriceEditId} 
-                            onUpdateMemo={updateMemo}
                             onUpdateName={updateName}
                             onUpdateSpecification={updateSpecification}
                         />
@@ -1246,6 +1217,18 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         />
                                      </div>
                                  </div>
+                             </div>
+
+                             {/* Memo Input */}
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">관리자 메모 (선택)</label>
+                                <textarea
+                                    className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:border-blue-500 resize-none"
+                                    rows={2}
+                                    placeholder="판매 관련 특이사항 기록"
+                                    value={checkoutForm.memo}
+                                    onChange={(e) => setCheckoutForm({...checkoutForm, memo: e.target.value})}
+                                />
                              </div>
 
                              {/* Privacy Agreement Checkbox */}
