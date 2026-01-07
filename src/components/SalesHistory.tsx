@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff } from '../types';
 import { PaymentMethod } from '../types';
-import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar } from 'lucide-react';
+import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar, XCircle } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -1495,10 +1495,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                                 setSelectedSale(sale);
                                                                 setShowCancelConfirm(true);
                                                             }}
-                                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                                                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors flex-shrink-0"
                                                             title="결제 취소"
                                                         >
-                                                            <Trash2 size={14} />
+                                                            <XCircle size={14} />
                                                         </button>
                                                     )}
                                                 </div>
