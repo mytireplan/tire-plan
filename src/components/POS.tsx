@@ -1158,6 +1158,18 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                 </select>
                              </div>
 
+                             {/* Memo Input */}
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">관리자 메모 (선택)</label>
+                                <textarea
+                                    className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:border-blue-500 resize-none"
+                                    rows={2}
+                                    placeholder="판매 관련 특이사항 기록"
+                                    value={checkoutForm.memo}
+                                    onChange={(e) => setCheckoutForm({...checkoutForm, memo: e.target.value})}
+                                />
+                             </div>
+
                              {/* Discount Input */}
                              <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">할인 (원)</label>
@@ -1217,18 +1229,6 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         />
                                      </div>
                                  </div>
-                             </div>
-
-                             {/* Memo Input */}
-                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">관리자 메모 (선택)</label>
-                                <textarea
-                                    className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:border-blue-500 resize-none"
-                                    rows={2}
-                                    placeholder="판매 관련 특이사항 기록"
-                                    value={checkoutForm.memo}
-                                    onChange={(e) => setCheckoutForm({...checkoutForm, memo: e.target.value})}
-                                />
                              </div>
 
                              {/* Privacy Agreement Checkbox */}
