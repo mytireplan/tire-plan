@@ -6,8 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  APP_NAME: tire-plan
-  REMOTE_PATH: /home/ubuntu/tire-plan
   NODE_VERSION: '20'
 
 jobs:
@@ -39,99 +37,18 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.LIGHTSAIL_IP }} >> ~/.ssh/known_hosts
 
-      - name: Pack artifact
+      - name: Deploy to Lightsail
         run: |
-          tar --exclude='.git' --exclude='.github' --exclude='node_modules' -czf app.tar.gz .
-
-      - name: Upload artifact to server
-        run: scp -o StrictHostKeyChecking=no app.tar.gz ubuntu@${{ secrets.LIGHTSAIL_IP }}:/tmp/app.tar.gz
-
-      - name: Deploy on server
-        run: |
-          ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} << 'EOF'
-          set -e
-          APP_NAME="tire-plan"
-          REMOTE_PATH="/home/ubuntu/tire-plan"
-
-          # Stop existing app if running
-          if command -v pm2 >/dev/null 2>&1; then
-            pm2 stop "$APP_NAME" 2>/dev/null || true
-            pm2 delete "$APP_NAME" 2>/dev/null || true
-          fi
-
-          # Prepare directory
-          sudo mkdir -p "$REMOTE_PATH"
-          sudo rm -rf "$REMOTE_PATH"/*
-          sudo tar -xzf /tmp/app.tar.gz -C "$REMOTE_PATH"
-          sudo chown -R ubuntu:ubuntu "$REMOTE_PATH"
-          rm -f /tmp/app.tar.gz
-
-          # Ensure Node.js & npm
-          if ! command -v node >/dev/null 2>&1; then
-            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-          fi
-
-          cd "$REMOTE_PATH"
-          npm ci
-          NODE_OPTIONS=--max-old-space-size=2048 npm run build
-
-          # Ensure PM2 and start
-          if ! command -v pm2 >/dev/null 2>&1; then
-            sudo npm install -g pm2
-          fi
-          pm2 start "npm run preview" --name "$APP_NAME" --cwd "$REMOTE_PATH"
-          pm2 save
+          # Clean and create remote directory
+          ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} "sudo rm -rf /home/ubuntu/tire-plan/dist && sudo mkdir -p /home/ubuntu/tire-plan"
           
-          # Verify app is listening on 0.0.0.0:5173
-          sleep 3
-          curl -s http://localhost:5173 | head -1 || echo "Waiting for app..."
-name: Deploy to Lightsail
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Build (CI)
-        run: npm run build
-        env:
-          NODE_OPTIONS: --max-old-space-size=2048
-
-      - name: Sync dist to Lightsail
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || '22' }}
-          source: dist
-          target: /home/ubuntu/tire-plan
-          rm: true
-
-      - name: Restart Nginx on Lightsail
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || '22' }}
-          script: |
-            set -e
-            sudo systemctl reload nginx
-            echo "✅ Nginx reloaded successfully"
+          # Copy dist folder
+          scp -r dist ubuntu@${{ secrets.LIGHTSAIL_IP }}:/home/ubuntu/tire-plan/
+          
+          # Set permissions
+          ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} "sudo chown -R www-data:www-data /home/ubuntu/tire-plan/dist"
+          
+          # Reload nginx
+          ssh ubuntu@${{ secrets.LIGHTSAIL_IP }} "sudo systemctl reload nginx"
+          
+          echo "✅ Deployment complete!"
