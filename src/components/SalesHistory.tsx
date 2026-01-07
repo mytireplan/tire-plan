@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff } from '../types';
 import { PaymentMethod } from '../types';
-import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar } from 'lucide-react';
+import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -1965,6 +1965,16 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                   onChange={(e) => handleEditChange('memo', e.target.value)}
                               />
                           )}
+                      </div>
+
+                      <div>
+                          <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><BadgeCheck size={16} className="text-emerald-600"/> 담당자</h4>
+                          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 space-y-2">
+                                <div className="flex justify-between items-center min-h-[28px]">
+                                    <span className="text-sm text-gray-600 font-medium">판매직원명</span>
+                                    <div className="text-sm font-bold text-emerald-700">{editFormData.staffName || '-'}</div>
+                                </div>
+                          </div>
                       </div>
 
                       <div>
