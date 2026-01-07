@@ -25,8 +25,8 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
     }, [searchTerm]);
 
     const filteredCustomers = customers.filter(c => 
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c.phoneNumber.includes(searchTerm) ||
+        c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        c.phoneNumber?.includes(searchTerm) ||
         c.carModel?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
