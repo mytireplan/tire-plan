@@ -1488,7 +1488,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                             )
                                                         )}
                                                     </div>
-                                                    {!sale.isCanceled && isAdmin && (
+                                                    {!sale.isCanceled && (
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
