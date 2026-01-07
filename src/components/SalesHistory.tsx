@@ -1451,40 +1451,57 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                             <td className="px-4 py-3 text-left text-sm text-gray-600 whitespace-nowrap truncate">
                                                 {isStoreSelected ? sale.staffName : <>{stores.find(s => s.id === sale.storeId)?.name} <span className="text-gray-400">({sale.staffName})</span></>}
                                             </td>
-                                            <td 
-                                                className="px-4 py-3 text-left whitespace-nowrap overflow-hidden"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (sale.isCanceled) return;
-                                                    setInlineEditMemoSaleId(sale.id);
-                                                    setInlineEditMemo(sale.memo || '');
-                                                }}
-                                            >
-                                                {sale.isCanceled ? (
-                                                    <div className="truncate text-xs text-gray-500" title={sale.memo}>{sale.memo}</div>
-                                                ) : (
-                                                    inlineEditMemoSaleId === sale.id ? (
-                                                        <input 
-                                                            type="text"
-                                                            autoFocus
-                                                            className="w-full px-2 py-1 text-xs border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                                            value={inlineEditMemo}
-                                                            placeholder="메모 입력"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            onChange={(e) => setInlineEditMemo(e.target.value)}
-                                                            onBlur={() => {
-                                                                onUpdateSale({ ...sale, memo: inlineEditMemo, isEdited: true });
-                                                                setInlineEditMemoSaleId(null);
+                                            <td className="px-4 py-3 text-left whitespace-nowrap overflow-hidden">
+                                                <div className="flex items-center gap-2">
+                                                    <div 
+                                                        className="flex-1 min-w-0"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (sale.isCanceled) return;
+                                                            setInlineEditMemoSaleId(sale.id);
+                                                            setInlineEditMemo(sale.memo || '');
+                                                        }}
+                                                    >
+                                                        {sale.isCanceled ? (
+                                                            <div className="truncate text-xs text-gray-500" title={sale.memo}>{sale.memo}</div>
+                                                        ) : (
+                                                            inlineEditMemoSaleId === sale.id ? (
+                                                                <input 
+                                                                    type="text"
+                                                                    autoFocus
+                                                                    className="w-full px-2 py-1 text-xs border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                                    value={inlineEditMemo}
+                                                                    placeholder="메모 입력"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    onChange={(e) => setInlineEditMemo(e.target.value)}
+                                                                    onBlur={() => {
+                                                                        onUpdateSale({ ...sale, memo: inlineEditMemo, isEdited: true });
+                                                                        setInlineEditMemoSaleId(null);
+                                                                    }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') e.currentTarget.blur();
+                                                                        if (e.key === 'Escape') { setInlineEditMemoSaleId(null); }
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <div className="truncate text-xs text-gray-500 cursor-pointer hover:text-blue-600" title={sale.memo}>{sale.memo || '메모 추가'}</div>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                    {!sale.isCanceled && isAdmin && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedSale(sale);
+                                                                setShowCancelConfirm(true);
                                                             }}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') e.currentTarget.blur();
-                                                                if (e.key === 'Escape') { setInlineEditMemoSaleId(null); }
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        <div className="truncate text-xs text-gray-500 cursor-pointer hover:text-blue-600" title={sale.memo}>{sale.memo || '메모 추가'}</div>
-                                                    )
-                                                )}
+                                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                                                            title="결제 취소"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                             {isAdmin && (
                                                 <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -2008,15 +2025,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                   </div>
                   
                   <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
-                        {!selectedSale.isCanceled && (
-                            <button 
-                                type="button"
-                                onClick={() => setShowCancelConfirm(true)}
-                                className="px-4 py-3 bg-white border border-red-200 text-red-600 rounded-xl font-bold hover:bg-red-50 flex items-center gap-2 transition-colors"
-                            >
-                                <Trash2 size={18}/> 결제 취소
-                            </button>
-                        )}
+                        <button 
+                            onClick={requestCloseDetail}
+                            className="px-4 py-3 bg-white border border-gray-300 rounded-xl font-bold hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                        >
+                            <X size={18}/> 취소
+                        </button>
                         <button 
                             disabled={selectedSale.isCanceled}
                             onClick={saveDetailEdit}
@@ -2049,12 +2063,28 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4">
               <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
                   <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
-                      <Trash2 size={18} className="text-red-500" /> 결제 전체 취소
+                      <AlertTriangle size={20} className="text-red-500" /> 결제 취소 확인
                   </div>
-                  <p className="text-sm text-gray-600">해당 판매 건을 모두 취소하시겠습니까?</p>
+                  <p className="text-sm text-gray-600">정말 결제를 취소하시겠습니까?<br/>이 작업은 되돌릴 수 없습니다.</p>
                   <div className="flex gap-2 justify-end">
-                      <button onClick={() => setShowCancelConfirm(false)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50">닫기</button>
-                      <button onClick={() => { setShowCancelConfirm(false); confirmCancelSale(); }} className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700">취소 진행</button>
+                      <button 
+                          onClick={() => { 
+                              setShowCancelConfirm(false); 
+                              setSelectedSale(null); 
+                          }} 
+                          className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50"
+                      >
+                          취소
+                      </button>
+                      <button 
+                          onClick={() => { 
+                              confirmCancelSale(); 
+                              setShowCancelConfirm(false); 
+                          }} 
+                          className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700"
+                      >
+                          결제 취소
+                      </button>
                   </div>
               </div>
           </div>
