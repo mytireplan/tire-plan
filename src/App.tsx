@@ -313,15 +313,23 @@ const generateMockExpenses = (): ExpenseRecord[] => {
 
 const generateMockLeaveRequests = (): LeaveRequest[] => {
     const today = new Date();
-    const toDate = (offset: number) => {
-        const d = new Date(today);
-        d.setDate(d.getDate() + offset);
+    // 현재 주의 월요일 구하기
+    const dayOfWeek = today.getDay(); // 0=일, 1=월, ... 6=토
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + daysToMonday);
+    
+    // 이번 주 월~일 중에서 샘플 데이터 생성
+    const toDate = (daysFromMonday: number) => {
+        const d = new Date(weekStart);
+        d.setDate(weekStart.getDate() + daysFromMonday);
         return d.toISOString().split('T')[0];
     };
+    
     return [
         {
             id: 'L-1',
-            date: toDate(2),
+            date: toDate(1), // 화요일
             staffId: 'staff_1',
             staffName: '이정비',
             type: 'FULL',
@@ -330,7 +338,7 @@ const generateMockLeaveRequests = (): LeaveRequest[] => {
         },
         {
             id: 'L-2',
-            date: toDate(5),
+            date: toDate(3), // 목요일
             staffId: 'staff_2',
             staffName: '박매니저',
             type: 'HALF_AM',
@@ -339,7 +347,7 @@ const generateMockLeaveRequests = (): LeaveRequest[] => {
         },
         {
             id: 'L-3',
-            date: toDate(7),
+            date: toDate(5), // 토요일
             staffId: 'staff_3',
             staffName: '최신입',
             type: 'FULL',
@@ -890,7 +898,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleNavigateToDailyHistory = (event: any) => {
       const dateStr = event.detail.date;
-      setHistoryFilter({ dateFrom: dateStr, dateTo: dateStr });
+      setHistoryFilter({ type: 'DATE', value: dateStr, label: `${dateStr} 매출 상세` });
       setActiveTab('history');
     };
 
@@ -1907,14 +1915,15 @@ const App: React.FC = () => {
             const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
             const qtyForStock = isConsumed ? 0 : receivedQty;
 
-      const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+    const normalizeName = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+    const normalizeSpec = (v?: string) => (v || '').toLowerCase().replace(/[^0-9]/g, '');
 
             const matchedById = record.productId ? products.find(p => p.id === record.productId) : undefined;
             const matchedByForce = !matchedById && forceProductId ? products.find(p => p.id === forceProductId) : undefined;
             const matchedByNameSpec = products.find(p => {
                 if (record.productId || forceProductId) return false; // prefer explicit ids
-                const nameMatch = normalize(p.name) === normalize(record.productName);
-                const specMatch = normalize(p.specification) === normalize(record.specification);
+                const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
+                const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
                 return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
             });
 
@@ -1942,8 +1951,8 @@ const App: React.FC = () => {
         }
         if (existingProductIndex < 0) {
             existingProductIndex = prev.findIndex(p => {
-                const nameMatch = normalize(p.name) === normalize(record.productName);
-                const specMatch = normalize(p.specification) === normalize(record.specification);
+                const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
+                const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
                 return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
             });
         }
@@ -2461,7 +2470,8 @@ const App: React.FC = () => {
                             stores={visibleStores}
                             staffList={visibleStaff}
                             leaveRequests={leaveRequests}
-                            currentUser={effectiveUser}
+                            products={products}
+                            shifts={shifts}
                             onNavigateToLeaveSchedule={() => {
                               localStorage.setItem('scheduleDefaultType', 'OFF');
                               setActiveTab('leave');
@@ -2485,10 +2495,12 @@ const App: React.FC = () => {
             )}
             {activeTab === 'admin' && (
                 <AdminDashboard
-                sales={visibleSales} stores={visibleStores}
+                sales={visibleSales} 
+                stores={visibleStores}
                 staffList={visibleStaff}
                 leaveRequests={leaveRequests}
-                currentUser={effectiveUser}
+                products={products}
+                shifts={shifts}
                 />
             )}
             {activeTab === 'pos' && (

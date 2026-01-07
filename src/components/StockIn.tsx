@@ -86,6 +86,9 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
         }
     }, [currentStoreId, currentUser, stores]);
 
+    const normalizeName = (str?: string) => (str || '').toLowerCase().replace(/\s+/g, '');
+    const normalizeSpec = (str?: string) => (str || '').toLowerCase().replace(/[^0-9]/g, '');
+
     // Check if product exists when name/spec changes
     useEffect(() => {
         if (!formData.productName) {
@@ -93,12 +96,10 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
             return;
         }
 
-        const normalize = (str: string | undefined) => (str || '').trim().toLowerCase();
-        
         const existing = products.find(p => {
-            const nameMatch = normalize(p.name) === normalize(formData.productName);
+            const nameMatch = normalizeName(p.name) === normalizeName(formData.productName);
             if (p.category === '타이어') {
-                const specMatch = normalize(p.specification) === normalize(formData.specification);
+                const specMatch = normalizeSpec(p.specification) === normalizeSpec(formData.specification);
                 return nameMatch && specMatch;
             }
             return nameMatch;
@@ -158,10 +159,9 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
         // Safety check: If storeId is still empty or ALL (should be fixed by useEffect, but just in case)
         const finalStoreId = formData.storeId === 'ALL' || !formData.storeId ? stores[0]?.id : formData.storeId;
 
-        const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
         const matchedProduct = products.find(p => {
-            const nameMatch = normalize(p.name) === normalize(trimmedName);
-            const specMatch = normalize(p.specification) === normalize(trimmedSpec);
+            const nameMatch = normalizeName(p.name) === normalizeName(trimmedName);
+            const specMatch = normalizeSpec(p.specification) === normalizeSpec(trimmedSpec);
             return p.specification || trimmedSpec ? (nameMatch && specMatch) : nameMatch;
         });
         const record: StockInRecord = {

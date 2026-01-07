@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import type { Sale, Store, Staff, LeaveRequest } from '../types';
+import React, { useState, useMemo } from 'react';
+import type { Sale, Store, Staff, LeaveRequest, Product } from '../types';
 import { PaymentMethod } from '../types';
 import { 
   ChevronDown, 
@@ -40,7 +40,8 @@ interface AdminDashboardProps {
   stores: Store[];
   staffList: Staff[];
   leaveRequests: LeaveRequest[];
-  currentUser: any;
+  products: Product[];
+  shifts: any[]; // Shift[]
   onNavigateToLeaveSchedule?: () => void;
 }
 
@@ -106,7 +107,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, onClick, detailCo
   );
 };
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, currentUser, onNavigateToLeaveSchedule }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, onNavigateToLeaveSchedule }) => {
   const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL');
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -118,6 +119,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
   const [newAnnouncement, setNewAnnouncement] = useState({ tag: '이벤트', title: '', content: '' });
+
+  // Helper functions for tire classification
+  const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
+
+  const isTireItem = (item: any) => {
+    const product = products.find(p => p.id === item.productId);
+    const category = normalizeCategory(product?.category);
+    if (category === '타이어') return true;
+    return category === '기타' && item.specification ? /\d{3}\/\d{2}/.test(item.specification) : false;
+  };
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -165,11 +176,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
 
   // 타이어 판매 계산 (타이어만 필터링)
   const tireSalesData = useMemo(() => {
-    // 타이어만 필터링 (productName에 '타이어' 포함)
+    // 타이어만 필터링
     const total = filteredSales.reduce((sum, s) => {
       const tireQty = s.items?.reduce((itemSum, item) => {
-        const isTire = item.productName?.includes('타이어');
-        return itemSum + (isTire ? item.quantity : 0);
+        return itemSum + (isTireItem(item) ? item.quantity : 0);
       }, 0) || 0;
       return sum + tireQty;
     }, 0);
@@ -178,8 +188,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
     const brandMap = new Map<string, number>();
     filteredSales.forEach(s => {
       s.items?.forEach(item => {
-        const isTire = item.productName?.includes('타이어');
-        if (isTire) {
+        if (isTireItem(item)) {
           const brand = item.brand || '기타';
           brandMap.set(brand, (brandMap.get(brand) || 0) + item.quantity);
         }
@@ -191,22 +200,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
       .sort((a, b) => b.count - a.count);
 
     return { total, suppliers };
-  }, [filteredSales]);
+  }, [filteredSales, products]);
 
-  // 정비 데이터 계산 (간단히 품목 수로 계산)
+  // 정비 데이터 계산 (정비 항목만 필터링)
   const maintenanceData = useMemo(() => {
     const items: { name: string; count: number; revenue: number }[] = [];
     const itemMap = new Map<string, { count: number; revenue: number }>();
 
     filteredSales.forEach(s => {
       s.items?.forEach(item => {
+        // 타이어가 아닌 항목만 포함 (정비만 계산)
+        if (isTireItem(item)) return;
+
         if (!itemMap.has(item.productName)) {
           itemMap.set(item.productName, { count: 0, revenue: 0 });
         }
         const existing = itemMap.get(item.productName)!;
         itemMap.set(item.productName, {
           count: existing.count + item.quantity,
-          revenue: existing.revenue + (item.price * item.quantity)
+          revenue: existing.revenue + (item.priceAtSale * item.quantity)
         });
       });
     });
@@ -222,7 +234,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
       totalRevenue: items.reduce((sum, item) => sum + item.revenue, 0),
       items: items.slice(0, 4)
     };
-  }, [filteredSales]);
+  }, [filteredSales, products]);
 
   // 매장별 성과 비교
   const storePerformanceData = useMemo(() => {
@@ -235,21 +247,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
       // 타이어 판매 개수 (타이어만 필터링)
       const tires = storeSales.reduce((sum, s) => {
         const tireQty = s.items?.reduce((itemSum, item) => {
-          const isTire = item.productName?.includes('타이어');
-          return itemSum + (isTire ? item.quantity : 0);
+          return itemSum + (isTireItem(item) ? item.quantity : 0);
         }, 0) || 0;
         return sum + tireQty;
       }, 0);
       
       // 정비 건수 (타이어가 아닌 상품 항목 수)
       const maint = storeSales.reduce((sum, s) => {
-        const maintCount = s.items?.filter(item => !item.productName?.includes('타이어')).length || 0;
+        const maintCount = s.items?.filter(item => !isTireItem(item)).length || 0;
         return sum + maintCount;
       }, 0);
       
       return { name: store.name, revenue, tires, maint };
     });
-  }, [filteredSales, stores]);
+  }, [filteredSales, stores, products]);
 
   // 캘린더 계산
   const daysInMonth = useMemo(() => new Date(year, month + 1, 0).getDate(), [year, month]);
@@ -263,8 +274,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
       const existing = map.get(day) || { revenue: 0, count: 0, tires: 0 };
       // 타이어만 계산
       const tireQty = s.items?.reduce((sum, item) => {
-        const isTire = item.productName?.includes('타이어');
-        return sum + (isTire ? item.quantity : 0);
+        return sum + (isTireItem(item) ? item.quantity : 0);
       }, 0) || 0;
       map.set(day, {
         revenue: existing.revenue + s.totalAmount,
@@ -273,21 +283,74 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
       });
     });
     return map;
-  }, [filteredSales]);
+  }, [filteredSales, products]);
 
-  // 다가오는 휴무 (7일 이내)
+  // 이번 주 휴무 (월요일부터 일요일, 근무표와 동일한 주 범위)
+  // leaveRequests와 OFF 타입 Shift를 모두 포함
   const upcomingLeaves = useMemo(() => {
     const today = new Date();
-    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    // 현재 주의 월요일 구하기 (월요일=1)
+    const dayOfWeek = today.getDay(); // 0=일, 1=월, ... 6=토
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // 월요일까지의 날짜 차
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + daysToMonday); // 이번 주 월요일
+    weekStart.setHours(0, 0, 0, 0);
     
-    return leaveRequests
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6); // 이번 주 일요일
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    
+    // 1. LeaveRequest에서 이번 주 휴무 필터링
+    const leaveFromRequests = leaveRequests
       .filter(lr => {
-        if (lr.status !== 'APPROVED') return false;
-        const startDate = new Date(lr.startDate);
-        return startDate >= today && startDate <= nextWeek;
+        const leaveDate = lr.date; // ISO 문자열: YYYY-MM-DD
+        return leaveDate >= weekStartStr && leaveDate <= weekEndStr;
       })
-      .slice(0, 3);
-  }, [leaveRequests]);
+      .map(lr => ({
+        id: lr.id,
+        date: lr.date,
+        staffId: lr.staffId,
+        staffName: lr.staffName,
+        type: 'LeaveRequest' as const,
+        reason: lr.reason
+      }));
+    
+    // 2. Shift에서 OFF 타입 필터링
+    const leaveFromShifts = (shifts || [])
+      .filter((shift: any) => {
+        // shift.date 또는 shift.start 필드 확인
+        const shiftDate = shift.date || (shift.start ? shift.start.split('T')[0] : '');
+        return shift.shiftType === 'OFF' && shiftDate >= weekStartStr && shiftDate <= weekEndStr;
+      })
+      .map((shift: any) => ({
+        id: shift.id,
+        date: shift.date || shift.start.split('T')[0],
+        staffId: shift.staffId,
+        staffName: shift.staffName,
+        storeId: shift.storeId,
+        type: 'Shift' as const,
+        reason: 'OFF'
+      }));
+    
+    // 3. 중복 제거 (같은 날 같은 직원의 휴무는 하나만)
+    const combined = [...leaveFromRequests, ...leaveFromShifts];
+    const uniqueKey = new Set<string>();
+    const filtered = combined.filter(item => {
+      const key = `${item.staffId}-${item.date}`;
+      if (uniqueKey.has(key)) return false;
+      uniqueKey.add(key);
+      return true;
+    }).sort((a, b) => a.date.localeCompare(b.date));
+    
+    console.log('📅 현재주 범위:', weekStartStr, '~', weekEndStr);
+    console.log('📋 LeaveRequest 휴무:', leaveFromRequests);
+    console.log('📋 Shift OFF:', leaveFromShifts);
+    console.log('🎯 최종 휴무:', filtered);
+    return filtered;
+  }, [leaveRequests, shifts]);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
@@ -550,7 +613,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                     paddingAngle={8}
                     dataKey={chartType}
                   >
-                    {storePerformanceData.map((entry, index) => (
+                    {storePerformanceData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -605,7 +668,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
               </div>
             </div>
             <div className="space-y-3 relative z-10">
-              {announcements.map((n, i) => (
+              {announcements.map((n) => (
                 <div 
                   key={n.id} 
                   onClick={() => setSelectedAnnouncement(n)}
@@ -635,13 +698,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
             </div>
             <div className="space-y-3">
               {upcomingLeaves.length > 0 ? upcomingLeaves.map((leave, i) => {
-                const staff = staffList.find(s => s.id === leave.staffId);
-                const store = stores.find(s => s.id === staff?.storeId);
-                const startDate = new Date(leave.startDate);
-                const endDate = new Date(leave.endDate);
-                const dateStr = startDate.toLocaleDateString() === endDate.toLocaleDateString() 
-                  ? `${startDate.getMonth() + 1}.${String(startDate.getDate()).padStart(2, '0')}`
-                  : `${startDate.getMonth() + 1}.${String(startDate.getDate()).padStart(2, '0')} ~ ${endDate.getMonth() + 1}.${String(endDate.getDate()).padStart(2, '0')}`;
+                // Shift OFF의 경우 storeId를 직접 사용, LeaveRequest의 경우 staffId로 찾기
+                let staff = staffList.find(s => s.id === leave.staffId);
+                let storeId = (leave as any).storeId;
+                let store = stores.find(s => s.id === storeId);
+                
+                // leave.date는 ISO 문자열 (YYYY-MM-DD)
+                const [year, month, day] = leave.date.split('-');
+                const dateStr = `${parseInt(month)}.${parseInt(day)}`;
 
                 return (
                   <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-red-50 group transition-all cursor-pointer">
@@ -751,8 +815,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                           id: String(announcements.length + 1),
                           tag: newAnnouncement.tag, 
                           title: newAnnouncement.title, 
-                          date: dateStr,
-                          content: newAnnouncement.content
+                          date: dateStr
                         },
                         ...announcements
                       ]);
