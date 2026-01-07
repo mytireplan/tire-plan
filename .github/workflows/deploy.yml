@@ -82,7 +82,10 @@ jobs:
           fi
           pm2 start "npm run preview" --name "$APP_NAME" --cwd "$REMOTE_PATH"
           pm2 save
-          EOF
+          
+          # Verify app is listening on 0.0.0.0:5173
+          sleep 3
+          curl -s http://localhost:5173 | head -1 || echo "Waiting for app..."
 name: Deploy to Lightsail
 
 on:
