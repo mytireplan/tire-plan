@@ -43,6 +43,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [cancelTargetSale, setCancelTargetSale] = useState<Sale | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
     const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -1003,13 +1004,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   };
 
   const confirmCancelSale = () => {
-      if (selectedSale && onCancelSale) {
-          // Process cancellation logic FIRST
-          onCancelSale(selectedSale.id);
-          // THEN close the modal to ensure smooth UX
-          setSelectedSale(null); 
+      if (cancelTargetSale && onCancelSale) {
+          onCancelSale(cancelTargetSale.id);
+          setCancelTargetSale(null);
+          setShowCancelConfirm(false);
+          setSelectedSale(null);
       } else {
-          console.error("Cancel failed: Sale or onCancelSale handler missing", selectedSale, onCancelSale);
+          console.error("Cancel failed: Sale or onCancelSale handler missing", cancelTargetSale, onCancelSale);
       }
   };
 
@@ -1492,7 +1493,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                setSelectedSale(sale);
+                                                                setCancelTargetSale(sale);
                                                                 setShowCancelConfirm(true);
                                                             }}
                                                             className="px-2 py-1 text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors flex-shrink-0"
@@ -2059,7 +2060,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           </div>
       )}
 
-      {showCancelConfirm && selectedSale && (
+      {showCancelConfirm && cancelTargetSale && (
           <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4">
               <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
                   <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
@@ -2070,17 +2071,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                       <button 
                           onClick={() => { 
                               setShowCancelConfirm(false); 
-                              setSelectedSale(null); 
+                              setCancelTargetSale(null);
                           }} 
                           className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50"
                       >
                           취소
                       </button>
                       <button 
-                          onClick={() => { 
-                              confirmCancelSale(); 
-                              setShowCancelConfirm(false); 
-                          }} 
+                          onClick={confirmCancelSale} 
                           className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700"
                       >
                           결제 취소
