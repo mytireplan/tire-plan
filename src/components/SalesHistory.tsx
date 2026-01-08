@@ -1507,13 +1507,18 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                             {isAdmin && (
                                                 <td className="px-4 py-3 text-center whitespace-nowrap">
                                                     <button
+                                                        disabled={!sale.isCanceled}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             setSaleToDelete(sale.id);
                                                             setShowDeleteConfirm(true);
                                                         }}
-                                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="판매 내역 삭제"
+                                                        className={`p-2 rounded-lg transition-colors ${
+                                                            sale.isCanceled
+                                                                ? 'text-gray-400 hover:text-red-600 hover:bg-red-50 cursor-pointer'
+                                                                : 'text-gray-200 cursor-not-allowed opacity-50'
+                                                        }`}
+                                                        title={sale.isCanceled ? '판매 내역 삭제' : '취소된 건만 삭제 가능합니다'}
                                                     >
                                                         <Trash2 size={16} />
                                                     </button>
@@ -2095,7 +2100,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                   <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
                       <Trash2 size={18} className="text-red-500" /> 판매 내역 삭제
                   </div>
-                  <p className="text-sm text-gray-600">해당 판매 내역을 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+                  <p className="text-sm text-gray-600">취소된 판매 내역을 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
                   <div className="flex gap-2 justify-end">
                       <button onClick={() => { setShowDeleteConfirm(false); setSaleToDelete(null); }} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50">취소</button>
                       <button 
