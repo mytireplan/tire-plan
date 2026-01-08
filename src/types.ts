@@ -218,7 +218,7 @@ export interface Shift {
   end: string; // ISO string
   role?: string;
   memo?: string;
-  shiftType?: 'REGULAR' | 'NIGHT' | 'OFF' | 'VACATION';
+  shiftType?: 'REGULAR' | 'NIGHT' | 'OFF' | 'VACATION' | 'HALF' | 'DUTY';
 }
 
 // Reservation Types
