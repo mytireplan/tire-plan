@@ -147,9 +147,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           setActiveEditField(null);
           setHasUnsavedChanges(false);
           setShowCloseConfirm(false);
-          setShowCancelConfirm(false);
       } else {
           setEditFormData(null);
+          setShowCancelConfirm(false);
       }
   }, [selectedSale]);
 
