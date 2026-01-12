@@ -37,6 +37,7 @@ interface CheckoutForm {
     vehicleNumber: string;
     discount: number;
     memo: string;
+    saleDate: string; // YYYY-MM-DD format
 }
 
 interface CartItemRowProps {
@@ -301,7 +302,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       staffId: '', // Default to empty, force selection
       vehicleNumber: '',
       discount: 0,
-      memo: ''
+      memo: '',
+      saleDate: dateToLocalString(new Date()) // Default to today
   });
 
   const [customerForm, setCustomerForm] = useState<CustomerForm>({
@@ -695,9 +697,13 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
             // Check if any rental items exist (no inventory adjustment needed)
             const hasRentalItems = cart.some(item => item.id?.startsWith('RENTAL-'));
 
+            // Convert selected date (YYYY-MM-DD) to ISO string
+            const saleDateObj = new Date(checkoutForm.saleDate + 'T00:00:00');
+            const saleDateISO = saleDateObj.toISOString();
+
             const newSale: Sale = {
                 id: `S-${Date.now().toString().slice(-6)}`,
-                date: new Date().toISOString(),
+                date: saleDateISO,
                 storeId: activeStoreId,
                 totalAmount: payableTotal,
                 discountAmount: discount,
@@ -725,7 +731,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
           name: '', phoneNumber: '', carModel: '', agreedToPrivacy: false, requestTaxInvoice: false,
           businessNumber: '', companyName: '', email: ''
       });
-    setCheckoutForm({ staffId: '', vehicleNumber: '', discount: 0, memo: '' });
+    setCheckoutForm({ staffId: '', vehicleNumber: '', discount: 0, memo: '', saleDate: dateToLocalString(new Date()) });
       setIsProcessing(false);
       alert('결제가 완료되었습니다!');
     }, 800);
@@ -1156,6 +1162,19 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
                                 </select>
+                             </div>
+
+                             {/* Sale Date Input */}
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">판매 날짜</label>
+                                <input
+                                    type="date"
+                                    className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:border-blue-500"
+                                    value={checkoutForm.saleDate}
+                                    onChange={(e) => setCheckoutForm({...checkoutForm, saleDate: e.target.value})}
+                                    max={dateToLocalString(new Date())}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">* 과거 날짜 선택 가능 (재고는 현재 재고에서 차감됩니다)</p>
                              </div>
 
                              {/* Memo Input */}

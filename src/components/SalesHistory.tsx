@@ -71,14 +71,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
             paymentMethod: PaymentMethod.CARD,
             staffName: '',
             storeId: currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : (stores[0]?.id || ''),
-            customerName: '',
-            customerPhone: '',
-            memo: '',
-            inventoryAdjust: false,
-            items: []
-    });
-  
-    // Inline memo editing removed (not used)
+          customerName: '',
+          customerPhone: '',
+          memo: '',
+          inventoryAdjust: true,
+          items: []
+    });    // Inline memo editing removed (not used)
 
   // Swap/Add Item Modal State
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
@@ -1774,7 +1772,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                           </div>
                       </div>
 
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                           <div className="flex items-start gap-3">
                               <input 
                                 id="quick-inventory-adjust"
@@ -1784,8 +1782,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                 className="mt-1"
                               />
                               <div className="space-y-1">
-                                  <label htmlFor="quick-inventory-adjust" className="font-bold text-gray-800 text-sm cursor-pointer">이 판매로 재고를 차감합니다</label>
-                                  <p className="text-xs text-gray-600">기본값은 미차감입니다. 체크 시 현재 재고에서 해당 수량이 차감되며, 과거 보정 입력 시 주의하세요.</p>
+                                  <label htmlFor="quick-inventory-adjust" className="font-bold text-gray-800 text-sm cursor-pointer">이 판매로 현재 재고를 차감합니다</label>
+                                  <p className="text-xs text-gray-600">기본값은 차감입니다. 선택한 날짜와 관계없이 현재 재고에서 차감되며, 이미 다른 방법으로 재고를 처리했다면 체크 해제하세요.</p>
                               </div>
                           </div>
                       </div>
