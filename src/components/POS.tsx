@@ -1241,7 +1241,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         />
                                         <input 
                                             type="text" 
-                                            placeholder="차종"
+                                            placeholder="키로수"
                                             className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm"
                                             value={customerForm.carModel}
                                             onChange={(e) => setCustomerForm({...customerForm, carModel: e.target.value})}

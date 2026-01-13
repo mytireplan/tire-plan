@@ -118,7 +118,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <input 
                 type="text" 
-                placeholder="이름, 전화번호, 차종 검색" 
+                placeholder="이름, 전화번호, 키로수 검색" 
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -132,10 +132,10 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
             <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-100 sticky top-0">
                     <tr>
-                        <th className="px-6 py-4">고객명</th>
+                        <th className="px-6 py-4">기객명</th>
                         <th className="px-6 py-4">연락처</th>
-                        <th className="px-6 py-4">차종</th>
-                        <th 
+                        <th className="px-6 py-4">키로수</th>
+                        <th
                             className="px-6 py-4 text-center cursor-pointer select-none"
                             onClick={() => handleSort('visitCount')}
                         >
