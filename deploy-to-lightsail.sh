@@ -63,34 +63,32 @@ ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
 SSHEOF
 echo ""
 
-# Step 4: 코드 배포
+# Step 4: 코드 배포 (사전 빌드된 dist + 핵심 파일만 배포)
 echo "📡 Step 4: 코드 배포 (SCP)..."
-scp $SSH_OPTS -i $SSH_KEY -r . ubuntu@$LIGHTSAIL_IP:/tmp/tire-plan-temp
+# 미리 빌드된 dist 폴더와 필요한 설정 파일만 전송
 ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     sudo mkdir -p $REMOTE_PATH
-    sudo cp -r /tmp/tire-plan-temp/* $REMOTE_PATH/
+SSHEOF
+
+# dist 폴더 전송
+scp $SSH_OPTS -i $SSH_KEY -r dist ubuntu@$LIGHTSAIL_IP:/tmp/dist-temp
+# package.json 전송 (PM2 실행용)
+scp $SSH_OPTS -i $SSH_KEY package.json ubuntu@$LIGHTSAIL_IP:/tmp/package.json
+
+ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
+    # dist 폴더 배포
+    sudo cp -r /tmp/dist-temp $REMOTE_PATH/dist
+    # package.json 배포
+    sudo cp /tmp/package.json $REMOTE_PATH/package.json
+    # 권한 설정
     sudo chown -R ubuntu:ubuntu $REMOTE_PATH
-    rm -rf /tmp/tire-plan-temp
+    rm -rf /tmp/dist-temp /tmp/package.json
     echo "✅ 코드 배포 완료"
 SSHEOF
 echo ""
 
-# Step 5: 의존성 설치 및 빌드
-echo "🔧 Step 5: Lightsail에서 빌드..."
-ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
-    cd $REMOTE_PATH
-    echo "의존성 설치..."  # devDependencies(typescript 등) 포함 설치
-    npm ci
-    
-    echo "빌드..."
-    NODE_OPTIONS=--max-old-space-size=2048 npm run build
-    
-    echo "✅ 빌드 완료"
-SSHEOF
-echo ""
-
-# Step 6: PM2로 앱 시작
-echo "🚀 Step 6: 앱 시작..."
+# Step 5: PM2로 앱 시작 (빌드 없이 dist 폴더로 서빙)
+echo "🚀 Step 5: 앱 시작..."
 ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     cd $REMOTE_PATH
     
@@ -100,8 +98,14 @@ ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
         sudo npm install -g pm2
     fi
     
-    # PM2로 시작
-    pm2 start "npm run preview" --name "$APP_NAME"
+    # PM2로 정적 파일 서빙 시작 (http-server 또는 npx serve 사용)
+    # package.json에 preview 스크립트가 있으면 사용, 없으면 npx serve 사용
+    if grep -q '"preview"' package.json; then
+        pm2 start "npm run preview" --name "$APP_NAME"
+    else
+        pm2 start "npx serve -s dist -l 5173" --name "$APP_NAME"
+    fi
+    
     pm2 save
     pm2 startup | tail -1 | bash || true
     
@@ -112,8 +116,8 @@ ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
 SSHEOF
 echo ""
 
-# Step 7: 배포 확인
-echo "✅ Step 7: 배포 확인..."
+# Step 6: 배포 확인
+echo "✅ Step 6: 배포 확인..."
 ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     sleep 3
     
