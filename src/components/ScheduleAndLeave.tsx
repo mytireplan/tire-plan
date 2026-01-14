@@ -14,6 +14,7 @@ interface ScheduleAndLeaveProps {
   onShiftRangeChange?: (start: string, end: string) => void;
   onApproveLeave?: (leaveId: string) => void;
   onRejectLeave?: (leaveId: string, reason: string) => void;
+  currentUser?: { role?: string; id?: string };
 }
 
 // Simple utility: get start of week (Mon-based)
@@ -28,7 +29,7 @@ const startOfWeek = (date: Date) => {
 
 const formatDateLabel = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
-const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId, onShiftRangeChange, onApproveLeave, onRejectLeave }) => {
+const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId, onShiftRangeChange, onApproveLeave, onRejectLeave, currentUser }) => {
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [search, setSearch] = useState('');
@@ -372,7 +373,8 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                         const dateStr = dateToLocalString(d);
                         const dayShifts = shifts.filter(s => s.staffId === staff.id && isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                         const hasLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'approved');
-                        const hasPendingLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'pending');
+                        // 관리자 모드에서만 대기중 휴가 표시
+                        const hasPendingLeave = currentUser?.role === 'STORE_ADMIN' ? leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'pending') : false;
                         const isDragging = dragSelection?.active && dragSelection.staffId === staff.id && dateStr >= dragSelection.start && dateStr <= dragSelection.end;
                         return (
                           <div

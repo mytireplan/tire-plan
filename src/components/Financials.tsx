@@ -126,7 +126,7 @@ const Financials: React.FC<FinancialsProps> = ({
         // Fixed Costs (Filter by store)
         const filteredFixedCosts = selectedStoreId === 'ALL' 
             ? fixedCosts 
-            : fixedCosts.filter(fc => !fc.storeId || fc.storeId === selectedStoreId);
+            : fixedCosts.filter(fc => fc.storeId === selectedStoreId);
         const fixedCost = isAdmin ? filteredFixedCosts.reduce((sum, fc) => sum + fc.amount, 0) : 0;
 
         return {
@@ -182,7 +182,7 @@ const Financials: React.FC<FinancialsProps> = ({
         if (isAdmin) {
              const filteredFixedCostsForList = selectedStoreId === 'ALL'
                  ? fixedCosts
-                 : fixedCosts.filter(fc => !fc.storeId || fc.storeId === selectedStoreId);
+                 : fixedCosts.filter(fc => fc.storeId === selectedStoreId);
              filteredFixedCostsForList.forEach(fc => {
                  records.push({
                      id: fc.id,

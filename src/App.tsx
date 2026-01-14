@@ -454,11 +454,11 @@ const INITIAL_CUSTOMERS: Customer[] = [
 ];
 const INITIAL_EXPENSES: ExpenseRecord[] = generateMockExpenses();
 const INITIAL_FIXED_COSTS: FixedCostConfig[] = [
-    { id: 'FC1', title: '월세(본점)', amount: 2500000, day: 1, category: '고정지출' },
-    { id: 'FC2', title: '인터넷/통신', amount: 55000, day: 25, category: '공과금' },
-    { id: 'FC3', title: '전기/가스 요금', amount: 180000, day: 20, category: '공과금' },
-    { id: 'FC4', title: '보험료(화재/배상)', amount: 90000, day: 10, category: '고정지출' },
-    { id: 'FC5', title: '보안/경비 서비스', amount: 65000, day: 15, category: '기타' },
+    { id: 'FC1', title: '월세(본점)', amount: 2500000, day: 1, category: '고정지출', storeId: 'ST-1' },
+    { id: 'FC2', title: '인터넷/통신', amount: 55000, day: 25, category: '공과금', storeId: 'ST-1' },
+    { id: 'FC3', title: '전기/가스 요금', amount: 180000, day: 20, category: '공과금', storeId: 'ST-1' },
+    { id: 'FC4', title: '보험료(화재/배상)', amount: 90000, day: 10, category: '고정지출', storeId: 'ST-2' },
+    { id: 'FC5', title: '보안/경비 서비스', amount: 65000, day: 15, category: '기타', storeId: 'ST-2' },
 ];
 const INITIAL_CATEGORIES = ['타이어', '기타'];
 const INITIAL_LEAVE_REQUESTS = generateMockLeaveRequests();
@@ -2635,6 +2635,7 @@ const App: React.FC = () => {
                     onRemoveShift={handleRemoveShift}
                     onApproveLeave={handleApproveLeave}
                     onRejectLeave={handleRejectLeave}
+                    currentUser={effectiveUser}
                 />
             )}
             {activeTab === 'stockIn' && (
