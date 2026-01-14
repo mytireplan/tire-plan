@@ -727,14 +727,15 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       const getLockedBudget = () => lockedTotalAmount || selectedSale?.totalAmount || editFormData?.totalAmount || 0;
 
     // Accepts optional _swapQuantity for new item
-    const executeSwap = (product: Product & { _swapQuantity?: number }) => {
+        const executeSwap = (product: Product & { _swapQuantity?: number }) => {
       if (!swapTarget) return;
 
       // 재고 검증: 신규 상품 추가 모드에서만 체크
       const requestedQty = product._swapQuantity || 1;
-      const hasInsufficientStock = swapTarget.isAdding && product.stock === 0;
+            const isNonStockCategory = (product.category === '기타');
+            const hasInsufficientStock = swapTarget.isAdding && product.stock === 0 && !isNonStockCategory;
       
-      if (hasInsufficientStock && product.id !== '99999') {
+            if (hasInsufficientStock && product.id !== '99999') {
           // Show stock warning popup
           setInsuffcientStockProduct(product);
           setIsStockWarningOpen(true);
@@ -2225,7 +2226,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                             <div className="text-xs text-gray-500 mt-1">단가: {formatCurrency(product.price)}</div>
                                         </div>
                                         <div className="text-right">
-                                            <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${product.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>재고: {product.stock > 900 ? '∞' : product.stock}</div>
+                                            {product.category === '기타' ? (
+                                                <div className={`text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700`}>재고: -</div>
+                                            ) : (
+                                                <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${product.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>재고: {product.stock > 900 ? '∞' : product.stock}</div>
+                                            )}
                                         </div>
                                     </div>
                                 ))
