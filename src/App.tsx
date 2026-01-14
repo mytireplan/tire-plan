@@ -2452,7 +2452,7 @@ const App: React.FC = () => {
                                     >
                                         전체 지점 통합
                                     </button>
-                                    {stores.map(store => (
+                                    {stores.filter(s => s.ownerId === currentUser?.id).map(store => (
                                         <button
                                             key={store.id}
                                             onClick={() => {
