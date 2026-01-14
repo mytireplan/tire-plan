@@ -352,6 +352,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
     return filtered;
   }, [leaveRequests, shifts]);
 
+  const pendingLeaves = useMemo(() => {
+    return leaveRequests.filter(lr => lr.status === 'pending');
+  }, [leaveRequests]);
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
       {/* Header */}
@@ -694,7 +698,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                 <UserX size={20} className="text-red-500" />
                 직원 휴무 일정
               </h2>
-              <div className="bg-red-50 text-red-600 text-[10px] px-2 py-1 rounded-full font-bold">이번주 {upcomingLeaves.length}명</div>
+              <div className="flex items-center gap-2">
+                <div className="bg-red-50 text-red-600 text-[10px] px-2 py-1 rounded-full font-bold">이번주 {upcomingLeaves.length}명</div>
+                {pendingLeaves.length > 0 && (
+                  <div className="bg-amber-50 text-amber-700 text-[10px] px-2 py-1 rounded-full font-bold border border-amber-200">대기 {pendingLeaves.length}</div>
+                )}
+              </div>
             </div>
             <div className="space-y-3">
               {upcomingLeaves.length > 0 ? upcomingLeaves.map((leave, i) => {

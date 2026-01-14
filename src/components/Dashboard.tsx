@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { PaymentMethod } from '../types';
 import type { Sale, Store, SalesFilter, User, StockInRecord, StockTransferRecord, ExpenseRecord, LeaveRequest } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, DollarSign, ShoppingBag, Calendar, ChevronLeft, ChevronRight, Store as StoreIcon, Bell, ArrowRightLeft, Truck, CreditCard, Banknote, Smartphone, ArrowUpRight, ArrowDownRight, Receipt, Palmtree, Plus } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, Calendar, ChevronLeft, ChevronRight, Store as StoreIcon, Bell, ArrowRightLeft, Truck, CreditCard, Banknote, Smartphone, ArrowUpRight, ArrowDownRight, Receipt, Palmtree, Plus, Clock } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 
 interface DashboardProps {
@@ -334,6 +334,11 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
             return leaveRequests.filter(req => req.status === 'approved' && req.date === boardDateStr);
         }, [leaveRequests, boardDateStr, currentUser.role]);
 
+    const pendingLeaves = useMemo(() => {
+        if (currentUser.role !== 'STORE_ADMIN') return [];
+        return leaveRequests.filter(req => req.status === 'pending');
+    }, [leaveRequests, currentUser.role]);
+
     // Local notices state (quick dashboard announcements). Add via + button.
     const [notices, setNotices] = useState<Array<{id:string; title:string; content:string; urgent?:boolean}>>(() => [
         { id: 'N-1', title: '동절기 타이어 재고 점검 안내', content: '이번 주말 기온 하강 예보로 윈터타이어 수요 급증이 예상됩니다. 재고 확인 바랍니다.', urgent: true },
@@ -413,14 +418,36 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                         <Bell className="text-orange-500" size={20} /> 공지 및 휴무
                     </h3>
                     <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-                         {/* Notices (local quick announcements) */}
-                         {notices.map(n => (
-                             <div key={n.id} className={`p-3 ${n.urgent ? 'bg-orange-50 border-orange-100' : 'bg-gray-50 border-gray-100'} rounded-lg`}>
-                                 <span className={`text-xs font-bold ${n.urgent ? 'text-orange-600' : 'text-gray-500'} bg-white px-2 py-0.5 rounded border ${n.urgent ? 'border-orange-200' : 'border-gray-200'} mb-1 inline-block`}>{n.urgent ? '긴급' : '일반'}</span>
-                                 <p className="text-sm font-bold text-gray-800 mt-1">{n.title}</p>
-                                 <p className="text-xs text-gray-500 mt-1">{n.content}</p>
-                             </div>
-                         ))}
+                                                 {/* Notices (local quick announcements) */}
+                                                 {notices.map(n => (
+                                                         <div key={n.id} className={`p-3 ${n.urgent ? 'bg-orange-50 border-orange-100' : 'bg-gray-50 border-gray-100'} rounded-lg`}>
+                                                                 <span className={`text-xs font-bold ${n.urgent ? 'text-orange-600' : 'text-gray-500'} bg-white px-2 py-0.5 rounded border ${n.urgent ? 'border-orange-200' : 'border-gray-200'} mb-1 inline-block`}>{n.urgent ? '긴급' : '일반'}</span>
+                                                                 <p className="text-sm font-bold text-gray-800 mt-1">{n.title}</p>
+                                                                 <p className="text-xs text-gray-500 mt-1">{n.content}</p>
+                                                         </div>
+                                                 ))}
+
+                                                 {/* Pending leaves for admin quick glance */}
+                                                 {pendingLeaves.length > 0 && (
+                                                     <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg mb-2">
+                                                         <h4 className="text-xs font-bold text-amber-700 mb-2 flex items-center gap-1">
+                                                             <Clock size={12} /> 휴가 승인 대기 ({pendingLeaves.length})
+                                                         </h4>
+                                                         <div className="space-y-1">
+                                                             {pendingLeaves.slice(0, 5).map(req => (
+                                                                 <div key={req.id} className="text-xs text-gray-700 flex justify-between">
+                                                                     <span>{req.staffName}</span>
+                                                                     <span className="font-medium text-amber-700">
+                                                                         {(req.date && req.date.length >= 10) ? req.date.slice(5,10) : formatDateYMD(new Date(req.date)).slice(5,10)}
+                                                                     </span>
+                                                                 </div>
+                                                             ))}
+                                                             {pendingLeaves.length > 5 && (
+                                                                 <div className="text-[11px] text-amber-600 font-bold">+{pendingLeaves.length - 5} 더 보기</div>
+                                                             )}
+                                                         </div>
+                                                     </div>
+                                                 )}
 
                          {/* Staff Leave for Selected Date */}
                          {upcomingLeaves.length > 0 && (
