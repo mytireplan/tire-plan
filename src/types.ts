@@ -199,6 +199,7 @@ export interface FixedCostConfig {
   amount: number;
   day: number; // Payment day (1-31)
   category: string;
+  storeId?: string; // Optional: specific store or global if undefined
 }
 
 // Leave Management Types
