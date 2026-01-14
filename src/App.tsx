@@ -334,7 +334,8 @@ const generateMockLeaveRequests = (): LeaveRequest[] => {
             staffName: '이정비',
             type: 'FULL',
             reason: '개인 사정',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            status: 'pending'
         },
         {
             id: 'L-2',
@@ -343,7 +344,8 @@ const generateMockLeaveRequests = (): LeaveRequest[] => {
             staffName: '박매니저',
             type: 'HALF_AM',
             reason: '병원 검진',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            status: 'pending'
         },
         {
             id: 'L-3',
@@ -352,7 +354,8 @@ const generateMockLeaveRequests = (): LeaveRequest[] => {
             staffName: '최신입',
             type: 'FULL',
             reason: '가족 행사',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            status: 'approved'
         }
     ];
 };
@@ -2175,6 +2178,11 @@ const App: React.FC = () => {
             console.error('❌ Failed to delete shift in Firestore:', err);
         }
     };
+
+    // 결재 대기 중인 휴가 개수 계산
+    const pendingLeaveCount = useMemo(() => {
+        return leaveRequests.filter(lr => lr.status === 'pending').length;
+    }, [leaveRequests]);
   
   // Navigation & Permissions Logic
   const navItems = useMemo(() => {
@@ -2194,12 +2202,12 @@ const App: React.FC = () => {
       { id: 'stockIn', label: '입고 관리', icon: Truck, show: true, type: 'CORE' }, 
       { id: 'financials', label: isAdmin ? '재무/결산' : '지출', icon: PieChart, show: true, type: 'CORE' }, // Dynamic Label
       { id: 'DIVIDER_2', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
-    { id: 'leave', label: '근무표', icon: Calendar, show: true, type: 'CORE' },
+    { id: 'leave', label: '근무표', icon: Calendar, show: true, type: 'CORE', badge: isAdmin && pendingLeaveCount > 0 ? pendingLeaveCount : 0 },
       // Settings: Show only if isAdmin
             { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin && !managerSession, type: 'ADMIN' } 
     ];
     return items.filter(item => item.show);
-  }, [effectiveUser, staffPermissions]);
+  }, [effectiveUser, staffPermissions, pendingLeaveCount]);
 
   const currentUserPassword = users.find(u => u.id === currentUser?.id)?.password || '';
 
@@ -2295,11 +2303,14 @@ const App: React.FC = () => {
                                                 if (item.id === 'history') setHistoryFilter({ type: 'ALL', value: '', label: '전체 판매 내역' });
                                                 setIsMobileMenuOpen(false);
                                             }}
-                                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-colors
+                                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-colors relative
                                                 ${isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
                                         >
                                             <Icon size={20} />
                                             <span className="truncate">{item.label}</span>
+                                            {item.badge && item.badge > 0 && (
+                                                <span className="absolute right-3 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">{item.badge}</span>
+                                            )}
                                         </button>
                                     </li>
                                 );
@@ -2372,7 +2383,13 @@ const App: React.FC = () => {
                             {isSidebarOpen && (
                                 <div className="flex-1 flex justify-between items-center">
                                     <span className="font-medium text-sm tracking-tight sidebar-menu-label">{item.label}</span>
+                                    {item.badge && item.badge > 0 && (
+                                        <span className="w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">{item.badge}</span>
+                                    )}
                                 </div>
+                            )}
+                            {!isSidebarOpen && item.badge && item.badge > 0 && (
+                                <span className="absolute right-0 top-0 w-4 h-4 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center -translate-y-1 translate-x-1">!</span>
                             )}
                         </button>
                         </li>

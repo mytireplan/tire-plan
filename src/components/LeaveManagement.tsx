@@ -97,7 +97,8 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
             staffName: staff.name,
             type: formData.type,
             reason: formData.reason,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            status: 'pending'
         };
 
         onAddRequest(newRequest);

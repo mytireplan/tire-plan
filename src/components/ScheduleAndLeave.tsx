@@ -752,6 +752,37 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
           </div>
         </div>
       )}
+
+      {/* 대기 중인 휴가 신청 목록 (사장 모드) */}
+      <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">대기 중인 휴가 신청</h3>
+        <div className="space-y-2">
+          {leaveRequests.filter(lr => lr.status === 'pending').length === 0 ? (
+            <p className="text-sm text-gray-500">대기 중인 휴가 신청이 없습니다.</p>
+          ) : (
+            leaveRequests.filter(lr => lr.status === 'pending').map(leave => (
+              <div key={leave.id} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div>
+                  <p className="font-bold text-gray-800">{leave.staffName}</p>
+                  <p className="text-xs text-gray-600">
+                    {leave.date} • 
+                    {leave.type === 'FULL' ? ' 연차(종일)' : leave.type === 'HALF_AM' ? ' 오전 반차' : ' 오후 반차'}
+                    {leave.reason && ` • ${leave.reason}`}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700">
+                    승인
+                  </button>
+                  <button className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700">
+                    거절
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 };

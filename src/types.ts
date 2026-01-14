@@ -205,6 +205,10 @@ export interface LeaveRequest {
   type: LeaveType;
   reason?: string;
   createdAt: string;
+  status: 'pending' | 'approved' | 'rejected'; // 결재 상태
+  approvedBy?: string; // 승인자 ID
+  approvedAt?: string; // 승인 시간
+  rejectionReason?: string; // 거절 사유
 }
 
 // Shift schedule
