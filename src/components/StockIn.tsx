@@ -46,6 +46,10 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
         factoryPrice: ''
     });
 
+    // --- Stock In Confirmation Modal State ---
+    const [confirmationData, setConfirmationData] = useState<StockInRecord | null>(null);
+    const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+
     // --- Verification & History State ---
     const getLocalYearMonth = (): string => {
         const now = new Date();
@@ -194,9 +198,17 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
             purchasePrice: 0 // Initialize purchase price to 0 for later admin entry
         };
 
+        // Show confirmation modal instead of directly processing
+        setConfirmationData(record);
+        setIsConfirmationOpen(true);
+    };
+
+    const handleConfirmStockIn = () => {
+        if (!confirmationData) return;
+
         // Pass 0 as selling price since input is removed. 
         // New products will have price 0 until updated in Inventory.
-        onStockIn(record, 0);
+        onStockIn(confirmationData, 0);
         
         setFormData(prev => ({
             ...prev,
@@ -206,6 +218,8 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
             factoryPrice: 0
         }));
         setInputs({ quantity: '', factoryPrice: '' });
+        setIsConfirmationOpen(false);
+        setConfirmationData(null);
         alert('입고 처리가 완료되었습니다.');
     };
 
@@ -705,6 +719,108 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                     </label>
                 )}
             </div>
+
+            {/* Stock In Confirmation Modal */}
+            {isConfirmationOpen && confirmationData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-6 animate-scale-in">
+                        <div className="flex items-start gap-3">
+                            <div className="flex-1">
+                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                    <AlertCircle size={24} className="text-blue-600"/>
+                                    입고 내용 확인
+                                </h3>
+                                <p className="text-xs text-gray-500 mt-1">아래 내용이 맞는지 확인 후 진행해주세요</p>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setIsConfirmationOpen(false);
+                                    setConfirmationData(null);
+                                }}
+                                className="text-gray-400 hover:text-gray-600 p-1"
+                            >
+                                <X size={20}/>
+                            </button>
+                        </div>
+
+                        <div className="space-y-3 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            {/* Date */}
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-sm font-semibold text-gray-600">입고 날짜</span>
+                                <span className="text-sm font-bold text-gray-800">{confirmationData.date}</span>
+                            </div>
+
+                            {/* Store */}
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-sm font-semibold text-gray-600">매장</span>
+                                <span className="text-sm font-bold text-gray-800">{stores.find(s => s.id === confirmationData.storeId)?.name || '알 수 없음'}</span>
+                            </div>
+
+                            {/* Supplier */}
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-sm font-semibold text-gray-600">입고처</span>
+                                <span className="text-sm font-bold text-gray-800">{confirmationData.supplier || '-'}</span>
+                            </div>
+
+                            {/* Category & Brand */}
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-sm font-semibold text-gray-600">카테고리</span>
+                                <span className="text-sm font-bold text-gray-800">{confirmationData.category} / {confirmationData.brand}</span>
+                            </div>
+
+                            {/* Product Name */}
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-sm font-semibold text-gray-600">상품명</span>
+                                <span className="text-sm font-bold text-gray-800 text-right max-w-xs">{confirmationData.productName}</span>
+                            </div>
+
+                            {/* Specification */}
+                            {confirmationData.specification && (
+                                <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                    <span className="text-sm font-semibold text-gray-600">규격</span>
+                                    <span className="text-sm font-bold text-gray-800">{confirmationData.specification}</span>
+                                </div>
+                            )}
+
+                            {/* Quantity */}
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-sm font-semibold text-gray-600">수량</span>
+                                <span className="text-sm font-bold text-blue-600">{formatNumber(confirmationData.quantity)} 개</span>
+                            </div>
+
+                            {/* Factory Price */}
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-semibold text-gray-600">원가</span>
+                                <span className="text-sm font-bold text-blue-600">{formatCurrency(confirmationData.factoryPrice)}</span>
+                            </div>
+
+                            {/* Total */}
+                            <div className="flex justify-between items-center pt-2 border-t-2 border-blue-200 mt-2">
+                                <span className="text-sm font-bold text-gray-700">합계</span>
+                                <span className="text-lg font-bold text-blue-700">{formatCurrency(confirmationData.quantity * (confirmationData.factoryPrice || 0))}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setIsConfirmationOpen(false);
+                                    setConfirmationData(null);
+                                }}
+                                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={handleConfirmStockIn}
+                                className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                입고 처리
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
