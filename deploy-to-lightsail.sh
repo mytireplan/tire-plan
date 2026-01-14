@@ -13,6 +13,7 @@ fi
 
 LIGHTSAIL_IP=$1
 SSH_KEY=${2:-"~/.ssh/id_rsa"}  # 기본값: ~/.ssh/id_rsa
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
 APP_NAME="tire-plan"
 REMOTE_PATH="/home/ubuntu/$APP_NAME"
 
@@ -29,7 +30,7 @@ echo ""
 
 # Step 2: Lightsail에 접속하여 기존 프로세스 중지
 echo "🛑 Step 2: Lightsail에서 기존 프로세스 중지..."
-ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << 'SSHEOF'
+ssh -i $SSH_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@$LIGHTSAIL_IP << 'SSHEOF'
     # PM2로 중지
     if command -v pm2 &> /dev/null; then
         pm2 stop tire-plan 2>/dev/null || true
@@ -47,7 +48,7 @@ echo ""
 
 # Step 3: 기존 폴더 백업 및 제거
 echo "🗑️  Step 3: 기존 폴더 정리..."
-ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
+ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     if [ -d "$REMOTE_PATH" ]; then
         # 백업
         sudo cp -r $REMOTE_PATH ${REMOTE_PATH}.backup.\$(date +%Y%m%d_%H%M%S)
@@ -64,8 +65,8 @@ echo ""
 
 # Step 4: 코드 배포
 echo "📡 Step 4: 코드 배포 (SCP)..."
-scp -i $SSH_KEY -r . ubuntu@$LIGHTSAIL_IP:/tmp/tire-plan-temp
-ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
+scp $SSH_OPTS -i $SSH_KEY -r . ubuntu@$LIGHTSAIL_IP:/tmp/tire-plan-temp
+ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     sudo mkdir -p $REMOTE_PATH
     sudo cp -r /tmp/tire-plan-temp/* $REMOTE_PATH/
     sudo chown -R ubuntu:ubuntu $REMOTE_PATH
@@ -76,7 +77,7 @@ echo ""
 
 # Step 5: 의존성 설치 및 빌드
 echo "🔧 Step 5: Lightsail에서 빌드..."
-ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
+ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     cd $REMOTE_PATH
     echo "의존성 설치..."  # devDependencies(typescript 등) 포함 설치
     npm ci
@@ -90,7 +91,7 @@ echo ""
 
 # Step 6: PM2로 앱 시작
 echo "🚀 Step 6: 앱 시작..."
-ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
+ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     cd $REMOTE_PATH
     
     # PM2 설치 확인
@@ -113,7 +114,7 @@ echo ""
 
 # Step 7: 배포 확인
 echo "✅ Step 7: 배포 확인..."
-ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
+ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP << SSHEOF
     sleep 3
     
     # 프로세스 확인
@@ -135,5 +136,5 @@ echo "🎉 배포 완료!"
 echo "✨ 접근 URL: http://$LIGHTSAIL_IP:5173"
 echo ""
 echo "로그 확인:"
-echo "  ssh -i $SSH_KEY ubuntu@$LIGHTSAIL_IP"
+echo "  ssh $SSH_OPTS -i $SSH_KEY ubuntu@$LIGHTSAIL_IP"
 echo "  pm2 logs $APP_NAME"
