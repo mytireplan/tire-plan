@@ -531,7 +531,8 @@ const App: React.FC = () => {
   
   // Sidebar & Menu State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isStoreDropdownOpen, setIsStoreDropdownOpen] = useState(false); 
 
     const [isMobileViewport, setIsMobileViewport] = useState(() => {
         if (typeof window === 'undefined') return false;
@@ -547,6 +548,17 @@ const App: React.FC = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (isStoreDropdownOpen && !target.closest('[data-store-dropdown]')) {
+                setIsStoreDropdownOpen(false);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [isStoreDropdownOpen]);
 
     // 예약 화면 전용 실시간 구독 (지점 단위 + 최근 날짜 제한)
     useEffect(() => {
@@ -2417,16 +2429,44 @@ const App: React.FC = () => {
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 truncate tracking-tight">{activeTab === 'history' ? '판매 내역' : navItems.find(i => i.id === activeTab)?.label}</h2>
             </div>
             <div className="flex items-center gap-4 text-xs md:text-sm text-gray-500 text-right">
-                <div className="hidden sm:flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-2 relative" data-store-dropdown>
                     {(sessionRole === 'STORE_ADMIN' && !managerSession) ? (
-                        <button 
-                            onClick={() => setViewState('STORE_SELECT')}
-                            className="flex items-center gap-1 font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
-                            title="지점 변경"
-                        >
-                            <StoreIcon size={14} />
-                            {currentStoreId === 'ALL' ? '전체 지점 통합' : stores.find(s => s.id === currentStoreId)?.name}
-                        </button>
+                        <>
+                            <button 
+                                onClick={() => setIsStoreDropdownOpen(!isStoreDropdownOpen)}
+                                className="flex items-center gap-1 font-bold text-blue-600 hover:bg-blue-50 px-3 py-2 rounded transition-colors"
+                                title="지점 변경"
+                            >
+                                <StoreIcon size={14} />
+                                {currentStoreId === 'ALL' ? '전체 지점 통합' : stores.find(s => s.id === currentStoreId)?.name}
+                                <span className="text-blue-600">▼</span>
+                            </button>
+                            {isStoreDropdownOpen && (
+                                <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px]">
+                                    <button
+                                        onClick={() => {
+                                            setCurrentStoreId('ALL');
+                                            setIsStoreDropdownOpen(false);
+                                        }}
+                                        className={`w-full text-left px-4 py-2 hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg transition-colors ${currentStoreId === 'ALL' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-700'}`}
+                                    >
+                                        전체 지점 통합
+                                    </button>
+                                    {stores.map(store => (
+                                        <button
+                                            key={store.id}
+                                            onClick={() => {
+                                                setCurrentStoreId(store.id);
+                                                setIsStoreDropdownOpen(false);
+                                            }}
+                                            className={`w-full text-left px-4 py-2 hover:bg-gray-100 last:rounded-b-lg transition-colors ${currentStoreId === store.id ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-700'}`}
+                                        >
+                                            {store.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <div className="flex items-center gap-1 font-bold text-slate-500 px-2 py-1 rounded">
                             <StoreIcon size={14} />
