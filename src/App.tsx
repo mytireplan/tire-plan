@@ -2179,6 +2179,51 @@ const App: React.FC = () => {
         }
     };
 
+    // 휴가 신청 승인
+    const handleApproveLeave = async (leaveId: string) => {
+        const targetLeave = leaveRequests.find(lr => lr.id === leaveId);
+        if (!targetLeave) return;
+
+        // 1. LeaveRequest 상태 업데이트
+        const approvedLeave: LeaveRequest = {
+            ...targetLeave,
+            status: 'approved',
+            approvedBy: currentUser?.id,
+            approvedAt: new Date().toISOString()
+        };
+
+        setLeaveRequests(prev => prev.map(lr => lr.id === leaveId ? approvedLeave : lr));
+        try {
+            await saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, approvedLeave);
+        } catch (err) {
+            console.error('❌ Failed to approve leave in Firestore:', err);
+        }
+
+        alert(`${targetLeave.staffName}의 휴가 신청이 승인되었습니다.`);
+    };
+
+    // 휴가 신청 거절
+    const handleRejectLeave = async (leaveId: string, rejectionReason: string) => {
+        const targetLeave = leaveRequests.find(lr => lr.id === leaveId);
+        if (!targetLeave) return;
+
+        // 1. LeaveRequest 상태 업데이트
+        const rejectedLeave: LeaveRequest = {
+            ...targetLeave,
+            status: 'rejected',
+            rejectionReason
+        };
+
+        setLeaveRequests(prev => prev.map(lr => lr.id === leaveId ? rejectedLeave : lr));
+        try {
+            await saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, rejectedLeave);
+        } catch (err) {
+            console.error('❌ Failed to reject leave in Firestore:', err);
+        }
+
+        alert(`${targetLeave.staffName}의 휴가 신청이 거절되었습니다.`);
+    };
+
     // 결재 대기 중인 휴가 개수 계산
     const pendingLeaveCount = useMemo(() => {
         return leaveRequests.filter(lr => lr.status === 'pending').length;
@@ -2588,6 +2633,8 @@ const App: React.FC = () => {
                     onAddShift={handleAddShift}
                     onUpdateShift={handleUpdateShift}
                     onRemoveShift={handleRemoveShift}
+                    onApproveLeave={handleApproveLeave}
+                    onRejectLeave={handleRejectLeave}
                 />
             )}
             {activeTab === 'stockIn' && (

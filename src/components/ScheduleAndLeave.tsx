@@ -12,6 +12,8 @@ interface ScheduleAndLeaveProps {
   stores: Store[];
   currentStoreId?: string;
   onShiftRangeChange?: (start: string, end: string) => void;
+  onApproveLeave?: (leaveId: string) => void;
+  onRejectLeave?: (leaveId: string, reason: string) => void;
 }
 
 // Simple utility: get start of week (Mon-based)
@@ -26,7 +28,7 @@ const startOfWeek = (date: Date) => {
 
 const formatDateLabel = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
-const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId, onShiftRangeChange }) => {
+const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId, onShiftRangeChange, onApproveLeave, onRejectLeave }) => {
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [search, setSearch] = useState('');
@@ -41,6 +43,9 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
 
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectingLeaveId, setRejectingLeaveId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [shiftDraft, setShiftDraft] = useState({
     groupId: '',
     staffId: '',
@@ -771,10 +776,19 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700">
+                  <button 
+                    onClick={() => onApproveLeave?.(leave.id)}
+                    className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700"
+                  >
                     승인
                   </button>
-                  <button className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700">
+                  <button 
+                    onClick={() => {
+                      setRejectingLeaveId(leave.id);
+                      setIsRejectModalOpen(true);
+                    }}
+                    className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700"
+                  >
                     거절
                   </button>
                 </div>
@@ -783,6 +797,47 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
           )}
         </div>
       </div>
+
+      {/* 거절 사유 입력 모달 */}
+      {isRejectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 animate-scale-in">
+            <h3 className="text-lg font-bold text-gray-800">거절 사유 입력</h3>
+            <textarea
+              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+              rows={4}
+              placeholder="거절 사유를 입력하세요"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setIsRejectModalOpen(false);
+                  setRejectionReason('');
+                  setRejectingLeaveId(null);
+                }}
+                className="px-4 py-2 border border-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  if (rejectingLeaveId) {
+                    onRejectLeave?.(rejectingLeaveId, rejectionReason);
+                    setIsRejectModalOpen(false);
+                    setRejectionReason('');
+                    setRejectingLeaveId(null);
+                  }
+                }}
+                className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700"
+              >
+                거절 확정
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
