@@ -51,7 +51,8 @@ export interface SalesItem {
 export const PaymentMethod = {
   CARD: 'CARD',
   CASH: 'CASH',
-  TRANSFER: 'TRANSFER'
+  TRANSFER: 'TRANSFER',
+  COMPLEX: 'COMPLEX'
 } as const;
 
 export type PaymentMethod = typeof PaymentMethod[keyof typeof PaymentMethod];
@@ -79,6 +80,12 @@ export interface Sale {
   totalAmount: number;
   discountAmount?: number; // Optional discount applied to the sale
   paymentMethod: PaymentMethod;
+  paymentDetails?: {
+    method1: PaymentMethod;
+    amount1: number;
+    method2?: PaymentMethod;
+    amount2?: number;
+  }; // For COMPLEX: breakdown of payment methods
   items: SalesItem[];
   staffName: string; // The staff member selected at checkout
   customer?: {

@@ -59,6 +59,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       const [quickAddForm, setQuickAddForm] = useState<{
           datetime: string;
           paymentMethod: PaymentMethod;
+          paymentDetails?: { method1: PaymentMethod; amount1: number; method2?: PaymentMethod; amount2?: number };
           staffName: string;
           storeId: string;
           customerName: string;
@@ -1102,6 +1103,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           storeId,
           totalAmount,
           paymentMethod: quickAddForm.paymentMethod,
+          paymentDetails: quickAddForm.paymentDetails,
           items: quickAddForm.items,
           staffName: quickAddForm.staffName || currentUser.name,
           customer,
@@ -1587,14 +1589,106 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                   <label className="text-sm font-bold text-gray-700">결제 수단</label>
                                   <select 
                                     value={quickAddForm.paymentMethod}
-                                    onChange={e => setQuickAddForm(prev => ({ ...prev, paymentMethod: e.target.value as PaymentMethod }))}
+                                    onChange={e => {
+                                      const method = e.target.value as PaymentMethod;
+                                      setQuickAddForm(prev => ({
+                                        ...prev, 
+                                        paymentMethod: method,
+                                        paymentDetails: method === PaymentMethod.COMPLEX ? {
+                                          method1: PaymentMethod.CARD,
+                                          amount1: 0,
+                                          method2: PaymentMethod.CASH,
+                                          amount2: 0
+                                        } : undefined
+                                      }));
+                                    }}
                                     className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                   >
                                     <option value={PaymentMethod.CARD}>카드</option>
                                     <option value={PaymentMethod.CASH}>현금</option>
                                     <option value={PaymentMethod.TRANSFER}>이체</option>
+                                    <option value={PaymentMethod.COMPLEX}>복합결제</option>
                                   </select>
                               </div>
+
+                              {/* Complex Payment Details */}
+                              {quickAddForm.paymentMethod === PaymentMethod.COMPLEX && quickAddForm.paymentDetails && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                                  <h4 className="font-bold text-blue-900 text-xs">복합결제 상세</h4>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-bold text-blue-700">결제 수단 1</label>
+                                      <select
+                                        value={quickAddForm.paymentDetails.method1}
+                                        onChange={e => setQuickAddForm(prev => ({
+                                          ...prev,
+                                          paymentDetails: prev.paymentDetails ? { ...prev.paymentDetails, method1: e.target.value as PaymentMethod } : undefined
+                                        }))}
+                                        className="w-full p-1.5 border border-blue-300 rounded text-xs bg-white focus:border-blue-500"
+                                      >
+                                        <option value={PaymentMethod.CARD}>카드</option>
+                                        <option value={PaymentMethod.CASH}>현금</option>
+                                        <option value={PaymentMethod.TRANSFER}>이체</option>
+                                      </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-bold text-blue-700">금액 1</label>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={quickAddForm.paymentDetails.amount1 > 0 ? formatNumber(quickAddForm.paymentDetails.amount1) : ''}
+                                        onChange={(e) => {
+                                          const amount = Number(e.target.value.replace(/[^0-9]/g, '') || '0');
+                                          setQuickAddForm(prev => ({
+                                            ...prev,
+                                            paymentDetails: prev.paymentDetails ? { ...prev.paymentDetails, amount1: amount } : undefined
+                                          }));
+                                        }}
+                                        className="w-full p-1.5 border border-blue-300 rounded text-xs font-bold"
+                                        placeholder="0"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-bold text-blue-700">결제 수단 2</label>
+                                      <select
+                                        value={quickAddForm.paymentDetails.method2 || PaymentMethod.CASH}
+                                        onChange={e => setQuickAddForm(prev => ({
+                                          ...prev,
+                                          paymentDetails: prev.paymentDetails ? { ...prev.paymentDetails, method2: e.target.value as PaymentMethod } : undefined
+                                        }))}
+                                        className="w-full p-1.5 border border-blue-300 rounded text-xs bg-white focus:border-blue-500"
+                                      >
+                                        <option value={PaymentMethod.CARD}>카드</option>
+                                        <option value={PaymentMethod.CASH}>현금</option>
+                                        <option value={PaymentMethod.TRANSFER}>이체</option>
+                                      </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-bold text-blue-700">금액 2</label>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={quickAddForm.paymentDetails.amount2 && quickAddForm.paymentDetails.amount2 > 0 ? formatNumber(quickAddForm.paymentDetails.amount2) : ''}
+                                        onChange={(e) => {
+                                          const amount = Number(e.target.value.replace(/[^0-9]/g, '') || '0');
+                                          setQuickAddForm(prev => ({
+                                            ...prev,
+                                            paymentDetails: prev.paymentDetails ? { ...prev.paymentDetails, amount2: amount } : undefined
+                                          }));
+                                        }}
+                                        className="w-full p-1.5 border border-blue-300 rounded text-xs font-bold"
+                                        placeholder="0"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-blue-700 font-bold bg-white p-1.5 rounded text-center">
+                                    합계: {formatCurrency((quickAddForm.paymentDetails.amount1 || 0) + (quickAddForm.paymentDetails.amount2 || 0))}
+                                  </div>
+                                </div>
+                              )}
+                              
                               <div className="space-y-2">
                                   <label className="text-sm font-bold text-gray-700">담당자</label>
                                   {availableStaffForQuickAdd.length === 0 ? (
