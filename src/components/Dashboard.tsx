@@ -319,20 +319,20 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   }, [expenses, boardDateStr]);
 
   // 5. Daily/Upcoming Leave Requests
-    const upcomingLeaves = useMemo(() => {
-            // For Admin Dashboard: Show all future leaves
+        const upcomingLeaves = useMemo(() => {
+            // For Admin Dashboard: Show future approved leaves only
             if (currentUser.role === 'STORE_ADMIN') {
-                    return leaveRequests
-                        .filter(req => {
-                                const reqDateStr = (req.date && req.date.length >= 10) ? req.date.slice(0,10) : formatDateYMD(new Date(req.date));
-                                return reqDateStr >= todayStr;
-                        })
-                        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                        .slice(0, 5); // Limit to 5
+                return leaveRequests
+                .filter(req => {
+                    const reqDateStr = (req.date && req.date.length >= 10) ? req.date.slice(0,10) : formatDateYMD(new Date(req.date));
+                    return req.status === 'approved' && reqDateStr >= todayStr;
+                })
+                .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                .slice(0, 5); // Limit to 5
             }
-            // For Staff Board: Show leaves for the selected Board Date
-            return leaveRequests.filter(req => req.date === boardDateStr);
-    }, [leaveRequests, boardDateStr, currentUser.role]);
+            // For Staff Board: Show approved leaves for the selected Board Date
+            return leaveRequests.filter(req => req.status === 'approved' && req.date === boardDateStr);
+        }, [leaveRequests, boardDateStr, currentUser.role]);
 
     // Local notices state (quick dashboard announcements). Add via + button.
     const [notices, setNotices] = useState<Array<{id:string; title:string; content:string; urgent?:boolean}>>(() => [

@@ -307,7 +307,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
     const leaveFromRequests = leaveRequests
       .filter(lr => {
         const leaveDate = lr.date; // ISO 문자열: YYYY-MM-DD
-        return leaveDate >= weekStartStr && leaveDate <= weekEndStr;
+        return lr.status === 'approved' && leaveDate >= weekStartStr && leaveDate <= weekEndStr;
       })
       .map(lr => ({
         id: lr.id,
