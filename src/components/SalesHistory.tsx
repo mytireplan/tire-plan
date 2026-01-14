@@ -1696,6 +1696,42 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                           </div>
                                                       </div>
                                                   </div>
+                                                                                                    {item.productId?.startsWith('rental-') && (
+                                                                                                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                                                                                            <div className="space-y-1">
+                                                                                                                <label className="block text-gray-500 font-bold">사이즈 / 렌탈 종류</label>
+                                                                                                                <input
+                                                                                                                    type="text"
+                                                                                                                    value={item.specification || ''}
+                                                                                                                    onChange={(e) => {
+                                                                                                                        const spec = e.target.value;
+                                                                                                                        setQuickAddForm(prev => ({
+                                                                                                                            ...prev,
+                                                                                                                            items: prev.items.map((it, i) => i === idx ? { ...it, specification: spec } : it)
+                                                                                                                        }));
+                                                                                                                    }}
+                                                                                                                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                                                                                                    placeholder="예: 245/45R18 또는 장기렌탈/단기렌탈"
+                                                                                                                />
+                                                                                                            </div>
+                                                                                                            <div className="space-y-1">
+                                                                                                                <label className="block text-gray-500 font-bold">메모 (선택)</label>
+                                                                                                                <input
+                                                                                                                    type="text"
+                                                                                                                    value={item.brand || ''}
+                                                                                                                    onChange={(e) => {
+                                                                                                                        const memo = e.target.value;
+                                                                                                                        setQuickAddForm(prev => ({
+                                                                                                                            ...prev,
+                                                                                                                            items: prev.items.map((it, i) => i === idx ? { ...it, brand: memo } : it)
+                                                                                                                        }));
+                                                                                                                    }}
+                                                                                                                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                                                                                                    placeholder="렌탈 옵션/비고"
+                                                                                                                />
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    )}
                                               </div>
                                               <button
                                                   onClick={() => setQuickAddForm(prev => ({
