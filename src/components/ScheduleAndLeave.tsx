@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { LeaveRequest, Staff, Store, Shift } from '../types';
-import { ChevronLeft, ChevronRight, Calendar, Plus, Search, ToggleLeft, ToggleRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Plus, Search, ToggleLeft, ToggleRight, X, AlertCircle } from 'lucide-react';
 
 interface ScheduleAndLeaveProps {
   staffList: Staff[];
@@ -372,6 +372,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                         const dateStr = dateToLocalString(d);
                         const dayShifts = shifts.filter(s => s.staffId === staff.id && isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                         const hasLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'approved');
+                        const hasPendingLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'pending');
                         const isDragging = dragSelection?.active && dragSelection.staffId === staff.id && dateStr >= dragSelection.start && dateStr <= dragSelection.end;
                         return (
                           <div
@@ -442,7 +443,13 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                                 휴무
                               </div>
                             )}
-                            {dayShifts.length === 0 && !hasLeave && (
+                            {hasPendingLeave && (
+                              <div className="text-[11px] px-2 py-1 rounded-md bg-amber-50 text-amber-600 border border-dashed border-amber-300 inline-flex items-center gap-1 font-semibold">
+                                <AlertCircle size={10}/>
+                                <span>결재중</span>
+                              </div>
+                            )}
+                            {dayShifts.length === 0 && !hasLeave && !hasPendingLeave && (
                               <div className="text-[11px] text-gray-400">근무 없음</div>
                             )}
                             {dayShifts.map(shift => {
