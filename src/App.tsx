@@ -20,7 +20,6 @@ import Settings from './components/Settings';
 import CustomerList from './components/CustomerList';
 import StockIn from './components/StockIn';
 import Financials from './components/Financials';
-import LeaveManagement from './components/LeaveManagement';
 import ScheduleAndLeave from './components/ScheduleAndLeave';
 import ReservationSystem from './components/ReservationSystem';
 import LoginScreen from './components/LoginScreen';
@@ -2274,27 +2273,7 @@ const App: React.FC = () => {
         }
     };
 
-    // 휴가 신청 추가
-    const handleAddLeaveRequest = async (req: LeaveRequest) => {
-        setLeaveRequests(prev => [...prev, req]);
-        try {
-            await saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, req);
-            console.log('✅ Leave request saved to Firestore:', req.id);
-        } catch (err) {
-            console.error('❌ Failed to save leave request to Firestore:', err);
-        }
-    };
-
-    // 휴가 신청 삭제
-    const handleRemoveLeaveRequest = async (id: string) => {
-        setLeaveRequests(prev => prev.filter(r => r.id !== id));
-        try {
-            await deleteFromFirestore(COLLECTIONS.LEAVE_REQUESTS, id);
-            console.log('✅ Leave request deleted in Firestore:', id);
-        } catch (err) {
-            console.error('❌ Failed to delete leave request in Firestore:', err);
-        }
-    };
+    // (Removed) Leave request add/remove handlers were unused in this view
 
     // 휴가 신청 거절
     const handleRejectLeave = async (leaveId: string, rejectionReason: string) => {
@@ -2726,33 +2705,20 @@ const App: React.FC = () => {
                 />
             )}
             {activeTab === 'leave' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-1">
-                        <LeaveManagement
-                            staffList={visibleStaff}
-                            leaveRequests={leaveRequests}
-                            onAddRequest={handleAddLeaveRequest}
-                            onRemoveRequest={handleRemoveLeaveRequest}
-                            currentUser={effectiveUser}
-                        />
-                    </div>
-                    <div className="lg:col-span-2">
-                        <ScheduleAndLeave
-                            staffList={visibleStaff}
-                            leaveRequests={leaveRequests}
-                            stores={visibleStores}
-                            shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
-                            currentStoreId={currentStoreId}
-                            onShiftRangeChange={handleShiftRangeChange}
-                            onAddShift={handleAddShift}
-                            onUpdateShift={handleUpdateShift}
-                            onRemoveShift={handleRemoveShift}
-                            onApproveLeave={handleApproveLeave}
-                            onRejectLeave={handleRejectLeave}
-                            currentUser={effectiveUser}
-                        />
-                    </div>
-                </div>
+                <ScheduleAndLeave
+                    staffList={visibleStaff}
+                    leaveRequests={leaveRequests}
+                    stores={visibleStores}
+                    shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
+                    currentStoreId={currentStoreId}
+                    onShiftRangeChange={handleShiftRangeChange}
+                    onAddShift={handleAddShift}
+                    onUpdateShift={handleUpdateShift}
+                    onRemoveShift={handleRemoveShift}
+                    onApproveLeave={handleApproveLeave}
+                    onRejectLeave={handleRejectLeave}
+                    currentUser={effectiveUser}
+                />
             )}
             {activeTab === 'stockIn' && (
                 <StockIn
