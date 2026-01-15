@@ -9,7 +9,7 @@ import { PaymentMethod } from './types';
 import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift } from './types';
 
 // Firebase imports
-import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery } from './utils/firestore'; 
+import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery, subscribeToCollection } from './utils/firestore'; 
 // (뒤에 더 있는 것들도 여기에 다 넣어주세요)
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -20,6 +20,7 @@ import Settings from './components/Settings';
 import CustomerList from './components/CustomerList';
 import StockIn from './components/StockIn';
 import Financials from './components/Financials';
+import LeaveManagement from './components/LeaveManagement';
 import ScheduleAndLeave from './components/ScheduleAndLeave';
 import ReservationSystem from './components/ReservationSystem';
 import LoginScreen from './components/LoginScreen';
@@ -905,6 +906,100 @@ const App: React.FC = () => {
 
         initializeData();
     }, []);
+
+  // Firestore 실시간 리스너 (데이터 자동 동기화)
+  useEffect(() => {
+      const unsubscribeList: Array<() => void> = [];
+
+      try {
+          // LeaveRequests 실시간 구독
+          const unsubLeaveRequests = subscribeToCollection<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, (data) => {
+              console.log('📥 Leave requests updated from Firestore:', data.length);
+              setLeaveRequests(data);
+          });
+          unsubscribeList.push(unsubLeaveRequests);
+
+          // Sales 실시간 구독
+          const unsubSales = subscribeToCollection<Sale>(COLLECTIONS.SALES, (data) => {
+              console.log('📥 Sales updated from Firestore:', data.length);
+              setSales(data);
+          });
+          unsubscribeList.push(unsubSales);
+
+          // Customers 실시간 구독
+          const unsubCustomers = subscribeToCollection<Customer>(COLLECTIONS.CUSTOMERS, (data) => {
+              console.log('📥 Customers updated from Firestore:', data.length);
+              setCustomers(data);
+          });
+          unsubscribeList.push(unsubCustomers);
+
+          // Products 실시간 구독
+          const unsubProducts = subscribeToCollection<Product>(COLLECTIONS.PRODUCTS, (data) => {
+              console.log('📥 Products updated from Firestore:', data.length);
+              setProducts(data);
+          });
+          unsubscribeList.push(unsubProducts);
+
+          // Staff 실시간 구독
+          const unsubStaff = subscribeToCollection<Staff>(COLLECTIONS.STAFF, (data) => {
+              console.log('📥 Staff updated from Firestore:', data.length);
+              setStaffList(data);
+          });
+          unsubscribeList.push(unsubStaff);
+
+          // Stores 실시간 구독
+          const unsubStores = subscribeToCollection<StoreAccount>(COLLECTIONS.STORES, (data) => {
+              console.log('📥 Stores updated from Firestore:', data.length);
+              setStores(data);
+          });
+          unsubscribeList.push(unsubStores);
+
+          // Expenses 실시간 구독
+          const unsubExpenses = subscribeToCollection<ExpenseRecord>(COLLECTIONS.EXPENSES, (data) => {
+              console.log('📥 Expenses updated from Firestore:', data.length);
+              setExpenses(data);
+          });
+          unsubscribeList.push(unsubExpenses);
+
+          // FixedCosts 실시간 구독
+          const unsubFixedCosts = subscribeToCollection<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, (data) => {
+              console.log('📥 Fixed costs updated from Firestore:', data.length);
+              setFixedCosts(data);
+          });
+          unsubscribeList.push(unsubFixedCosts);
+
+          // Reservations 실시간 구독
+          const unsubReservations = subscribeToCollection<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
+              console.log('📥 Reservations updated from Firestore:', data.length);
+              setReservations(data);
+          });
+          unsubscribeList.push(unsubReservations);
+
+          // StockIn 실시간 구독
+          const unsubStockIn = subscribeToCollection<StockInRecord>(COLLECTIONS.STOCK_IN, (data) => {
+              console.log('📥 Stock-in history updated from Firestore:', data.length);
+              setStockInHistory(data);
+          });
+          unsubscribeList.push(unsubStockIn);
+
+          // Transfers 실시간 구독
+          const unsubTransfers = subscribeToCollection<StockTransferRecord>(COLLECTIONS.TRANSFERS, (data) => {
+              console.log('📥 Transfers updated from Firestore:', data.length);
+              setTransferHistory(data);
+          });
+          unsubscribeList.push(unsubTransfers);
+
+          console.log('🔌 Firestore real-time listeners registered');
+      } catch (error) {
+          console.error('❌ Error registering Firestore listeners:', error);
+      }
+
+      // Cleanup: unsubscribe all listeners when component unmounts
+      return () => {
+          console.log('🔕 Unsubscribing from all Firestore listeners');
+          unsubscribeList.forEach(unsub => unsub());
+      };
+  }, []);
 
   // 데이터 변경 시 Firestore 자동 저장
     // Removed bulk auto-save effects to avoid duplicate writes with real-time subscriptions.
@@ -2179,27 +2274,26 @@ const App: React.FC = () => {
         }
     };
 
-    // 휴가 신청 승인
-    const handleApproveLeave = async (leaveId: string) => {
-        const targetLeave = leaveRequests.find(lr => lr.id === leaveId);
-        if (!targetLeave) return;
-
-        // 1. LeaveRequest 상태 업데이트
-        const approvedLeave: LeaveRequest = {
-            ...targetLeave,
-            status: 'approved',
-            approvedBy: currentUser?.id,
-            approvedAt: new Date().toISOString()
-        };
-
-        setLeaveRequests(prev => prev.map(lr => lr.id === leaveId ? approvedLeave : lr));
+    // 휴가 신청 추가
+    const handleAddLeaveRequest = async (req: LeaveRequest) => {
+        setLeaveRequests(prev => [...prev, req]);
         try {
-            await saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, approvedLeave);
+            await saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, req);
+            console.log('✅ Leave request saved to Firestore:', req.id);
         } catch (err) {
-            console.error('❌ Failed to approve leave in Firestore:', err);
+            console.error('❌ Failed to save leave request to Firestore:', err);
         }
+    };
 
-        alert(`${targetLeave.staffName}의 휴가 신청이 승인되었습니다.`);
+    // 휴가 신청 삭제
+    const handleRemoveLeaveRequest = async (id: string) => {
+        setLeaveRequests(prev => prev.filter(r => r.id !== id));
+        try {
+            await deleteFromFirestore(COLLECTIONS.LEAVE_REQUESTS, id);
+            console.log('✅ Leave request deleted in Firestore:', id);
+        } catch (err) {
+            console.error('❌ Failed to delete leave request in Firestore:', err);
+        }
     };
 
     // 휴가 신청 거절
@@ -2224,10 +2318,28 @@ const App: React.FC = () => {
         alert(`${targetLeave.staffName}의 휴가 신청이 거절되었습니다.`);
     };
 
-    // 결재 대기 중인 휴가 개수 계산
-    const pendingLeaveCount = useMemo(() => {
-        return leaveRequests.filter(lr => lr.status === 'pending').length;
-    }, [leaveRequests]);
+    // 휴가 신청 승인
+    const handleApproveLeave = async (leaveId: string) => {
+        const targetLeave = leaveRequests.find(lr => lr.id === leaveId);
+        if (!targetLeave) return;
+
+        // 1. LeaveRequest 상태 업데이트
+        const approvedLeave: LeaveRequest = {
+            ...targetLeave,
+            status: 'approved',
+            approvedBy: currentUser?.id,
+            approvedAt: new Date().toISOString()
+        };
+
+        setLeaveRequests(prev => prev.map(lr => lr.id === leaveId ? approvedLeave : lr));
+        try {
+            await saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, approvedLeave);
+        } catch (err) {
+            console.error('❌ Failed to approve leave in Firestore:', err);
+        }
+
+        alert(`${targetLeave.staffName}의 휴가 신청이 승인되었습니다.`);
+    };
   
   // Navigation & Permissions Logic
   const navItems = useMemo(() => {
@@ -2247,12 +2359,12 @@ const App: React.FC = () => {
       { id: 'stockIn', label: '입고 관리', icon: Truck, show: true, type: 'CORE' }, 
       { id: 'financials', label: isAdmin ? '재무/결산' : '지출', icon: PieChart, show: true, type: 'CORE' }, // Dynamic Label
       { id: 'DIVIDER_2', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
-    { id: 'leave', label: '근무표', icon: Calendar, show: true, type: 'CORE', badge: isAdmin && pendingLeaveCount > 0 ? pendingLeaveCount : 0 },
+    { id: 'leave', label: '근무표', icon: Calendar, show: true, type: 'CORE' },
       // Settings: Show only if isAdmin
             { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin && !managerSession, type: 'ADMIN' } 
     ];
     return items.filter(item => item.show);
-  }, [effectiveUser, staffPermissions, pendingLeaveCount]);
+  }, [effectiveUser, staffPermissions]);
 
   const currentUserPassword = users.find(u => u.id === currentUser?.id)?.password || '';
 
@@ -2353,9 +2465,6 @@ const App: React.FC = () => {
                                         >
                                             <Icon size={20} />
                                             <span className="truncate">{item.label}</span>
-                                            {item.badge && item.badge > 0 && (
-                                                <span className="absolute right-3 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">{item.badge}</span>
-                                            )}
                                         </button>
                                     </li>
                                 );
@@ -2428,13 +2537,7 @@ const App: React.FC = () => {
                             {isSidebarOpen && (
                                 <div className="flex-1 flex justify-between items-center">
                                     <span className="font-medium text-sm tracking-tight sidebar-menu-label">{item.label}</span>
-                                    {item.badge && item.badge > 0 && (
-                                        <span className="w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">{item.badge}</span>
-                                    )}
                                 </div>
-                            )}
-                            {!isSidebarOpen && item.badge && item.badge > 0 && (
-                                <span className="absolute right-0 top-0 w-4 h-4 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center -translate-y-1 translate-x-1">!</span>
                             )}
                         </button>
                         </li>
@@ -2623,20 +2726,33 @@ const App: React.FC = () => {
                 />
             )}
             {activeTab === 'leave' && (
-                <ScheduleAndLeave
-                    staffList={visibleStaff}
-                    leaveRequests={leaveRequests}
-                    stores={visibleStores}
-                    shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
-                    currentStoreId={currentStoreId}
-                    onShiftRangeChange={handleShiftRangeChange}
-                    onAddShift={handleAddShift}
-                    onUpdateShift={handleUpdateShift}
-                    onRemoveShift={handleRemoveShift}
-                    onApproveLeave={handleApproveLeave}
-                    onRejectLeave={handleRejectLeave}
-                    currentUser={effectiveUser}
-                />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-1">
+                        <LeaveManagement
+                            staffList={visibleStaff}
+                            leaveRequests={leaveRequests}
+                            onAddRequest={handleAddLeaveRequest}
+                            onRemoveRequest={handleRemoveLeaveRequest}
+                            currentUser={effectiveUser}
+                        />
+                    </div>
+                    <div className="lg:col-span-2">
+                        <ScheduleAndLeave
+                            staffList={visibleStaff}
+                            leaveRequests={leaveRequests}
+                            stores={visibleStores}
+                            shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
+                            currentStoreId={currentStoreId}
+                            onShiftRangeChange={handleShiftRangeChange}
+                            onAddShift={handleAddShift}
+                            onUpdateShift={handleUpdateShift}
+                            onRemoveShift={handleRemoveShift}
+                            onApproveLeave={handleApproveLeave}
+                            onRejectLeave={handleRejectLeave}
+                            currentUser={effectiveUser}
+                        />
+                    </div>
+                </div>
             )}
             {activeTab === 'stockIn' && (
                 <StockIn

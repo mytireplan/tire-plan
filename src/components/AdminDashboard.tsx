@@ -707,10 +707,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
             </div>
             <div className="space-y-3">
               {upcomingLeaves.length > 0 ? upcomingLeaves.map((leave, i) => {
-                // Shift OFF의 경우 storeId를 직접 사용, LeaveRequest의 경우 staffId로 찾기
-                let staff = staffList.find(s => s.id === leave.staffId);
-                let storeId = (leave as any).storeId;
-                let store = stores.find(s => s.id === storeId);
+                // staffList에서 실제 직원 정보 찾기
+                const staff = staffList.find(s => s.id === leave.staffId);
+                
+                // 직원을 찾지 못하면 이 항목은 표시하지 않음 (잘못된 데이터)
+                if (!staff) {
+                  console.warn('⚠️ 직원을 찾을 수 없음:', leave.staffId, leave.staffName);
+                  return null;
+                }
+                
+                const storeId = (leave as any).storeId || staff.storeId;
+                const store = stores.find(s => s.id === storeId);
                 
                 // leave.date는 ISO 문자열 (YYYY-MM-DD)
                 const [, month, day] = leave.date.split('-');
@@ -723,7 +730,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                         <Clock size={14} className="text-slate-400 group-hover:text-red-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-700">{staff?.name || '직원'}</p>
+                        <p className="text-sm font-bold text-slate-700">{staff.name}</p>
                         <p className="text-[10px] text-slate-400 font-medium">{store?.name || ''} · {leave.reason || '휴가'}</p>
                       </div>
                     </div>
@@ -752,7 +759,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
               </button>
             </div>
           </div>
-
         </div>
 
       </main>

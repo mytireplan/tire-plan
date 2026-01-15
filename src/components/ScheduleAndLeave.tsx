@@ -373,8 +373,8 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                         const dateStr = dateToLocalString(d);
                         const dayShifts = shifts.filter(s => s.staffId === staff.id && isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                         const hasLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'approved');
-                        // 관리자 모드에서만 대기중 휴가 표시
-                        const hasPendingLeave = currentUser?.role === 'STORE_ADMIN' ? leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'pending') : false;
+                        // 모든 사용자가 대기중 휴가 볼 수 있음 (사장님은 승인/거절 가능, 직원은 상태만 확인)
+                        const hasPendingLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'pending');
                         const isDragging = dragSelection?.active && dragSelection.staffId === staff.id && dateStr >= dragSelection.start && dateStr <= dragSelection.end;
                         return (
                           <div
@@ -446,7 +446,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                               </div>
                             )}
                             {hasPendingLeave && (
-                              <div className="text-[11px] px-2 py-1 rounded-md bg-amber-50 text-amber-600 border border-dashed border-amber-300 inline-flex items-center gap-1 font-semibold">
+                              <div className="text-[11px] px-2 py-1 rounded-md bg-amber-50 text-amber-600 inline-flex items-center gap-1 font-semibold" style={{ borderStyle: 'dashed', borderWidth: '1px', borderColor: '#fcd34d' }}>
                                 <AlertCircle size={10}/>
                                 <span>결재중</span>
                               </div>
@@ -624,6 +624,67 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
         </div>
       )}
 
+      {/* 사장님 모드: 승인 대기중인 휴가 목록 */}
+      {currentUser?.role === 'STORE_ADMIN' && (
+        <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <AlertCircle size={20} className="text-amber-500" />
+            승인 대기중인 휴가 ({leaveRequests.filter(lr => lr.status === 'pending').length}명)
+          </h3>
+          {leaveRequests.filter(lr => lr.status === 'pending').length > 0 ? (
+            <div className="space-y-3">
+              {leaveRequests.filter(lr => lr.status === 'pending').length > 0 ? leaveRequests.filter(lr => lr.status === 'pending').map(leave => {
+                const staff = staffList.find(s => s.id === leave.staffId);
+                if (!staff) return null;
+                
+                try {
+                  const dateParts = leave.date.split('-');
+                  const month = parseInt(dateParts[1]);
+                  const day = parseInt(dateParts[2]);
+                  const dateStr = `${month}.${day}`;
+                  
+                  return (
+                    <div key={leave.id} className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-gray-800">{staff.name}</span>
+                          <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded font-bold border border-amber-200">
+                            {leave.type === 'FULL' ? '연차' : leave.type === 'HALF_AM' ? '오전반차' : '오후반차'}
+                          </span>
+                          <span className="text-xs text-gray-500">{dateStr}</span>
+                          {leave.reason && <span className="text-xs text-gray-600">({leave.reason})</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                      <button
+                        onClick={() => onRejectLeave?.(leave.id, '')}
+                        className="px-3 py-1.5 bg-red-100 text-red-700 font-bold rounded hover:bg-red-200 text-sm"
+                      >
+                        거절
+                      </button>
+                      <button
+                        onClick={() => onApproveLeave?.(leave.id)}
+                        className="px-3 py-1.5 bg-emerald-100 text-emerald-700 font-bold rounded hover:bg-emerald-200 text-sm"
+                      >
+                        승인
+                      </button>
+                    </div>
+                  </div>
+                  );
+                } catch (error) {
+                  console.error('Error rendering pending leave:', error);
+                  return null;
+                }
+              }) : null}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              승인 대기중인 휴가가 없습니다.
+            </div>
+          )}
+        </div>
+      )}
+
       {isShiftModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
@@ -766,46 +827,6 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
           </div>
         </div>
       )}
-
-      {/* 대기 중인 휴가 신청 목록 (사장 모드) */}
-      <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">대기 중인 휴가 신청</h3>
-        <div className="space-y-2">
-          {leaveRequests.filter(lr => lr.status === 'pending').length === 0 ? (
-            <p className="text-sm text-gray-500">대기 중인 휴가 신청이 없습니다.</p>
-          ) : (
-            leaveRequests.filter(lr => lr.status === 'pending').map(leave => (
-              <div key={leave.id} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <div>
-                  <p className="font-bold text-gray-800">{leave.staffName}</p>
-                  <p className="text-xs text-gray-600">
-                    {leave.date} • 
-                    {leave.type === 'FULL' ? ' 연차(종일)' : leave.type === 'HALF_AM' ? ' 오전 반차' : ' 오후 반차'}
-                    {leave.reason && ` • ${leave.reason}`}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => onApproveLeave?.(leave.id)}
-                    className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700"
-                  >
-                    승인
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setRejectingLeaveId(leave.id);
-                      setIsRejectModalOpen(true);
-                    }}
-                    className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700"
-                  >
-                    거절
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
 
       {/* 거절 사유 입력 모달 */}
       {isRejectModalOpen && (
