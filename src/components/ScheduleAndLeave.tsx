@@ -632,7 +632,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                               <AlertCircle size={10}/>
                               <span className="font-semibold">{l.staffName}</span>
                               <span className={`text-[10px] px-2 py-[2px] rounded-full border ${storeColor.badge}`}>{storeName}</span>
-                              <span>{l.type === 'FULL' ? '월차' : '반차'} 결재중</span>
+                              <span>결재중</span>
                             </button>
                           );
                         })}
