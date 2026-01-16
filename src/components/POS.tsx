@@ -375,40 +375,43 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       return (forceShowBrandTabs || searchTerm.length > 0 || selectedCategory === '타이어');
   }, [forceShowBrandTabs, searchTerm, selectedCategory]);
 
-    const filteredProducts = useMemo(() => {
-      const lowerSearch = searchTerm.toLowerCase().trim();
-      // Create numeric only version for spec search (e.g. '2355519')
-      const numericSearch = lowerSearch.replace(/\D/g, '');
+        const filteredProducts = useMemo(() => {
+            const lowerSearch = (searchTerm || '').toLowerCase().trim();
+            // Create numeric only version for spec search (e.g. '2355519')
+            const numericSearch = lowerSearch.replace(/\D/g, '');
 
-      let result = fireProducts.filter(p => {
-        if (p.id === '99999') return false; // Hide dummy product from list
+            let result = fireProducts.filter(p => {
+                if (p.id === '99999') return false; // Hide dummy product from list
 
-        const nameMatch = p.name.toLowerCase().includes(lowerSearch);
-        const brandMatch = p.brand?.toLowerCase().includes(lowerSearch);
+                const normalizedName = (p.name || '').toLowerCase();
+                const normalizedBrand = (p.brand || '').toLowerCase();
+                const normalizedSpec = (p.specification || '').toLowerCase();
+
+                const nameMatch = normalizedName.includes(lowerSearch);
+                const brandMatch = normalizedBrand.includes(lowerSearch);
         
-        let specMatch = false;
-        if (p.specification) {
-            const lowerSpec = p.specification.toLowerCase();
-            if (lowerSpec.includes(lowerSearch)) specMatch = true;
+                let specMatch = false;
+                if (normalizedSpec) {
+                        if (normalizedSpec.includes(lowerSearch)) specMatch = true;
             
-            if (!specMatch && numericSearch.length >= 3) {
-                const numericSpec = lowerSpec.replace(/\D/g, '');
-                if (numericSpec.includes(numericSearch)) specMatch = true;
-            }
-        }
+                        if (!specMatch && numericSearch.length >= 3) {
+                                const numericSpec = normalizedSpec.replace(/\D/g, '');
+                                if (numericSpec.includes(numericSearch)) specMatch = true;
+                        }
+                }
         
-        const matchesSearch = nameMatch || specMatch || brandMatch;
+                const matchesSearch = nameMatch || specMatch || brandMatch;
         
-        const matchesCategory = !selectedCategory || p.category === selectedCategory;
-        const matchesBrand = selectedBrand === 'All' || p.brand === selectedBrand;
+                const matchesCategory = !selectedCategory || p.category === selectedCategory;
+                const matchesBrand = selectedBrand === 'All' || p.brand === selectedBrand;
         
-        return matchesSearch && matchesCategory && matchesBrand;
-      });
+                return matchesSearch && matchesCategory && matchesBrand;
+            });
 
-      const brandOrder = tireBrands.reduce((acc, brand, idx) => {
-          acc[brand] = idx;
-          return acc;
-      }, {} as Record<string, number>);
+            const brandOrder = (tireBrands || []).reduce((acc, brand, idx) => {
+                    acc[brand] = idx;
+                    return acc;
+            }, {} as Record<string, number>);
 
       result.sort((a, b) => {
           if (tireBrands.length > 0) {
