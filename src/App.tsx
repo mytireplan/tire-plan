@@ -2394,9 +2394,9 @@ const App: React.FC = () => {
 
         // 2. 승인된 휴무를 Shift로 자동 변환
         const leaveTypeToShiftType: Record<LeaveRequest['type'], Shift['shiftType']> = {
-            'FULL': 'OFF',
-            'HALF_AM': 'HALF',
-            'HALF_PM': 'HALF'
+            FULL: 'VACATION',
+            HALF_AM: 'HALF',
+            HALF_PM: 'HALF'
         };
 
         const newShift: Shift = {
