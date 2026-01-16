@@ -59,9 +59,10 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
                 const isService = category !== '타이어' || totalStock > 900;
                 if (isService) return sum;
 
+                const stockByStore = p.stockByStore || {};
                 const viewStock = (currentStoreId === 'ALL' || !currentStoreId)
-                        ? totalStock
-                        : (p.stockByStore[currentStoreId] || 0);
+                    ? totalStock
+                    : (stockByStore[currentStoreId] || 0);
 
                 return sum + (viewStock || 0);
         }, 0);
@@ -81,13 +82,15 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
             return Array.from(new Set(all));
         }, [products, tireBrands]);
 
-    const filteredProducts = products.map(p => ({ ...p, category: normalizeCategory(p.category) })).filter(p => {
-    const lowerTerm = searchTerm.toLowerCase();
+    const filteredProducts = products.map(p => ({ ...p, category: normalizeCategory(p.category), stockByStore: p.stockByStore || {} })).filter(p => {
+    const lowerTerm = (searchTerm || '').toLowerCase();
     // Create a version of the search term with only numbers for flexible spec matching (e.g. "2454518")
     const numericSearchTerm = lowerTerm.replace(/\D/g, '');
 
-    const matchesNameOrCategory = p.name?.toLowerCase().includes(lowerTerm) || 
-                                  p.category?.toLowerCase().includes(lowerTerm);
+    const normalizedName = (p.name || '').toLowerCase();
+    const normalizedCategory = (p.category || '').toLowerCase();
+    const matchesNameOrCategory = normalizedName.includes(lowerTerm) || 
+                                  normalizedCategory.includes(lowerTerm);
     
     let matchesSpec = false;
     if (p.specification) {
