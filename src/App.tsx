@@ -2075,69 +2075,51 @@ const App: React.FC = () => {
             const recordToSave: StockInRecord = record.consumedAtSaleId
                                 ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
                                 : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
-                        const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
+            const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
 
-            setStockInHistory(prev => [sanitizedRecord, ...prev]);
-        
-        // StockInRecord 저장
-        try {
-            await saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord);
-            console.log('✅ Stock-in saved to Firestore:', sanitizedRecord.id);
-        } catch (err) {
-            console.error('❌ Failed to save stock-in to Firestore:', err);
-            alert('❌ 입고 기록 저장 실패! 네트워크를 확인하고 다시 시도해주세요.');
-            return; // 실패 시 중단
-        }
-
-      // Ensure brand is added to global tireBrands list so other views (Inventory/POS) see it
-      if (record.brand && record.brand.trim() !== '') {
-          setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
-      }
       const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || '';
       
-      // Product 생성/업데이트
-      setProducts(prev => {
-        let existingProductIndex = -1;
-        if (resolvedProductId) {
-            existingProductIndex = prev.findIndex(p => p.id === resolvedProductId);
-        }
+      // Transaction-like pattern: Firestore 먼저 저장, 성공 후 로컬 state 업데이트
+      try {
+        // 1. Product 먼저 찾거나 생성
+        let existingProductIndex = products.findIndex(p => p.id === resolvedProductId);
         if (existingProductIndex < 0) {
-            existingProductIndex = prev.findIndex(p => {
+            existingProductIndex = products.findIndex(p => {
                 const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
                 const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
                 return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
             });
         }
+        
+        let productToSave: Product;
+        
         if (existingProductIndex >= 0) {
-            const updatedProducts = [...prev];
-            const product = updatedProducts[existingProductIndex];
+            // 기존 제품 업데이트
+            const product = products[existingProductIndex];
             const currentStoreStock = product.stockByStore[record.storeId] || 0;
             const adjustAmount = isConsumed ? (record.receivedQuantity ?? record.quantity ?? 0) : qtyForStock;
             const nextStoreStock = isConsumed
-                ? Math.max(0, currentStoreStock - adjustAmount) // roll back any prior inflated stock for consumed entries
+                ? Math.max(0, currentStoreStock - adjustAmount)
                 : currentStoreStock + qtyForStock;
             const newStockByStore = { ...product.stockByStore, [record.storeId]: nextStoreStock };
             const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
             const updatedFactoryPrice = record.factoryPrice || product.factoryPrice || 0;
-            updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, factoryPrice: updatedFactoryPrice, ownerId: product.ownerId || recordOwnerId };
-                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, factoryPrice: updatedFactoryPrice, ownerId: product.ownerId || recordOwnerId } as Product;
-                        
-                        // Firestore 저장을 await로 변경하여 실패 감지
-                        saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
-                            .then(() => {
-                                console.log('✅ Product stock updated in Firestore:', updatedProduct.id);
-                            })
-                            .catch((err) => {
-                                console.error('❌ Failed to update product stock in Firestore:', err);
-                                alert(`❌ 제품 재고 업데이트 실패! (${updatedProduct.name})\n네트워크를 확인하고 다시 시도해주세요.`);
-                            });
-                        return updatedProducts;
+            
+            productToSave = {
+                ...product,
+                stockByStore: newStockByStore,
+                stock: newTotalStock,
+                factoryPrice: updatedFactoryPrice,
+                ownerId: product.ownerId || recordOwnerId
+            };
         } else {
+            // 신규 제품 생성
             const newStockByStore: Record<string, number> = {};
             stores.forEach(s => newStockByStore[s.id] = 0);
             newStockByStore[record.storeId] = qtyForStock;
             const newProductId = resolvedProductId || `P-${Date.now()}`;
-            const newProduct: Product = {
+            
+            productToSave = {
                 id: newProductId,
                 name: record.productName,
                 price: sellingPrice || 0,
@@ -2149,19 +2131,41 @@ const App: React.FC = () => {
                 factoryPrice: record.factoryPrice || 0,
                 ownerId: recordOwnerId
             };
-                        
-                        // 새 제품 저장 - 중요! 실패 시 알림
-                        saveToFirestore<Product>(COLLECTIONS.PRODUCTS, newProduct)
-                            .then(() => {
-                                console.log('✅ New product saved in Firestore:', newProduct.id);
-                            })
-                            .catch((err) => {
-                                console.error('❌ Failed to save new product in Firestore:', err);
-                                alert(`❌ 신규 제품 저장 실패! (${newProduct.name})\n네트워크를 확인하고 다시 시도해주세요.\n제품 ID: ${newProduct.id}`);
-                            });
-                        return [...prev, newProduct];
         }
-    });
+        
+        // 2. Product를 Firestore에 먼저 저장 (실패하면 전체 취소)
+        await saveToFirestore<Product>(COLLECTIONS.PRODUCTS, productToSave);
+        console.log('✅ Product saved to Firestore:', productToSave.id);
+        
+        // 3. StockInRecord를 Firestore에 저장 (실패하면 Product는 저장되었지만 롤백 불가)
+        await saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord);
+        console.log('✅ StockInRecord saved to Firestore:', sanitizedRecord.id);
+        
+        // 4. 모두 성공했을 때만 로컬 state 업데이트
+        setProducts(prev => {
+            if (existingProductIndex >= 0) {
+                const updated = [...prev];
+                updated[existingProductIndex] = productToSave;
+                return updated;
+            } else {
+                return [...prev, productToSave];
+            }
+        });
+        
+        setStockInHistory(prev => [sanitizedRecord, ...prev]);
+        
+        // Ensure brand is added to global tireBrands list
+        if (record.brand && record.brand.trim() !== '') {
+            setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
+        }
+        
+        console.log('✅ 입고 처리 완료 (Product + StockInRecord)');
+        
+      } catch (err) {
+        console.error('❌ 입고 처리 실패:', err);
+        alert(`❌ 입고 처리 실패!\n${record.productName}\n네트워크를 확인하고 다시 시도해주세요.`);
+        // 로컬 state는 업데이트되지 않았으므로 롤백 불필요
+      }
   };
 
     const handleUpdateStockInRecord = (r: StockInRecord) => {
