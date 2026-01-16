@@ -95,6 +95,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
             date: selectedDate,
             staffId: formData.staffId,
             staffName: staff.name,
+            storeId: staff.storeId || currentUser.storeId || 'ST-1',
             type: formData.type,
             reason: formData.reason,
             createdAt: new Date().toISOString(),

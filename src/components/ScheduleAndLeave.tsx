@@ -14,6 +14,8 @@ interface ScheduleAndLeaveProps {
   onShiftRangeChange?: (start: string, end: string) => void;
   onApproveLeave?: (leaveId: string) => void;
   onRejectLeave?: (leaveId: string, reason: string) => void;
+  onAddLeaveRequest?: (request: LeaveRequest) => void;
+  onRemoveLeaveRequest?: (id: string) => void;
   currentUser?: { role?: string; id?: string };
 }
 
@@ -29,12 +31,13 @@ const startOfWeek = (date: Date) => {
 
 const formatDateLabel = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
-const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId, onShiftRangeChange, onApproveLeave, onRejectLeave, currentUser }) => {
+const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveRequests, shifts, onAddShift, onUpdateShift, onRemoveShift, stores, currentStoreId, onShiftRangeChange, onApproveLeave, onRejectLeave, onAddLeaveRequest, onRemoveLeaveRequest, currentUser }) => {
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'WEEK' | 'MONTH'>('WEEK');
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const isAdmin = currentUser?.role === 'STORE_ADMIN';
   const dateToLocalString = (date: Date): string => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -189,6 +192,41 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
     if (!shiftDraft.staffId || !shiftDraft.storeId) return;
     const staff = staffList.find(s => s.id === shiftDraft.staffId);
     if (!staff) return;
+    
+    // 직원이 휴무/월차/반차를 선택한 경우 → LeaveRequest 생성 (shift 생성 안 함)
+    if (!isAdmin && (shiftDraft.shiftType === 'OFF' || shiftDraft.shiftType === 'VACATION' || shiftDraft.shiftType === 'HALF')) {
+      if (!onAddLeaveRequest) return;
+      
+      const days = dateRange(shiftDraft.dateStart, shiftDraft.dateEnd);
+      const leaveTypeMap: Record<string, 'FULL' | 'HALF_AM' | 'HALF_PM'> = {
+        'OFF': 'FULL',
+        'VACATION': 'FULL',
+        'HALF': 'FULL'
+      };
+      
+      days.forEach(date => {
+        const leaveRequest: LeaveRequest = {
+          id: `LEAVE-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          date,
+          staffId: staff.id,
+          staffName: staff.name,
+          storeId: shiftDraft.storeId,
+          type: leaveTypeMap[shiftDraft.shiftType || 'OFF'] || 'FULL',
+          reason: shiftDraft.memo || '휴무 신청',
+          createdAt: new Date().toISOString(),
+          status: 'pending'
+        };
+        onAddLeaveRequest(leaveRequest);
+      });
+      
+      alert('휴무 신청이 접수되었습니다. 승인 후 근무표에 반영됩니다.');
+      setIsShiftModalOpen(false);
+      setEditingShiftId(null);
+      setEditingGroupId(null);
+      return;
+    }
+    
+    // 관리자이거나 일반 근무 타입인 경우 → Shift 생성
     const nowTs = Date.now();
     const groupId = editingGroupId || shiftDraft.groupId || `SHIFTGROUP-${nowTs}`;
     const existingGroupShifts = shifts
@@ -372,9 +410,9 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                       {weekDays.map(d => {
                         const dateStr = dateToLocalString(d);
                         const dayShifts = shifts.filter(s => s.staffId === staff.id && isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
-                        const hasLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'approved');
-                        // 모든 사용자가 대기중 휴가 볼 수 있음 (사장님은 승인/거절 가능, 직원은 상태만 확인)
-                        const hasPendingLeave = leaveRequests.some(r => r.staffId === staff.id && r.date === dateStr && r.status === 'pending');
+                        // 승인된 휴무는 이제 Shift로 변환되므로 제거
+                        // 대기중 휴가만 표시
+                        const pendingLeave = leaveRequests.find(r => r.staffId === staff.id && r.date === dateStr && r.status === 'pending');
                         const isDragging = dragSelection?.active && dragSelection.staffId === staff.id && dateStr >= dragSelection.start && dateStr <= dragSelection.end;
                         return (
                           <div
@@ -440,18 +478,21 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                               setDragSelection(null);
                             }}
                           >
-                            {hasLeave && (
-                              <div className="text-[11px] px-2 py-1 rounded-md bg-rose-50 text-rose-600 border border-rose-200 inline-flex items-center gap-1 font-semibold">
-                                휴무
+                            {pendingLeave && (
+                              <div className="text-[11px] px-2 py-1 rounded-md border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 font-semibold" style={{ borderStyle: 'dashed', borderWidth: '1px' }}>
+                                {(() => {
+                                  const storeName = stores.find(s => s.id === pendingLeave.storeId)?.name || '지점';
+                                  return (
+                                    <>
+                                      <AlertCircle size={10}/>
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap bg-amber-100 text-amber-800 border-amber-300`}>{storeName}</span>
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap bg-amber-100 text-amber-800 border-amber-300`}>{pendingLeave.type === 'FULL' ? '월차' : '반차'} 결재중</span>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             )}
-                            {hasPendingLeave && (
-                              <div className="text-[11px] px-2 py-1 rounded-md bg-amber-50 text-amber-600 inline-flex items-center gap-1 font-semibold" style={{ borderStyle: 'dashed', borderWidth: '1px', borderColor: '#fcd34d' }}>
-                                <AlertCircle size={10}/>
-                                <span>결재중</span>
-                              </div>
-                            )}
-                            {dayShifts.length === 0 && !hasLeave && !hasPendingLeave && (
+                            {dayShifts.length === 0 && !pendingLeave && (
                               <div className="text-[11px] text-gray-400">근무 없음</div>
                             )}
                             {dayShifts.map(shift => {
@@ -507,7 +548,8 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                   if (!d) return <div key={`e-${idx}`} className="bg-gray-50 rounded-lg"/>;
                   const dateStr = dateToLocalString(d);
                   const dayShifts = shifts.filter(s => isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
-                  const dayLeaves = leaveRequests.filter(l => l.date === dateStr && l.status === 'approved');
+                  // 승인된 휴무는 Shift로 변환되므로 제거
+                  const dayPendingLeaves = leaveRequests.filter(l => l.date === dateStr && l.status === 'pending');
                   return (
                     <div
                       key={dateStr}
@@ -573,25 +615,24 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                         <span className="text-[10px] text-gray-400">{['일','월','화','수','목','금','토'][d.getDay()]}</span>
                       </div>
                       <div className="flex-1 flex flex-col gap-1 overflow-y-auto">
-                        {dayLeaves.map(l => (
+                        {dayPendingLeaves.map(l => (
                           <button
                             key={l.id}
-                            className="text-[11px] px-2 py-1 rounded-md border w-full text-left bg-rose-50 text-rose-700 border-rose-200 flex items-center gap-1"
-                            onClick={() => openEditShift({
-                              id: l.id,
-                              staffId: l.staffId,
-                              staffName: l.staffName,
-                              storeId: selectedStoreId || stores[0]?.id || '',
-                              start: `${l.date}T00:00:00`,
-                              end: `${l.date}T23:59:59`,
-                              shiftType: 'OFF'
-                            } as Shift)}
+                            className="text-[11px] px-2 py-1 rounded-md w-full text-left bg-amber-50 text-amber-700 flex items-center gap-1 font-semibold hover:bg-amber-100 transition-colors cursor-pointer"
+                            style={{ borderStyle: 'dashed', borderWidth: '1px', borderColor: '#fcd34d' }}
+                            onClick={() => {
+                              if (confirm(`${l.staffName}님의 휴무 신청 [${l.type === 'FULL' ? '월차' : '반차'}]을 취소하시겠습니까?`)) {
+                                onRemoveLeaveRequest?.(l.id);
+                              }
+                            }}
                           >
+                            <AlertCircle size={10}/>
                             <span className="font-semibold">{l.staffName}</span>
-                            <span className="font-semibold">휴무</span>
+                            <span className="text-[10px]">{stores.find(s => s.id === l.storeId)?.name || '지점'}</span>
+                            <span>{l.type === 'FULL' ? '월차' : '반차'} 결재중</span>
                           </button>
                         ))}
-                        {dayShifts.length === 0 && dayLeaves.length === 0 && (
+                        {dayShifts.length === 0 && dayPendingLeaves.length === 0 && (
                           <span className="text-[10px] text-gray-400">기록 없음</span>
                         )}
                         {dayShifts.map(s => {
@@ -644,12 +685,12 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                   const dateStr = `${month}.${day}`;
                   
                   return (
-                    <div key={leave.id} className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div key={leave.id} className="flex items-center justify-between p-4 bg-rose-50 border border-rose-200 rounded-lg">
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
                           <span className="font-semibold text-gray-800">{staff.name}</span>
-                          <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded font-bold border border-amber-200">
-                            {leave.type === 'FULL' ? '연차' : leave.type === 'HALF_AM' ? '오전반차' : '오후반차'}
+                          <span className="text-xs px-2 py-1 rounded-md bg-rose-100 text-rose-700 border border-rose-200 font-bold">
+                            {leave.type === 'FULL' ? '월차' : '반차'}
                           </span>
                           <span className="text-xs text-gray-500">{dateStr}</span>
                           {leave.reason && <span className="text-xs text-gray-600">({leave.reason})</span>}

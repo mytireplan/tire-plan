@@ -210,6 +210,7 @@ export interface LeaveRequest {
   date: string; // YYYY-MM-DD
   staffId: string; // ID of the staff member
   staffName: string;
+  storeId: string; // 휴무 신청 지점
   type: LeaveType;
   reason?: string;
   createdAt: string;

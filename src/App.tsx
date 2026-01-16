@@ -332,6 +332,7 @@ const generateMockLeaveRequests = (): LeaveRequest[] => {
             date: toDate(1), // 화요일
             staffId: 'staff_1',
             staffName: '이정비',
+            storeId: 'ST-1',
             type: 'FULL',
             reason: '개인 사정',
             createdAt: new Date().toISOString(),
@@ -342,6 +343,7 @@ const generateMockLeaveRequests = (): LeaveRequest[] => {
             date: toDate(3), // 목요일
             staffId: 'staff_2',
             staffName: '박매니저',
+            storeId: 'ST-2',
             type: 'HALF_AM',
             reason: '병원 검진',
             createdAt: new Date().toISOString(),
@@ -352,6 +354,7 @@ const generateMockLeaveRequests = (): LeaveRequest[] => {
             date: toDate(5), // 토요일
             staffId: 'staff_3',
             staffName: '최신입',
+            storeId: 'ST-3',
             type: 'FULL',
             reason: '가족 행사',
             createdAt: new Date().toISOString(),
@@ -637,6 +640,7 @@ const App: React.FC = () => {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
   const [reservations, setReservations] = useState<Reservation[]>(INITIAL_RESERVATIONS);
     const reservationUnsubRef = useRef<(() => void) | null>(null);
+        const leaveUnsubRef = useRef<(() => void) | null>(null);
     const shiftsUnsubRef = useRef<(() => void) | null>(null);
         const salesUnsubRef = useRef<(() => void) | null>(null);
         const stockInUnsubRef = useRef<(() => void) | null>(null);
@@ -678,6 +682,35 @@ const App: React.FC = () => {
 
         return cleanup;
     }, [viewState]);
+
+      // 실시간 구독: 휴가 신청 (현재 월 범위)
+      useEffect(() => {
+          if (leaveUnsubRef.current) {
+              leaveUnsubRef.current();
+              leaveUnsubRef.current = null;
+          }
+          // Convert ISO range to local date strings (YYYY-MM-DD)
+          const isoToLocalDate = (iso: string) => iso.split('T')[0];
+          const startDate = isoToLocalDate(shiftRange.start);
+          const endDate = isoToLocalDate(shiftRange.end);
+
+          const constraints: QueryConstraint[] = [
+              orderBy('date', 'asc'),
+              where('date', '>=', startDate),
+              where('date', '<=', endDate),
+          ];
+
+          const unsub = subscribeToQuery<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, constraints, (data) => {
+              // Sort by date ascending so week/month views are stable
+              const sorted = [...data].sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+              setLeaveRequests(sorted);
+          });
+          leaveUnsubRef.current = unsub;
+          return () => {
+              unsub?.();
+              leaveUnsubRef.current = null;
+          };
+      }, [shiftRange.start, shiftRange.end]);
 
   // Admin auto-timeout (5 minutes of inactivity)
   useEffect(() => {
@@ -2018,7 +2051,7 @@ const App: React.FC = () => {
           .catch((err) => console.error('❌ Failed to delete sale from Firestore:', err));
   };
 
-  const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
+  const handleStockIn = async (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
             const isConsumed = Boolean(record.consumedAtSaleId);
             // For consumed items, calculate the final stock after deduction
             const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
@@ -2045,14 +2078,24 @@ const App: React.FC = () => {
                         const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
 
             setStockInHistory(prev => [sanitizedRecord, ...prev]);
-        saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord)
-      .then(() => console.log('✅ Stock-in saved to Firestore:', sanitizedRecord.id))
-      .catch((err) => console.error('❌ Failed to save stock-in to Firestore:', err));
+        
+        // StockInRecord 저장
+        try {
+            await saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord);
+            console.log('✅ Stock-in saved to Firestore:', sanitizedRecord.id);
+        } catch (err) {
+            console.error('❌ Failed to save stock-in to Firestore:', err);
+            alert('❌ 입고 기록 저장 실패! 네트워크를 확인하고 다시 시도해주세요.');
+            return; // 실패 시 중단
+        }
+
       // Ensure brand is added to global tireBrands list so other views (Inventory/POS) see it
       if (record.brand && record.brand.trim() !== '') {
           setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
       }
       const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || '';
+      
+      // Product 생성/업데이트
       setProducts(prev => {
         let existingProductIndex = -1;
         if (resolvedProductId) {
@@ -2078,9 +2121,16 @@ const App: React.FC = () => {
             const updatedFactoryPrice = record.factoryPrice || product.factoryPrice || 0;
             updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, factoryPrice: updatedFactoryPrice, ownerId: product.ownerId || recordOwnerId };
                         const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, factoryPrice: updatedFactoryPrice, ownerId: product.ownerId || recordOwnerId } as Product;
+                        
+                        // Firestore 저장을 await로 변경하여 실패 감지
                         saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
-                            .then(() => console.log('✅ Product stock updated in Firestore:', updatedProduct.id))
-                            .catch((err) => console.error('❌ Failed to update product stock in Firestore:', err));
+                            .then(() => {
+                                console.log('✅ Product stock updated in Firestore:', updatedProduct.id);
+                            })
+                            .catch((err) => {
+                                console.error('❌ Failed to update product stock in Firestore:', err);
+                                alert(`❌ 제품 재고 업데이트 실패! (${updatedProduct.name})\n네트워크를 확인하고 다시 시도해주세요.`);
+                            });
                         return updatedProducts;
         } else {
             const newStockByStore: Record<string, number> = {};
@@ -2099,9 +2149,16 @@ const App: React.FC = () => {
                 factoryPrice: record.factoryPrice || 0,
                 ownerId: recordOwnerId
             };
+                        
+                        // 새 제품 저장 - 중요! 실패 시 알림
                         saveToFirestore<Product>(COLLECTIONS.PRODUCTS, newProduct)
-                            .then(() => console.log('✅ New product saved in Firestore:', newProduct.id))
-                            .catch((err) => console.error('❌ Failed to save new product in Firestore:', err));
+                            .then(() => {
+                                console.log('✅ New product saved in Firestore:', newProduct.id);
+                            })
+                            .catch((err) => {
+                                console.error('❌ Failed to save new product in Firestore:', err);
+                                alert(`❌ 신규 제품 저장 실패! (${newProduct.name})\n네트워크를 확인하고 다시 시도해주세요.\n제품 ID: ${newProduct.id}`);
+                            });
                         return [...prev, newProduct];
         }
     });
@@ -2273,7 +2330,26 @@ const App: React.FC = () => {
         }
     };
 
-    // (Removed) Leave request add/remove handlers were unused in this view
+    // LeaveRequest 핸들러
+    const handleAddLeaveRequest = async (req: LeaveRequest) => {
+        setLeaveRequests(prev => [...prev, req]);
+        try {
+            await saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, req);
+            console.log('✅ Leave request saved to Firestore:', req.id);
+        } catch (err) {
+            console.error('❌ Failed to save leave request in Firestore:', err);
+        }
+    };
+
+    const handleRemoveLeaveRequest = async (id: string) => {
+        setLeaveRequests(prev => prev.filter(lr => lr.id !== id));
+        try {
+            await deleteFromFirestore(COLLECTIONS.LEAVE_REQUESTS, id);
+            console.log('✅ Leave request deleted from Firestore:', id);
+        } catch (err) {
+            console.error('❌ Failed to delete leave request in Firestore:', err);
+        }
+    };
 
     // 휴가 신청 거절
     const handleRejectLeave = async (leaveId: string, rejectionReason: string) => {
@@ -2315,6 +2391,32 @@ const App: React.FC = () => {
             await saveToFirestore<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, approvedLeave);
         } catch (err) {
             console.error('❌ Failed to approve leave in Firestore:', err);
+        }
+
+        // 2. 승인된 휴무를 Shift로 자동 변환
+        const leaveTypeToShiftType: Record<LeaveRequest['type'], Shift['shiftType']> = {
+            'FULL': 'OFF',
+            'HALF_AM': 'HALF',
+            'HALF_PM': 'HALF'
+        };
+
+        const newShift: Shift = {
+            id: `SHIFT-LEAVE-${leaveId}`,
+            staffId: targetLeave.staffId,
+            staffName: targetLeave.staffName,
+            storeId: targetLeave.storeId,
+            start: `${targetLeave.date}T00:00:00`,
+            end: `${targetLeave.date}T23:59:59`,
+            shiftType: leaveTypeToShiftType[targetLeave.type] || 'OFF',
+            memo: `${targetLeave.type === 'FULL' ? '월차' : '반차'} 승인 (${targetLeave.reason || ''})`
+        };
+
+        setShifts(prev => [...prev, newShift]);
+        try {
+            await saveToFirestore<Shift>(COLLECTIONS.SHIFTS, newShift);
+            console.log('✅ Approved leave converted to Shift:', newShift.id);
+        } catch (err) {
+            console.error('❌ Failed to save shift from approved leave:', err);
         }
 
         alert(`${targetLeave.staffName}의 휴가 신청이 승인되었습니다.`);
@@ -2717,6 +2819,8 @@ const App: React.FC = () => {
                     onRemoveShift={handleRemoveShift}
                     onApproveLeave={handleApproveLeave}
                     onRejectLeave={handleRejectLeave}
+                    onAddLeaveRequest={handleAddLeaveRequest}
+                    onRemoveLeaveRequest={handleRemoveLeaveRequest}
                     currentUser={effectiveUser}
                 />
             )}
