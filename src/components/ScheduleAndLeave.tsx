@@ -615,23 +615,27 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                         <span className="text-[10px] text-gray-400">{['일','월','화','수','목','금','토'][d.getDay()]}</span>
                       </div>
                       <div className="flex-1 flex flex-col gap-1 overflow-y-auto">
-                        {dayPendingLeaves.map(l => (
-                          <button
-                            key={l.id}
-                            className="text-[11px] px-2 py-1 rounded-md w-full text-left bg-amber-50 text-amber-700 flex items-center gap-1 font-semibold hover:bg-amber-100 transition-colors cursor-pointer"
-                            style={{ borderStyle: 'dashed', borderWidth: '1px', borderColor: '#fcd34d' }}
-                            onClick={() => {
-                              if (confirm(`${l.staffName}님의 휴무 신청 [${l.type === 'FULL' ? '월차' : '반차'}]을 취소하시겠습니까?`)) {
-                                onRemoveLeaveRequest?.(l.id);
-                              }
-                            }}
-                          >
-                            <AlertCircle size={10}/>
-                            <span className="font-semibold">{l.staffName}</span>
-                            <span className="text-[10px]">{stores.find(s => s.id === l.storeId)?.name || '지점'}</span>
-                            <span>{l.type === 'FULL' ? '월차' : '반차'} 결재중</span>
-                          </button>
-                        ))}
+                        {dayPendingLeaves.map(l => {
+                          const storeColor = storeColorMap[l.storeId] || { badge: 'bg-amber-100 text-amber-800 border-amber-200' };
+                          const storeName = stores.find(s => s.id === l.storeId)?.name || '지점';
+                          return (
+                            <button
+                              key={l.id}
+                              className="text-[11px] px-2 py-1 rounded-md w-full text-left bg-amber-50 text-amber-700 flex items-center gap-1 font-semibold hover:bg-amber-100 transition-colors cursor-pointer"
+                              style={{ borderStyle: 'dashed', borderWidth: '1px', borderColor: '#fcd34d' }}
+                              onClick={() => {
+                                if (confirm(`${l.staffName}님의 휴무 신청 [${l.type === 'FULL' ? '월차' : '반차'}]을 취소하시겠습니까?`)) {
+                                  onRemoveLeaveRequest?.(l.id);
+                                }
+                              }}
+                            >
+                              <AlertCircle size={10}/>
+                              <span className="font-semibold">{l.staffName}</span>
+                              <span className={`text-[10px] px-2 py-[2px] rounded-full border ${storeColor.badge}`}>{storeName}</span>
+                              <span>{l.type === 'FULL' ? '월차' : '반차'} 결재중</span>
+                            </button>
+                          );
+                        })}
                         {dayShifts.length === 0 && dayPendingLeaves.length === 0 && (
                           <span className="text-[10px] text-gray-400">기록 없음</span>
                         )}
