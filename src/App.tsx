@@ -838,7 +838,7 @@ const App: React.FC = () => {
                 ] = await Promise.all([
                     getCollectionPage<OwnerAccount>(COLLECTIONS.OWNERS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StoreAccount>(COLLECTIONS.STORES, { pageSize: PAGE_SIZE }),
-                    getCollectionPage<Product>(COLLECTIONS.PRODUCTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
+                    getCollectionPage<Product>(COLLECTIONS.PRODUCTS, { pageSize: PAGE_SIZE, orderByField: 'id', applyOwnerFilter: false }),
                     getCollectionPage<StockInRecord>(COLLECTIONS.STOCK_IN, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<ExpenseRecord>(COLLECTIONS.EXPENSES, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
@@ -2051,36 +2051,43 @@ const App: React.FC = () => {
           .catch((err) => console.error('❌ Failed to delete sale from Firestore:', err));
   };
 
-    const handleStockIn = async (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
+    const handleStockIn = async (record: StockInRecord, sellingPrice?: number) => {
         const isConsumed = Boolean(record.consumedAtSaleId);
         const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
         const qtyForStock = isConsumed ? 0 : receivedQty;
 
-        const normalizeName = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+        // 정규화 함수
+        const normalizeName = (v?: string) => (v || '').toLowerCase().trim().replace(/\s+/g, '');
         const normalizeSpec = (v?: string) => (v || '').toLowerCase().replace(/[^0-9]/g, '');
+        
+        // Product ID 생성: P-{ownerId}-{이름}-{규격}
+        const generateProductId = (ownerId: string, name: string, spec: string): string => {
+            const normalizedName = normalizeName(name).slice(0, 20); // 길이 제한
+            const normalizedSpec = normalizeSpec(spec).slice(0, 15);
+            return `P-${ownerId}-${normalizedName}-${normalizedSpec}`;
+        };
 
-        const matchedById = record.productId ? products.find(p => p.id === record.productId) : undefined;
-        const matchedByForce = !matchedById && forceProductId ? products.find(p => p.id === forceProductId) : undefined;
+        const ownerIdFromAuth = auth.currentUser?.uid;
+        const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || ownerIdFromAuth || '';
+        const resolvedOwnerId = recordOwnerId || ownerIdFromAuth || currentUser?.id || 'owner-unknown';
+        
+        // 기존 제품 찾기: 같은 이름/규격 + 같은 ownerId
         const matchedByNameSpec = products.find(p => {
-            if (record.productId || forceProductId) return false;
             const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
             const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
-            return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
+            const ownerMatch = p.ownerId === resolvedOwnerId;  // ← ownerId 체크 추가!
+            return ownerMatch && (p.specification && record.specification ? (nameMatch && specMatch) : nameMatch);
         });
 
-        const targetProduct = matchedById || matchedByForce || matchedByNameSpec;
-        const resolvedProductId = targetProduct?.id || record.productId || forceProductId || `P-NEW-${Date.now()}`;
+        // Product ID 결정
+        const resolvedProductId = matchedByNameSpec?.id || generateProductId(resolvedOwnerId, record.productName, record.specification);
 
         const recordToSave: StockInRecord = record.consumedAtSaleId
             ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
             : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
 
-        const ownerIdFromAuth = auth.currentUser?.uid;
-        const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || ownerIdFromAuth || '';
-        const resolvedOwnerId = recordOwnerId || ownerIdFromAuth || currentUser?.id || 'owner-unknown';
-
         try {
-            // 1) Product 계산
+            // 1) Product 찾기 및 계산
             let existingProductIndex = products.findIndex(p => p.id === resolvedProductId);
             if (existingProductIndex < 0) {
                 existingProductIndex = products.findIndex(p => {
@@ -2111,13 +2118,14 @@ const App: React.FC = () => {
                     ownerId: product.ownerId || resolvedOwnerId
                 };
             } else {
+                // 신규 제품: 해당 사장의 지점만 포함
                 const newStockByStore: Record<string, number> = {};
-                stores.forEach(s => newStockByStore[s.id] = 0);
+                const ownerStores = stores.filter(s => s.ownerId === resolvedOwnerId);
+                ownerStores.forEach(s => newStockByStore[s.id] = 0);
                 newStockByStore[record.storeId] = qtyForStock;
-                const newProductId = resolvedProductId || `P-${Date.now()}`;
 
                 productToSave = {
-                    id: newProductId,
+                    id: resolvedProductId,
                     name: record.productName,
                     price: sellingPrice || 0,
                     stock: qtyForStock,
@@ -2131,9 +2139,10 @@ const App: React.FC = () => {
             }
 
             const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
-            const stockRecordToSave: StockInRecord = sanitizedRecord.ownerId
-                ? sanitizedRecord
-                : { ...sanitizedRecord, ownerId: resolvedOwnerId };
+            const stockRecordToSave: StockInRecord = {
+                ...sanitizedRecord,
+                ownerId: resolvedOwnerId
+            };
 
             // 2) writeBatch로 Product + StockInRecord 원자적 저장
             const batch = writeBatch(db);

@@ -183,8 +183,8 @@ export const subscribeToQuery = <T>(
   const q = query(collection(db, collectionName), ...constraints);
   const unsubscribe = onSnapshot(
     q,
-    (snapshot: QuerySnapshot<DocumentData>) => {
-      const data = snapshot.docs.map((d) => d.data() as T);
+    (snapshot) => {
+      const data = snapshot.docs.map(doc => doc.data() as T);
       callback(data);
     },
     (error) => {
@@ -211,10 +211,18 @@ export const deleteFromFirestore = async (
 // 실시간 리스너 등록
 export const subscribeToCollection = <T>(
   collectionName: string,
-  callback: (data: T[]) => void
+  callback: (data: T[]) => void,
+  skipOwnerFilter = false
 ) => {
+  const userId = getCurrentUserId();
+  let collectionRef = collection(db, collectionName);
+  
+  // Products 컬렉션은 ownerId 필터 제외 (공유 자원)
+  const shouldFilter = !skipOwnerFilter && userId && collectionName !== COLLECTIONS.OWNERS && collectionName !== COLLECTIONS.PRODUCTS;
+  const q = shouldFilter ? query(collectionRef, where('ownerId', '==', userId)) : collectionRef;
+  
   const unsubscribe = onSnapshot(
-    collection(db, collectionName),
+    q,
     (snapshot: QuerySnapshot<DocumentData>) => {
       const data = snapshot.docs.map(doc => doc.data() as T);
       callback(data);
