@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
-import { orderBy, where, limit, collection, query, getDocs, doc, deleteDoc, type QueryConstraint } from 'firebase/firestore';
+import { orderBy, where, limit, collection, query, getDocs, doc, deleteDoc, writeBatch, type QueryConstraint } from 'firebase/firestore';
 import { db, auth } from './firebase';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
@@ -2051,122 +2051,117 @@ const App: React.FC = () => {
           .catch((err) => console.error('❌ Failed to delete sale from Firestore:', err));
   };
 
-  const handleStockIn = async (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
-            const isConsumed = Boolean(record.consumedAtSaleId);
-            // For consumed items, calculate the final stock after deduction
-            const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
-            const qtyForStock = isConsumed ? 0 : receivedQty;
+    const handleStockIn = async (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
+        const isConsumed = Boolean(record.consumedAtSaleId);
+        const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
+        const qtyForStock = isConsumed ? 0 : receivedQty;
 
-    const normalizeName = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
-    const normalizeSpec = (v?: string) => (v || '').toLowerCase().replace(/[^0-9]/g, '');
+        const normalizeName = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
+        const normalizeSpec = (v?: string) => (v || '').toLowerCase().replace(/[^0-9]/g, '');
 
-            const matchedById = record.productId ? products.find(p => p.id === record.productId) : undefined;
-            const matchedByForce = !matchedById && forceProductId ? products.find(p => p.id === forceProductId) : undefined;
-            const matchedByNameSpec = products.find(p => {
-                if (record.productId || forceProductId) return false; // prefer explicit ids
-                const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
-                const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
-                return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
-            });
+        const matchedById = record.productId ? products.find(p => p.id === record.productId) : undefined;
+        const matchedByForce = !matchedById && forceProductId ? products.find(p => p.id === forceProductId) : undefined;
+        const matchedByNameSpec = products.find(p => {
+            if (record.productId || forceProductId) return false;
+            const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
+            const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
+            return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
+        });
 
-            const targetProduct = matchedById || matchedByForce || matchedByNameSpec;
-            const resolvedProductId = targetProduct?.id || record.productId || forceProductId || `P-NEW-${Date.now()}`;
+        const targetProduct = matchedById || matchedByForce || matchedByNameSpec;
+        const resolvedProductId = targetProduct?.id || record.productId || forceProductId || `P-NEW-${Date.now()}`;
 
-            const recordToSave: StockInRecord = record.consumedAtSaleId
-                                ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
-                                : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
+        const recordToSave: StockInRecord = record.consumedAtSaleId
+            ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
+            : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
+
+        const ownerIdFromAuth = auth.currentUser?.uid;
+        const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || ownerIdFromAuth || '';
+
+        try {
+            // 1) Product 계산
+            let existingProductIndex = products.findIndex(p => p.id === resolvedProductId);
+            if (existingProductIndex < 0) {
+                existingProductIndex = products.findIndex(p => {
+                    const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
+                    const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
+                    return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
+                });
+            }
+
+            let productToSave: Product;
+
+            if (existingProductIndex >= 0) {
+                const product = products[existingProductIndex];
+                const currentStoreStock = product.stockByStore[record.storeId] || 0;
+                const adjustAmount = isConsumed ? (record.receivedQuantity ?? record.quantity ?? 0) : qtyForStock;
+                const nextStoreStock = isConsumed
+                    ? Math.max(0, currentStoreStock - adjustAmount)
+                    : currentStoreStock + qtyForStock;
+                const newStockByStore = { ...product.stockByStore, [record.storeId]: nextStoreStock };
+                const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                const updatedFactoryPrice = record.factoryPrice || product.factoryPrice || 0;
+
+                productToSave = {
+                    ...product,
+                    stockByStore: newStockByStore,
+                    stock: newTotalStock,
+                    factoryPrice: updatedFactoryPrice,
+                    ownerId: product.ownerId || recordOwnerId
+                };
+            } else {
+                const newStockByStore: Record<string, number> = {};
+                stores.forEach(s => newStockByStore[s.id] = 0);
+                newStockByStore[record.storeId] = qtyForStock;
+                const newProductId = resolvedProductId || `P-${Date.now()}`;
+
+                productToSave = {
+                    id: newProductId,
+                    name: record.productName,
+                    price: sellingPrice || 0,
+                    stock: qtyForStock,
+                    stockByStore: newStockByStore,
+                    category: record.category,
+                    brand: record.brand,
+                    specification: record.specification,
+                    factoryPrice: record.factoryPrice || 0,
+                    ownerId: recordOwnerId
+                };
+            }
+
             const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
 
-      const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || '';
-      
-      // Transaction-like pattern: Firestore 먼저 저장, 성공 후 로컬 state 업데이트
-      try {
-        // 1. Product 먼저 찾거나 생성
-        let existingProductIndex = products.findIndex(p => p.id === resolvedProductId);
-        if (existingProductIndex < 0) {
-            existingProductIndex = products.findIndex(p => {
-                const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
-                const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
-                return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
-            });
-        }
-        
-        let productToSave: Product;
-        
-        if (existingProductIndex >= 0) {
-            // 기존 제품 업데이트
-            const product = products[existingProductIndex];
-            const currentStoreStock = product.stockByStore[record.storeId] || 0;
-            const adjustAmount = isConsumed ? (record.receivedQuantity ?? record.quantity ?? 0) : qtyForStock;
-            const nextStoreStock = isConsumed
-                ? Math.max(0, currentStoreStock - adjustAmount)
-                : currentStoreStock + qtyForStock;
-            const newStockByStore = { ...product.stockByStore, [record.storeId]: nextStoreStock };
-            const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-            const updatedFactoryPrice = record.factoryPrice || product.factoryPrice || 0;
-            
-            productToSave = {
-                ...product,
-                stockByStore: newStockByStore,
-                stock: newTotalStock,
-                factoryPrice: updatedFactoryPrice,
-                ownerId: product.ownerId || recordOwnerId
-            };
-        } else {
-            // 신규 제품 생성
-            const newStockByStore: Record<string, number> = {};
-            stores.forEach(s => newStockByStore[s.id] = 0);
-            newStockByStore[record.storeId] = qtyForStock;
-            const newProductId = resolvedProductId || `P-${Date.now()}`;
-            
-            productToSave = {
-                id: newProductId,
-                name: record.productName,
-                price: sellingPrice || 0,
-                stock: qtyForStock,
-                stockByStore: newStockByStore,
-                category: record.category,
-                brand: record.brand,
-                specification: record.specification,
-                factoryPrice: record.factoryPrice || 0,
-                ownerId: recordOwnerId
-            };
-        }
-        
-        // 2. Product를 Firestore에 먼저 저장 (실패하면 전체 취소)
-        await saveToFirestore<Product>(COLLECTIONS.PRODUCTS, productToSave);
-        console.log('✅ Product saved to Firestore:', productToSave.id);
-        
-        // 3. StockInRecord를 Firestore에 저장 (실패하면 Product는 저장되었지만 롤백 불가)
-        await saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord);
-        console.log('✅ StockInRecord saved to Firestore:', sanitizedRecord.id);
-        
-        // 4. 모두 성공했을 때만 로컬 state 업데이트
-        setProducts(prev => {
-            if (existingProductIndex >= 0) {
-                const updated = [...prev];
-                updated[existingProductIndex] = productToSave;
-                return updated;
-            } else {
+            // 2) writeBatch로 Product + StockInRecord 원자적 저장
+            const batch = writeBatch(db);
+            const productRef = doc(db, COLLECTIONS.PRODUCTS, productToSave.id);
+            const stockInRef = doc(db, COLLECTIONS.STOCK_IN, sanitizedRecord.id);
+            batch.set(productRef, productToSave, { merge: true });
+            batch.set(stockInRef, sanitizedRecord, { merge: true });
+
+            await batch.commit();
+            console.log('✅ Batch commit success:', { productId: productToSave.id, stockInId: sanitizedRecord.id });
+
+            // 3) Firestore 성공 후 로컬 state 반영
+            setProducts(prev => {
+                if (existingProductIndex >= 0) {
+                    const updated = [...prev];
+                    updated[existingProductIndex] = productToSave;
+                    return updated;
+                }
                 return [...prev, productToSave];
+            });
+
+            setStockInHistory(prev => [sanitizedRecord, ...prev]);
+
+            if (record.brand && record.brand.trim() !== '') {
+                setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
             }
-        });
-        
-        setStockInHistory(prev => [sanitizedRecord, ...prev]);
-        
-        // Ensure brand is added to global tireBrands list
-        if (record.brand && record.brand.trim() !== '') {
-            setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
+
+        } catch (err) {
+            console.error('❌ 입고 처리 실패 (batch):', err);
+            alert(`❌ 입고 처리 실패!\\n${record.productName}\\n네트워크를 확인하고 다시 시도해주세요.`);
         }
-        
-        console.log('✅ 입고 처리 완료 (Product + StockInRecord)');
-        
-      } catch (err) {
-        console.error('❌ 입고 처리 실패:', err);
-        alert(`❌ 입고 처리 실패!\n${record.productName}\n네트워크를 확인하고 다시 시도해주세요.`);
-        // 로컬 state는 업데이트되지 않았으므로 롤백 불필요
-      }
-  };
+    };
 
     const handleUpdateStockInRecord = (r: StockInRecord) => {
             // Find the old record to calculate the difference
