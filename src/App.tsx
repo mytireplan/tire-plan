@@ -2077,6 +2077,7 @@ const App: React.FC = () => {
 
         const ownerIdFromAuth = auth.currentUser?.uid;
         const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || ownerIdFromAuth || '';
+        const resolvedOwnerId = recordOwnerId || ownerIdFromAuth || currentUser?.id || 'owner-unknown';
 
         try {
             // 1) Product 계산
@@ -2107,7 +2108,7 @@ const App: React.FC = () => {
                     stockByStore: newStockByStore,
                     stock: newTotalStock,
                     factoryPrice: updatedFactoryPrice,
-                    ownerId: product.ownerId || recordOwnerId
+                    ownerId: product.ownerId || resolvedOwnerId
                 };
             } else {
                 const newStockByStore: Record<string, number> = {};
@@ -2125,21 +2126,24 @@ const App: React.FC = () => {
                     brand: record.brand,
                     specification: record.specification,
                     factoryPrice: record.factoryPrice || 0,
-                    ownerId: recordOwnerId
+                    ownerId: resolvedOwnerId
                 };
             }
 
             const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
+            const stockRecordToSave: StockInRecord = sanitizedRecord.ownerId
+                ? sanitizedRecord
+                : { ...sanitizedRecord, ownerId: resolvedOwnerId };
 
             // 2) writeBatch로 Product + StockInRecord 원자적 저장
             const batch = writeBatch(db);
             const productRef = doc(db, COLLECTIONS.PRODUCTS, productToSave.id);
-            const stockInRef = doc(db, COLLECTIONS.STOCK_IN, sanitizedRecord.id);
+            const stockInRef = doc(db, COLLECTIONS.STOCK_IN, stockRecordToSave.id);
             batch.set(productRef, productToSave, { merge: true });
-            batch.set(stockInRef, sanitizedRecord, { merge: true });
+            batch.set(stockInRef, stockRecordToSave, { merge: true });
 
             await batch.commit();
-            console.log('✅ Batch commit success:', { productId: productToSave.id, stockInId: sanitizedRecord.id });
+            console.log('✅ Batch commit success:', { productId: productToSave.id, stockInId: stockRecordToSave.id });
 
             // 3) Firestore 성공 후 로컬 state 반영
             setProducts(prev => {
@@ -2151,7 +2155,7 @@ const App: React.FC = () => {
                 return [...prev, productToSave];
             });
 
-            setStockInHistory(prev => [sanitizedRecord, ...prev]);
+            setStockInHistory(prev => [stockRecordToSave, ...prev]);
 
             if (record.brand && record.brand.trim() !== '') {
                 setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);

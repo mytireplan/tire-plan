@@ -121,6 +121,7 @@ export interface StockInRecord {
   consumedAtSaleId?: string; // 바로 판매에 사용된 판매 ID
   purchasePrice?: number; // 매입가 (Admin only input in list)
   factoryPrice?: number; // 공장도가 (Entered at registration)
+  ownerId?: string; // Firestore ownership filter
 }
 
 export interface StockTransferRecord {
