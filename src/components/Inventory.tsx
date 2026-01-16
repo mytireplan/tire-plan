@@ -23,7 +23,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({});
-    const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '');
+    const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
   
   // Low Stock Logic
   const [filterLowStock, setFilterLowStock] = useState(false);
@@ -82,7 +82,15 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
             return Array.from(new Set(all));
         }, [products, tireBrands]);
 
-    const filteredProducts = products.map(p => ({ ...p, category: normalizeCategory(p.category), stockByStore: p.stockByStore || {} })).filter(p => {
+    const ownerScopedProducts = useMemo(() => {
+        // SUPER_ADMIN with ALL: show everything, otherwise scope to current owner's products
+        if (currentUser.role === 'SUPER_ADMIN' && (currentStoreId === 'ALL' || !currentStoreId)) return products;
+        return products.filter(p => !p.ownerId || p.ownerId === ownerIdForProduct);
+    }, [products, currentUser, currentStoreId, ownerIdForProduct]);
+
+    const filteredProducts = ownerScopedProducts
+        .map(p => ({ ...p, category: normalizeCategory(p.category), stockByStore: p.stockByStore || {} }))
+        .filter(p => {
     const lowerTerm = (searchTerm || '').toLowerCase();
     // Create a version of the search term with only numbers for flexible spec matching (e.g. "2454518")
     const numericSearchTerm = lowerTerm.replace(/\D/g, '');
