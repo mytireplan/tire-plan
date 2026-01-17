@@ -677,7 +677,7 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
 // Fixed Cost Modal (Unchanged)
 const FixedCostModal = ({ fixedCosts, onClose, onSave }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void }) => {
     const [localCosts, setLocalCosts] = useState<FixedCostConfig[]>(fixedCosts);
-    const [newCost, setNewCost] = useState({ title: '', amount: '', day: '1', category: '고정지출' });
+    const [newCost, setNewCost] = useState({ title: '', amount: '', day: '', category: '고정지출' });
 
     const handleAdd = () => {
         if (!newCost.title || !newCost.amount) return;
@@ -688,7 +688,7 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave }: { fixedCosts: FixedCost
             day: Number(newCost.day),
             category: newCost.category
         }]);
-        setNewCost({ title: '', amount: '', day: '1', category: '고정지출' });
+        setNewCost({ title: '', amount: '', day: '', category: '고정지출' });
     };
 
     const handleRemove = (id: string) => {
