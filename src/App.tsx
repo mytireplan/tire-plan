@@ -1154,6 +1154,11 @@ const App: React.FC = () => {
       });
   }, [staffList, currentUser, visibleStoreIds]);
 
+  const visibleFixedCosts = useMemo(() => {
+      if (currentUser?.role === 'SUPER_ADMIN') return fixedCosts;
+      return fixedCosts.filter(fc => fc.storeId && visibleStoreIds.includes(fc.storeId));
+  }, [fixedCosts, visibleStoreIds, currentUser]);
+
   // 근무표 실시간 구독 (월 범위 + 지점 필터)
   useEffect(() => {
       if (shiftsUnsubRef.current) {
@@ -2873,7 +2878,7 @@ const App: React.FC = () => {
                     stockInHistory={visibleStockHistory.filter(r => currentStoreId === 'ALL' || r.storeId === currentStoreId)}
                     onUpdateStockInRecord={handleUpdateStockInRecord}
                     expenses={visibleExpenses} onAddExpense={handleAddExpense} onUpdateExpense={handleUpdateExpense} onRemoveExpense={handleRemoveExpense}
-                    fixedCosts={fixedCosts} onUpdateFixedCosts={handleUpdateFixedCosts} onNavigateToHistory={() => {}} currentUser={effectiveUser}
+                    fixedCosts={visibleFixedCosts} onUpdateFixedCosts={handleUpdateFixedCosts} onNavigateToHistory={() => {}} currentUser={effectiveUser}
                     stores={visibleStores}
                 />
             )}
