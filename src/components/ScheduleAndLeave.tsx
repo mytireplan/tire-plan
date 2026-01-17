@@ -83,8 +83,8 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
     REGULAR: { badge: 'bg-blue-100 text-blue-800 border-blue-200', label: '근무' },
     NIGHT: { badge: 'bg-indigo-100 text-indigo-800 border-indigo-200', label: '야간' },
     OFF: { badge: 'bg-rose-100 text-rose-800 border-rose-200', label: '휴무' },
-    VACATION: { badge: 'bg-amber-100 text-amber-800 border-amber-200', label: '월차' },
-    HALF: { badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: '반차' },
+    VACATION: { badge: 'bg-rose-100 text-rose-800 border-rose-200', label: '월차' },
+    HALF: { badge: 'bg-rose-100 text-rose-800 border-rose-200', label: '반차' },
     DUTY: { badge: 'bg-violet-100 text-violet-800 border-violet-200', label: '당직' }
   };
 
@@ -479,7 +479,15 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                             }}
                           >
                             {pendingLeave && (
-                              <div className="text-[11px] px-2 py-1 rounded-md border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 font-semibold" style={{ borderStyle: 'dashed', borderWidth: '1px' }}>
+                              <button
+                                className="text-[11px] px-2 py-1 rounded-md border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 font-semibold hover:bg-amber-100 transition-colors cursor-pointer w-full text-left"
+                                style={{ borderStyle: 'dashed', borderWidth: '1px' }}
+                                onClick={() => {
+                                  if (confirm(`휴무 신청 [${pendingLeave.type === 'FULL' ? '월차' : '반차'}]을 취소하시겠습니까?`)) {
+                                    onRemoveLeaveRequest?.(pendingLeave.id);
+                                  }
+                                }}
+                              >
                                 {(() => {
                                   const storeName = stores.find(s => s.id === pendingLeave.storeId)?.name || '지점';
                                   const storeColor = storeColorMap[pendingLeave.storeId] || { badge: 'bg-gray-100 text-gray-700 border-gray-200' };
@@ -491,7 +499,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                                     </>
                                   );
                                 })()}
-                              </div>
+                              </button>
                             )}
                             {dayShifts.length === 0 && !pendingLeave && (
                               <div className="text-[11px] text-gray-400">근무 없음</div>
