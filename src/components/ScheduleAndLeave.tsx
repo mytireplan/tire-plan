@@ -482,10 +482,11 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                               <div className="text-[11px] px-2 py-1 rounded-md border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 font-semibold" style={{ borderStyle: 'dashed', borderWidth: '1px' }}>
                                 {(() => {
                                   const storeName = stores.find(s => s.id === pendingLeave.storeId)?.name || '지점';
+                                  const storeColor = storeColorMap[pendingLeave.storeId] || { badge: 'bg-gray-100 text-gray-700 border-gray-200' };
                                   return (
                                     <>
                                       <AlertCircle size={10}/>
-                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap bg-amber-100 text-amber-800 border-amber-300`}>{storeName}</span>
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${storeColor.badge}`}>{storeName}</span>
                                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap bg-amber-100 text-amber-800 border-amber-300`}>결재중</span>
                                     </>
                                   );
