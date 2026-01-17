@@ -2787,6 +2787,7 @@ const App: React.FC = () => {
                             expenses={visibleExpenses}
                             isSidebarOpen={isSidebarOpen} 
                             leaveRequests={leaveRequests}
+                            shifts={shifts}
                         />
                     )}
                 </>

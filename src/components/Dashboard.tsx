@@ -17,6 +17,7 @@ interface DashboardProps {
   expenses?: ExpenseRecord[];
   isSidebarOpen?: boolean;
   leaveRequests?: LeaveRequest[];
+  shifts?: any[];
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -47,7 +48,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistory, currentUser, currentStoreId, stockInHistory = [], transferHistory = [], expenses = [], isSidebarOpen = true, leaveRequests = [] }) => {
+const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistory, currentUser, currentStoreId, stockInHistory = [], transferHistory = [], expenses = [], isSidebarOpen = true, shifts = [] }) => {
   // Admin Chart Date State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [chartStartDate, setChartStartDate] = useState(() => {
@@ -97,7 +98,6 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
     // Today's midnight (local) string for comparisons without mutating `today`
     const todayStart = new Date(today);
     todayStart.setHours(0, 0, 0, 0);
-    const todayStr = formatDateYMD(todayStart);
   const isCurrentMonthView = currentDate.getMonth() === today.getMonth() && 
                              currentDate.getFullYear() === today.getFullYear();
 
@@ -320,19 +320,21 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
 
   // 5. Daily/Upcoming Leave Requests
         const upcomingLeaves = useMemo(() => {
-            // For Admin Dashboard: Show future approved leaves only
-            if (currentUser.role === 'STORE_ADMIN') {
-                return leaveRequests
-                .filter(req => {
-                    const reqDateStr = (req.date && req.date.length >= 10) ? req.date.slice(0,10) : formatDateYMD(new Date(req.date));
-                    return req.status === 'approved' && reqDateStr >= todayStr;
-                })
-                .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                .slice(0, 5); // Limit to 5
-            }
-            // For Staff Board: Show approved leaves for the selected Board Date
-            return leaveRequests.filter(req => req.status === 'approved' && req.date === boardDateStr);
-        }, [leaveRequests, boardDateStr, currentUser.role]);
+            // Show shifts that are leave types (OFF, VACATION, HALF) for the board date
+            const leaveShifts = shifts.filter(shift => {
+                const shiftDate = shift.start ? shift.start.slice(0, 10) : '';
+                const isLeaveType = shift.shiftType === 'OFF' || shift.shiftType === 'VACATION' || shift.shiftType === 'HALF';
+                return isLeaveType && shiftDate === boardDateStr;
+            });
+
+            // Map shifts to a compatible format
+            return leaveShifts.map(shift => ({
+                id: shift.id,
+                staffName: shift.staffName,
+                type: shift.shiftType === 'VACATION' ? 'FULL' : (shift.shiftType === 'HALF' ? 'HALF_AM' : 'FULL'),
+                date: shift.start ? shift.start.slice(0, 10) : boardDateStr
+            }));
+        }, [shifts, boardDateStr]);
 
     // Local notices state (quick dashboard announcements). Add via + button.
     const [notices, setNotices] = useState<Array<{id:string; title:string; content:string; urgent?:boolean}>>(() => [
