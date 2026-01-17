@@ -725,7 +725,7 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
 // Fixed Cost Modal with Store Filter
 const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string }) => {
     const [localCosts, setLocalCosts] = useState<FixedCostConfig[]>(fixedCosts);
-    const [newCost, setNewCost] = useState({ title: '', amount: '', day: '1', category: '고정지출' });
+    const [newCost, setNewCost] = useState({ title: '', amount: '', day: '', category: '고정지출' });
 
     const handleAdd = () => {
         if (!newCost.title || !newCost.amount) return;
@@ -737,7 +737,7 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixe
             category: newCost.category,
             storeId: selectedStoreId !== 'ALL' ? selectedStoreId : undefined
         }]);
-        setNewCost({ title: '', amount: '', day: '1', category: '고정지출' });
+        setNewCost({ title: '', amount: '', day: '', category: '고정지출' });
     };
 
     const handleRemove = (id: string) => {
@@ -782,7 +782,7 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixe
                         <div className="grid grid-cols-2 gap-3 mb-3">
                             <input type="text" placeholder="항목명 (예: 월세)" className="p-2 border rounded-lg text-sm" value={newCost.title} onChange={(e) => setNewCost({...newCost, title: e.target.value})} />
                             <input type="number" placeholder="금액" className="p-2 border rounded-lg text-sm" value={newCost.amount} onChange={(e) => setNewCost({...newCost, amount: e.target.value})} />
-                            <input type="number" placeholder="날짜" min="1" max="31" className="w-full p-2 border rounded-lg text-sm" value={newCost.day} onChange={(e) => setNewCost({...newCost, day: e.target.value})} />
+                            <input type="number" placeholder="결제일" min="1" max="31" className="w-full p-2 border rounded-lg text-sm" value={newCost.day} onChange={(e) => setNewCost({...newCost, day: e.target.value})} />
                             <select className="p-2 border rounded-lg text-sm bg-white" value={newCost.category} onChange={(e) => setNewCost({...newCost, category: e.target.value})}>
                                 <option value="고정지출">고정지출</option>
                                 <option value="공과금">공과금</option>
