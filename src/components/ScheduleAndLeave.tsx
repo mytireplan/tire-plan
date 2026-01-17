@@ -486,7 +486,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({ staffList, leaveReq
                                     <>
                                       <AlertCircle size={10}/>
                                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap bg-amber-100 text-amber-800 border-amber-300`}>{storeName}</span>
-                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap bg-amber-100 text-amber-800 border-amber-300`}>{pendingLeave.type === 'FULL' ? '휴무' : '반차'} 결재중</span>
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap bg-amber-100 text-amber-800 border-amber-300`}>결재중</span>
                                     </>
                                   );
                                 })()}
