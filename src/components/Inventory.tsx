@@ -118,7 +118,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
         }
     }
 
-        const matchesSearch = matchesNameOrCategory || matchesSpec;
+        // 검색어가 없으면 모든 항목 표시, 있으면 검색 결과만 표시
+        const matchesSearch = !lowerTerm || matchesNameOrCategory || matchesSpec;
 
         const totalStock = p.stock ?? 0;
         const viewStock = currentStoreId === 'ALL' || !currentStoreId ? totalStock : (p.stockByStore[currentStoreId] || 0);
