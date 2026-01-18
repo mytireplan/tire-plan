@@ -400,7 +400,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                         }
                 }
         
-                const matchesSearch = nameMatch || specMatch || brandMatch;
+                // 검색어가 없으면 모든 항목 표시, 있으면 검색 결과만 표시
+                const matchesSearch = !lowerSearch || nameMatch || specMatch || brandMatch;
         
                 const matchesCategory = !selectedCategory || p.category === selectedCategory;
                 const matchesBrand = selectedBrand === 'All' || p.brand === selectedBrand;
