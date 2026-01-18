@@ -581,6 +581,7 @@ const Financials: React.FC<FinancialsProps> = ({
                     selectedStoreId={selectedStoreId}
                     fallbackStoreId={stores[0]?.id || ''}
                     currentUser={currentUser}
+                    stores={stores}
                 />
             )}
         </div>
@@ -726,7 +727,7 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
 };
 
 // Fixed Cost Modal with Store Filter
-const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallbackStoreId, currentUser }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string, fallbackStoreId: string, currentUser: User }) => {
+const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallbackStoreId, currentUser, stores }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string, fallbackStoreId: string, currentUser: User, stores: Store[] }) => {
     // Filter costs by selectedStoreId to show only relevant costs
     const filteredInitialCosts = selectedStoreId === 'ALL' 
         ? fixedCosts 
@@ -734,10 +735,16 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallback
     
     const [localCosts, setLocalCosts] = useState<FixedCostConfig[]>(filteredInitialCosts);
     const [newCost, setNewCost] = useState({ title: '', amount: '', day: '', category: '고정지출' });
+    const computeInitialStoreId = () => selectedStoreId !== 'ALL' ? selectedStoreId : (fallbackStoreId || stores[0]?.id || '');
+    const [newCostStoreId, setNewCostStoreId] = useState<string>(computeInitialStoreId());
+
+    useEffect(() => {
+        setNewCostStoreId(computeInitialStoreId());
+    }, [selectedStoreId, fallbackStoreId, stores]);
 
     const handleAdd = () => {
         if (!newCost.title || !newCost.amount) return;
-        const resolvedStoreId = selectedStoreId !== 'ALL' ? selectedStoreId : fallbackStoreId;
+        const resolvedStoreId = newCostStoreId || (selectedStoreId !== 'ALL' ? selectedStoreId : fallbackStoreId);
         const newCostItem: FixedCostConfig = {
             id: `FC-${Date.now()}`,
             title: newCost.title,
@@ -778,11 +785,13 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallback
                 
                 <div className="p-6 flex-1 overflow-y-auto">
                     <div className="space-y-3 mb-6">
-                        {localCosts.map(cost => (
+                        {localCosts.map(cost => {
+                            const storeName = stores.find(s => s.id === cost.storeId)?.name || (cost.storeId || '지점 미지정');
+                            return (
                             <div key={cost.id} className="flex justify-between items-center p-3 bg-white border border-gray-200 rounded-xl shadow-sm">
                                 <div>
                                     <div className="font-bold text-gray-800">{cost.title}</div>
-                                    <div className="text-xs text-gray-500">매월 {cost.day}일 | {cost.category}</div>
+                                    <div className="text-xs text-gray-500">{storeName} | 매월 {cost.day}일 | {cost.category}</div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <span className="font-bold text-gray-900">{formatCurrency(cost.amount)}</span>
@@ -791,7 +800,7 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallback
                                     </button>
                                 </div>
                             </div>
-                        ))}
+                        );})}
                     </div>
 
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
@@ -806,8 +815,14 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallback
                                 <option value="인건비">인건비</option>
                                 <option value="임대료">임대료</option>
                             </select>
+                            <select className="p-2 border rounded-lg text-sm bg-white col-span-2" value={newCostStoreId} onChange={(e) => setNewCostStoreId(e.target.value)}>
+                                {!newCostStoreId && <option value="">지점을 선택하세요</option>}
+                                {stores.map(store => (
+                                    <option key={store.id} value={store.id}>{store.name}</option>
+                                ))}
+                            </select>
                         </div>
-                        <button onClick={handleAdd} disabled={!newCost.title || !newCost.amount} className="w-full py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-100 disabled:opacity-50">+ 추가하기</button>
+                        <button onClick={handleAdd} disabled={!newCost.title || !newCost.amount || !newCostStoreId} className="w-full py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-100 disabled:opacity-50">+ 추가하기</button>
                     </div>
                 </div>
 
