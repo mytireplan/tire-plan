@@ -825,7 +825,7 @@ const App: React.FC = () => {
                 const [
                     firestoreOwners,
                     firestoreStores,
-                    firestoreProductsPage,
+                    firestoreProductsAll,
                     firestoreStockInPage,
                     firestoreExpensesPage,
                     firestoreFixedCosts,
@@ -838,7 +838,7 @@ const App: React.FC = () => {
                 ] = await Promise.all([
                     getCollectionPage<OwnerAccount>(COLLECTIONS.OWNERS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StoreAccount>(COLLECTIONS.STORES, { pageSize: PAGE_SIZE }),
-                    getCollectionPage<Product>(COLLECTIONS.PRODUCTS, { pageSize: PAGE_SIZE, orderByField: 'id', applyOwnerFilter: false }),
+                    getAllFromFirestore<Product>(COLLECTIONS.PRODUCTS),  // 모든 제품 로드 (페이지 제한 없음)
                     getCollectionPage<StockInRecord>(COLLECTIONS.STOCK_IN, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<ExpenseRecord>(COLLECTIONS.EXPENSES, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
@@ -851,7 +851,7 @@ const App: React.FC = () => {
                 ]);
 
                 const ownersWithDefaults = await ensureDefaultOwners(firestoreOwners.data);
-                const normalizedFetchedProducts = normalizeProducts(firestoreProductsPage.data);
+                const normalizedFetchedProducts = normalizeProducts(firestoreProductsAll);
 
                 if (SHOULD_SEED_DEMO) {
                     // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
