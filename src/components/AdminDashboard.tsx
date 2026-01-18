@@ -871,12 +871,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
               {selectedAnnouncement.content || '상세 내용이 없습니다.'}
             </p>
 
-            <button 
-              onClick={() => setSelectedAnnouncement(null)}
-              className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold hover:bg-slate-200"
-            >
-              닫기
-            </button>
+            <div className="flex gap-2 pt-4">
+              <button 
+                onClick={() => setSelectedAnnouncement(null)}
+                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold hover:bg-slate-200"
+              >
+                닫기
+              </button>
+              <button 
+                onClick={() => {
+                  if (window.confirm('이 공지사항을 삭제하시겠습니까?')) {
+                    setAnnouncements(announcements.filter(a => a.id !== selectedAnnouncement.id));
+                    setSelectedAnnouncement(null);
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600"
+              >
+                삭제
+              </button>
+            </div>
           </div>
         </div>
       )}
