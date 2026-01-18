@@ -1167,6 +1167,19 @@ const App: React.FC = () => {
       });
   }, [staffList, currentUser, visibleStoreIds]);
 
+  const visibleLeaveRequests = useMemo(() => {
+      if (!currentUser) return [] as LeaveRequest[];
+      if (currentUser.role === 'SUPER_ADMIN') return leaveRequests;
+      // Filter leave requests by checking if the staff member belongs to the current user
+      return leaveRequests.filter(lr => {
+          const staff = staffList.find(s => s.id === lr.staffId);
+          if (!staff) return false;
+          if (staff.ownerId) return staff.ownerId === currentUser.id;
+          if (staff.storeId) return visibleStoreIds.includes(staff.storeId);
+          return false;
+      });
+  }, [leaveRequests, staffList, currentUser, visibleStoreIds]);
+
   const visibleFixedCosts = useMemo(() => {
       if (currentUser?.role === 'SUPER_ADMIN') return fixedCosts;
       return fixedCosts.filter(fc => fc.storeId && visibleStoreIds.includes(fc.storeId));
@@ -2785,7 +2798,7 @@ const App: React.FC = () => {
                             sales={visibleSales} 
                             stores={visibleStores}
                             staffList={visibleStaff}
-                            leaveRequests={leaveRequests}
+                            leaveRequests={visibleLeaveRequests}
                             products={products}
                             shifts={shifts}
                             onNavigateToLeaveSchedule={() => {
@@ -2804,7 +2817,7 @@ const App: React.FC = () => {
                             transferHistory={transferHistory} 
                             expenses={visibleExpenses}
                             isSidebarOpen={isSidebarOpen} 
-                            leaveRequests={leaveRequests}
+                            leaveRequests={visibleLeaveRequests}
                             shifts={shifts}
                         />
                     )}
@@ -2815,7 +2828,7 @@ const App: React.FC = () => {
                 sales={visibleSales} 
                 stores={visibleStores}
                 staffList={visibleStaff}
-                leaveRequests={leaveRequests}
+                leaveRequests={visibleLeaveRequests}
                 products={products}
                 shifts={shifts}
                 />
@@ -2840,7 +2853,7 @@ const App: React.FC = () => {
             {activeTab === 'leave' && (
                 <ScheduleAndLeave
                     staffList={visibleStaff}
-                    leaveRequests={leaveRequests}
+                    leaveRequests={visibleLeaveRequests}
                     stores={visibleStores}
                     shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
                     currentStoreId={currentStoreId}
