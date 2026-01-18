@@ -1134,19 +1134,25 @@ const App: React.FC = () => {
 
       if (currentUser.role === 'SUPER_ADMIN') {
           // Super admin: show user-added products only, never seeded demo items
-          return products.filter(p => 
-              !isSeedProduct(p) && 
-              p.name && p.name.trim() !== '' && 
-              p.specification && p.specification.trim() !== ''
-          );
+          return products.filter(p => {
+              if (isSeedProduct(p)) return false;
+              if (!p.name || p.name.trim() === '') return false;
+              // 기타 카테고리가 아닌 경우만 specification 체크
+              const normalizedCategory = p.category === '부품/수리' ? '기타' : (p.category || '기타');
+              if (normalizedCategory !== '기타' && (!p.specification || p.specification.trim() === '')) return false;
+              return true;
+          });
       }
 
       const ownerId = currentUser.id;
       return products.filter(p => {
           if (shouldHideSeedProducts && isSeedProduct(p)) return false;
           const productOwnerId = normalizeOwnerId(p.ownerId);
-          // Filter out products with missing or empty name or specification
-          if (!p.name || p.name.trim() === '' || !p.specification || p.specification.trim() === '') return false;
+          // Filter out products with missing or empty name
+          if (!p.name || p.name.trim() === '') return false;
+          // 기타 카테고리가 아닌 경우만 specification 체크
+          const normalizedCategory = p.category === '부품/수리' ? '기타' : (p.category || '기타');
+          if (normalizedCategory !== '기타' && (!p.specification || p.specification.trim() === '')) return false;
           return !productOwnerId || productOwnerId === ownerId;
       });
   }, [products, currentUser]);
