@@ -18,6 +18,7 @@ interface FinancialsProps {
   onNavigateToHistory: (filter: SalesFilter) => void;
   currentUser: User;
   stores: Store[];
+  currentStoreId: string;
 }
 
 const EXPENSE_CATEGORIES = [
@@ -28,10 +29,10 @@ const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#e
 const RADIAN = Math.PI / 180;
 
 const Financials: React.FC<FinancialsProps> = ({ 
-    sales, stockInHistory, onUpdateStockInRecord, expenses, onAddExpense, onRemoveExpense, fixedCosts, onUpdateFixedCosts, onNavigateToHistory, currentUser, stores
+    sales, stockInHistory, onUpdateStockInRecord, expenses, onAddExpense, onRemoveExpense, fixedCosts, onUpdateFixedCosts, onNavigateToHistory, currentUser, stores, currentStoreId
 }) => {
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-    const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL'); // Store Filter
+    const [selectedStoreId, setSelectedStoreId] = useState<string>(currentStoreId); // Store Filter - initialize from prop
     
     const [showFixedCostModal, setShowFixedCostModal] = useState(false);
     const [showBatchCostModal, setShowBatchCostModal] = useState(false); // Batch Entry Modal
@@ -579,6 +580,7 @@ const Financials: React.FC<FinancialsProps> = ({
                     onSave={onUpdateFixedCosts}
                     selectedStoreId={selectedStoreId}
                     fallbackStoreId={stores[0]?.id || ''}
+                    currentUser={currentUser}
                 />
             )}
         </div>
@@ -724,7 +726,7 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
 };
 
 // Fixed Cost Modal with Store Filter
-const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallbackStoreId }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string, fallbackStoreId: string }) => {
+const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallbackStoreId, currentUser }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string, fallbackStoreId: string, currentUser: User }) => {
     // Filter costs by selectedStoreId to show only relevant costs
     const filteredInitialCosts = selectedStoreId === 'ALL' 
         ? fixedCosts 
@@ -746,6 +748,8 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallback
         if (resolvedStoreId) {
             newCostItem.storeId = resolvedStoreId;
         }
+        // Set ownerId from currentUser
+        newCostItem.ownerId = currentUser.id;
         setLocalCosts([...localCosts, newCostItem]);
         setNewCost({ title: '', amount: '', day: '', category: '고정지출' });
     };

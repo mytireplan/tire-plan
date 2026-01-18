@@ -201,6 +201,7 @@ export interface FixedCostConfig {
   day: number; // Payment day (1-31)
   category: string;
   storeId?: string; // Optional: specific store or global if undefined
+  ownerId?: string; // Optional: owner ID for multi-owner scoping
 }
 
 // Leave Management Types

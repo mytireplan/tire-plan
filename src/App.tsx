@@ -2345,7 +2345,11 @@ const App: React.FC = () => {
                         return visibleStoreIds.includes(fc.storeId);
                     };
 
-                    ownCosts = updatedCosts;
+                    // Set ownerId for all costs being saved
+                    ownCosts = updatedCosts.map(cost => ({
+                        ...cost,
+                        ownerId: effectiveUser.id
+                    }));
                     const ownIds = new Set(ownCosts.map(c => c.id));
 
                     const prevOwn = prev.filter(isOwnCost);
@@ -2373,22 +2377,27 @@ const App: React.FC = () => {
                 return;
             }
 
-            // SUPER_ADMIN: 전체 업서트 + 제거
+            // SUPER_ADMIN: 전체 업서트 + 제거 (ownerId도 설정)
             let removed: FixedCostConfig[] = [];
+            const costsWithOwnerId = updatedCosts.map(cost => ({
+                ...cost,
+                ownerId: effectiveUser?.id
+            }));
+            
             setFixedCosts(prev => {
-                const newIds = new Set(updatedCosts.map(c => c.id));
+                const newIds = new Set(costsWithOwnerId.map(c => c.id));
                 removed = prev.filter(fc => !newIds.has(fc.id));
-                return updatedCosts;
+                return costsWithOwnerId;
             });
 
             (async () => {
                 try {
                     await Promise.all([
-                        ...updatedCosts.map(cost => saveToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, cost)),
+                        ...costsWithOwnerId.map(cost => saveToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, cost)),
                         ...removed.map(cost => deleteFromFirestore(COLLECTIONS.FIXED_COSTS, cost.id))
                     ]);
                     console.log('✅ Fixed costs synced (super admin):', {
-                        saved: updatedCosts.length,
+                        saved: costsWithOwnerId.length,
                         removed: removed.length
                     });
                 } catch (err) {
@@ -2963,7 +2972,7 @@ const App: React.FC = () => {
                     onUpdateStockInRecord={handleUpdateStockInRecord}
                     expenses={visibleExpenses} onAddExpense={handleAddExpense} onUpdateExpense={handleUpdateExpense} onRemoveExpense={handleRemoveExpense}
                     fixedCosts={visibleFixedCosts} onUpdateFixedCosts={handleUpdateFixedCosts} onNavigateToHistory={() => {}} currentUser={effectiveUser}
-                    stores={visibleStores}
+                    stores={visibleStores} currentStoreId={currentStoreId}
                 />
             )}
             {(activeTab === 'customers' && effectiveUser.role === 'STORE_ADMIN') && (
