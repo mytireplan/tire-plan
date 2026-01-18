@@ -86,8 +86,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
         // SUPER_ADMIN with ALL: show everything
         if (currentUser.role === 'SUPER_ADMIN' && (currentStoreId === 'ALL' || !currentStoreId)) return products;
 
-        // Show only products matching current owner
-        return products.filter(p => p.ownerId === ownerIdForProduct);
+        // Show products matching current owner (allow empty ownerId for products without owner)
+        return products.filter(p => !p.ownerId || p.ownerId === ownerIdForProduct);
     }, [products, currentUser, currentStoreId, ownerIdForProduct]);
 
     const filteredProducts = ownerScopedProducts
