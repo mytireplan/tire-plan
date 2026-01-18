@@ -2340,12 +2340,17 @@ const App: React.FC = () => {
                 // Get all costs (from state) and merge with the provided ones
                 // Keep costs NOT belonging to this owner, add the new costs
                 const costsFromOtherOwners = fixedCosts.filter(fc => {
-                    // Check if this cost belongs to another owner
-                    if (!fc.storeId) return false; // Global costs stay
-                    // If fc has storeId, check if it matches any of the current user's stores
+                    // If fc has no storeId, it's a global cost - keep it for now
+                    if (!fc.storeId) return true;
+                    // If fc has storeId, only keep it if it doesn't belong to current user
                     return !visibleStoreIds.includes(fc.storeId);
                 });
                 costsToSave = [...c, ...costsFromOtherOwners];
+                console.log('🔧 Fixed costs update:', {
+                    provided: c.length,
+                    fromOtherOwners: costsFromOtherOwners.length,
+                    total: costsToSave.length
+                });
             }
             setFixedCosts(costsToSave);
             saveBulkToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, costsToSave)
