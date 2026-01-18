@@ -1139,7 +1139,8 @@ const App: React.FC = () => {
               if (!p.name || p.name.trim() === '') return false;
               // 기타 카테고리가 아닌 경우만 specification 체크
               const normalizedCategory = p.category === '부품/수리' ? '기타' : (p.category || '기타');
-              if (normalizedCategory !== '기타' && (!p.specification || p.specification.trim() === '')) return false;
+              if (normalizedCategory === '기타') return true; // 기타는 specification 없어도 OK
+              if (!p.specification || p.specification.trim() === '') return false;
               return true;
           });
       }
@@ -1152,7 +1153,11 @@ const App: React.FC = () => {
           if (!p.name || p.name.trim() === '') return false;
           // 기타 카테고리가 아닌 경우만 specification 체크
           const normalizedCategory = p.category === '부품/수리' ? '기타' : (p.category || '기타');
-          if (normalizedCategory !== '기타' && (!p.specification || p.specification.trim() === '')) return false;
+          if (normalizedCategory === '기타') {
+              // 기타 항목은 specification 없어도 OK
+              return !productOwnerId || productOwnerId === ownerId;
+          }
+          if (!p.specification || p.specification.trim() === '') return false;
           return !productOwnerId || productOwnerId === ownerId;
       });
   }, [products, currentUser]);
