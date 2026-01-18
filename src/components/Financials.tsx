@@ -578,6 +578,7 @@ const Financials: React.FC<FinancialsProps> = ({
                     onClose={() => setShowFixedCostModal(false)}
                     onSave={onUpdateFixedCosts}
                     selectedStoreId={selectedStoreId}
+                    fallbackStoreId={stores[0]?.id || ''}
                 />
             )}
         </div>
@@ -723,7 +724,7 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
 };
 
 // Fixed Cost Modal with Store Filter
-const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string }) => {
+const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId, fallbackStoreId }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string, fallbackStoreId: string }) => {
     // Filter costs by selectedStoreId to show only relevant costs
     const filteredInitialCosts = selectedStoreId === 'ALL' 
         ? fixedCosts 
@@ -734,6 +735,7 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixe
 
     const handleAdd = () => {
         if (!newCost.title || !newCost.amount) return;
+        const resolvedStoreId = selectedStoreId !== 'ALL' ? selectedStoreId : fallbackStoreId;
         const newCostItem: FixedCostConfig = {
             id: `FC-${Date.now()}`,
             title: newCost.title,
@@ -741,9 +743,8 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixe
             day: Number(newCost.day),
             category: newCost.category
         };
-        // Only add storeId if not 'ALL' to avoid undefined in Firestore
-        if (selectedStoreId !== 'ALL') {
-            newCostItem.storeId = selectedStoreId;
+        if (resolvedStoreId) {
+            newCostItem.storeId = resolvedStoreId;
         }
         setLocalCosts([...localCosts, newCostItem]);
         setNewCost({ title: '', amount: '', day: '', category: '고정지출' });
