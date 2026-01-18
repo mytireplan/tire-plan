@@ -1142,7 +1142,6 @@ const App: React.FC = () => {
       }
 
       const ownerId = currentUser.id;
-      const ownerId = currentUser.id;
       const filtered = products.filter(p => {
           if (shouldHideSeedProducts && isSeedProduct(p)) return false;
           const productOwnerId = normalizeOwnerId(p.ownerId);
