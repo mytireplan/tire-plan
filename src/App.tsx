@@ -1142,6 +1142,7 @@ const App: React.FC = () => {
       }
 
       const ownerId = currentUser.id;
+      console.log(`🔐 visibleProducts 계산: currentUser.id=${ownerId}, products=${products.length}개`);
       const filtered = products.filter(p => {
           if (shouldHideSeedProducts && isSeedProduct(p)) return false;
           const productOwnerId = normalizeOwnerId(p.ownerId);
