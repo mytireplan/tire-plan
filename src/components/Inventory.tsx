@@ -127,7 +127,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
         const isServiceItem = p.category === '기타' || totalStock > 900;
         const isLowStock = !isServiceItem && viewStock <= lowStockThreshold;
     
-        if (hideZeroStock && viewStock === 0) return false;
+        // 기타 항목은 hideZeroStock 필터 무시 (수량 상관없이 표시)
+        if (hideZeroStock && viewStock === 0 && p.category !== '기타') return false;
     if (filterLowStock && !isLowStock) return false;
     
     return matchesSearch;
