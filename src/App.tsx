@@ -1131,15 +1131,19 @@ const App: React.FC = () => {
       const normalizeOwnerId = (ownerId?: string) => ownerId && ownerId !== 'null' ? ownerId : undefined;
       const isSeedProduct = (product: Product) => product.ownerId === DEFAULT_OWNER_ID;
       const shouldHideSeedProducts = currentUser.id !== DEFAULT_OWNER_ID;
+      const isEtcItem = (p: Product) => {
+          const cat = p.category === '부품/수리' ? '기타' : (p.category || '기타');
+          return cat === '기타';
+      };
 
       if (currentUser.role === 'SUPER_ADMIN') {
           // Super admin: show user-added products only, never seeded demo items
           return products.filter(p => {
               if (isSeedProduct(p)) return false;
               if (!p.name || p.name.trim() === '') return false;
-              // 기타 카테고리가 아닌 경우만 specification 체크
-              const normalizedCategory = p.category === '부품/수리' ? '기타' : (p.category || '기타');
-              if (normalizedCategory === '기타') return true; // 기타는 specification 없어도 OK
+              // 기타 항목은 모든 필터 무시하고 통과
+              if (isEtcItem(p)) return true;
+              // 타이어/부품은 specification 필수
               if (!p.specification || p.specification.trim() === '') return false;
               return true;
           });
@@ -1151,12 +1155,13 @@ const App: React.FC = () => {
           const productOwnerId = normalizeOwnerId(p.ownerId);
           // Filter out products with missing or empty name
           if (!p.name || p.name.trim() === '') return false;
-          // 기타 카테고리가 아닌 경우만 specification 체크
-          const normalizedCategory = p.category === '부품/수리' ? '기타' : (p.category || '기타');
-          if (normalizedCategory === '기타') {
-              // 기타 항목은 specification 없어도 OK
+          
+          // 기타 항목은 ownerId 체크만 하고 통과
+          if (isEtcItem(p)) {
               return !productOwnerId || productOwnerId === ownerId;
           }
+          
+          // 타이어/부품은 specification 필수
           if (!p.specification || p.specification.trim() === '') return false;
           return !productOwnerId || productOwnerId === ownerId;
       });
