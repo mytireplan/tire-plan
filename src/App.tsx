@@ -968,7 +968,13 @@ const App: React.FC = () => {
           // Products 실시간 구독
           const unsubProducts = subscribeToCollection<Product>(COLLECTIONS.PRODUCTS, (data) => {
               console.log('📥 Products updated from Firestore:', data.length);
-              setProducts(data);
+              // Filter out products with missing or empty name or specification
+              const validProducts = data.filter(p => 
+                  p.name && p.name.trim() !== '' && 
+                  p.specification && p.specification.trim() !== ''
+              );
+              console.log('✅ Valid products after filter:', validProducts.length);
+              setProducts(validProducts);
           });
           unsubscribeList.push(unsubProducts);
 
@@ -1128,13 +1134,19 @@ const App: React.FC = () => {
 
       if (currentUser.role === 'SUPER_ADMIN') {
           // Super admin: show user-added products only, never seeded demo items
-          return products.filter(p => !isSeedProduct(p));
+          return products.filter(p => 
+              !isSeedProduct(p) && 
+              p.name && p.name.trim() !== '' && 
+              p.specification && p.specification.trim() !== ''
+          );
       }
 
       const ownerId = currentUser.id;
       return products.filter(p => {
           if (shouldHideSeedProducts && isSeedProduct(p)) return false;
           const productOwnerId = normalizeOwnerId(p.ownerId);
+          // Filter out products with missing or empty name or specification
+          if (!p.name || p.name.trim() === '' || !p.specification || p.specification.trim() === '') return false;
           return !productOwnerId || productOwnerId === ownerId;
       });
   }, [products, currentUser]);
@@ -1146,8 +1158,9 @@ const App: React.FC = () => {
 
   const visibleStaff = useMemo(() => {
       if (!currentUser) return [] as Staff[];
-      if (currentUser.role === 'SUPER_ADMIN') return staffList;
+      if (currentUser.role === 'SUPER_ADMIN') return staffList.filter(s => s && s.name); // Guard against undefined
       return staffList.filter((s) => {
+          if (!s || !s.name) return false; // Guard against undefined entries
           if (s.ownerId) return s.ownerId === currentUser.id;
           if (s.storeId) return visibleStoreIds.includes(s.storeId);
           return false;

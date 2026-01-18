@@ -103,8 +103,11 @@ const Financials: React.FC<FinancialsProps> = ({
             .filter(e => e.date.startsWith(monthStr) && !e.isFixed)
             .reduce((sum, e) => sum + e.amount, 0);
         
-        // Fixed Costs (Note: Fixed Costs currently global/unfiltered in data model)
-        const fixedCost = isAdmin ? fixedCosts.reduce((sum, fc) => sum + fc.amount, 0) : 0;
+        // Fixed Costs (Filter by selected store)
+        const filteredFixedCosts = selectedStoreId === 'ALL'
+            ? fixedCosts
+            : fixedCosts.filter(fc => fc.storeId === selectedStoreId);
+        const fixedCost = isAdmin ? filteredFixedCosts.reduce((sum, fc) => sum + fc.amount, 0) : 0;
 
         return {
             total: confirmedStockCost + variableCost + fixedCost,
@@ -154,19 +157,22 @@ const Financials: React.FC<FinancialsProps> = ({
             });
         }
 
-        // Fixed Costs (Visual only for list - Always show all since they lack storeId)
+        // Fixed Costs (Filter by selected store)
         if (isAdmin) {
-             fixedCosts.forEach(fc => {
-                 records.push({
-                     id: fc.id,
-                     date: `${selectedMonth}-${String(fc.day).padStart(2, '0')}`,
-                     type: 'FIXED',
-                     category: fc.category,
-                     description: `${fc.title} (고정지출)`,
-                     amount: fc.amount,
-                     raw: fc
-                 });
-             });
+            const filteredFixedCostsForList = selectedStoreId === 'ALL'
+                ? fixedCosts
+                : fixedCosts.filter(fc => fc.storeId === selectedStoreId);
+            filteredFixedCostsForList.forEach(fc => {
+                records.push({
+                    id: fc.id,
+                    date: `${selectedMonth}-${String(fc.day).padStart(2, '0')}`,
+                    type: 'FIXED',
+                    category: fc.category,
+                    description: `${fc.title} (고정지출)`,
+                    amount: fc.amount,
+                    raw: fc
+                });
+            });
         }
 
         // Filter
@@ -536,6 +542,7 @@ const Financials: React.FC<FinancialsProps> = ({
                     fixedCosts={fixedCosts} 
                     onClose={() => setShowFixedCostModal(false)}
                     onSave={onUpdateFixedCosts}
+                    selectedStoreId={selectedStoreId}
                 />
             )}
         </div>
@@ -674,8 +681,8 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
     );
 };
 
-// Fixed Cost Modal (Unchanged)
-const FixedCostModal = ({ fixedCosts, onClose, onSave }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void }) => {
+// Fixed Cost Modal (Store-aware)
+const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string }) => {
     const [localCosts, setLocalCosts] = useState<FixedCostConfig[]>(fixedCosts);
     const [newCost, setNewCost] = useState({ title: '', amount: '', day: '', category: '고정지출' });
 
@@ -686,7 +693,8 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave }: { fixedCosts: FixedCost
             title: newCost.title,
             amount: Number(newCost.amount),
             day: Number(newCost.day),
-            category: newCost.category
+            category: newCost.category,
+            storeId: selectedStoreId !== 'ALL' ? selectedStoreId : undefined
         }]);
         setNewCost({ title: '', amount: '', day: '', category: '고정지출' });
     };

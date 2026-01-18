@@ -288,6 +288,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           const term = searchTerm.toLowerCase();
           const vehicle = sale.vehicleNumber?.toLowerCase() || '';
           const phone = sale.customer?.phoneNumber || '';
+          const memo = sale.memo?.toLowerCase() || '';
           
           // Search in product names and specifications
           const matchesProduct = sale.items?.some(item => {
@@ -302,7 +303,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                      normalizedSpec.includes(normalizedTerm);
           });
           
-          if (!vehicle.includes(term) && !phone.includes(term) && !matchesProduct) return false;
+          if (!vehicle.includes(term) && !phone.includes(term) && !memo.includes(term) && !matchesProduct) return false;
       }
       
       return true;
@@ -1037,12 +1038,15 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
         // Search Filter
         if (!term) return true;
 
+        // Guard against undefined name or specification
+        if (!p.name || !p.specification) return false;
+        
         const nameMatch = p.name.toLowerCase().includes(term);
-        const specMatch = p.specification?.toLowerCase().includes(term);
+        const specMatch = p.specification.toLowerCase().includes(term);
         
         // Enhanced Numeric Match for Specs (e.g. 2454518 -> 245/45R18)
         let numericSpecMatch = false;
-        if (!nameMatch && !specMatch && numericTerm.length >= 3 && p.specification) {
+        if (!nameMatch && !specMatch && numericTerm.length >= 3) {
             const productNumericSpec = p.specification.toLowerCase().replace(/\D/g, '');
             if (productNumericSpec.includes(numericTerm)) {
                 numericSpecMatch = true;

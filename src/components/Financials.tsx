@@ -126,7 +126,7 @@ const Financials: React.FC<FinancialsProps> = ({
         // Fixed Costs (Filter by store)
         const filteredFixedCosts = selectedStoreId === 'ALL' 
             ? fixedCosts 
-            : fixedCosts.filter(fc => fc.storeId === selectedStoreId);
+            : fixedCosts.filter(fc => (fc.storeId || 'ALL') === selectedStoreId);
         const fixedCost = isAdmin ? filteredFixedCosts.reduce((sum, fc) => sum + fc.amount, 0) : 0;
 
         return {
@@ -182,7 +182,7 @@ const Financials: React.FC<FinancialsProps> = ({
         if (isAdmin) {
              const filteredFixedCostsForList = selectedStoreId === 'ALL'
                  ? fixedCosts
-                 : fixedCosts.filter(fc => fc.storeId === selectedStoreId);
+                 : fixedCosts.filter(fc => (fc.storeId || 'ALL') === selectedStoreId);
              filteredFixedCostsForList.forEach(fc => {
                  records.push({
                      id: fc.id,
@@ -724,19 +724,28 @@ const BatchCostEntryModal = ({ stockRecords, onUpdateRecord, onClose, currentMon
 
 // Fixed Cost Modal with Store Filter
 const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixedCosts: FixedCostConfig[], onClose: () => void, onSave: (costs: FixedCostConfig[]) => void, selectedStoreId: string }) => {
-    const [localCosts, setLocalCosts] = useState<FixedCostConfig[]>(fixedCosts);
+    // Filter costs by selectedStoreId to show only relevant costs
+    const filteredInitialCosts = selectedStoreId === 'ALL' 
+        ? fixedCosts 
+        : fixedCosts.filter(fc => (fc.storeId || 'ALL') === selectedStoreId);
+    
+    const [localCosts, setLocalCosts] = useState<FixedCostConfig[]>(filteredInitialCosts);
     const [newCost, setNewCost] = useState({ title: '', amount: '', day: '', category: '고정지출' });
 
     const handleAdd = () => {
         if (!newCost.title || !newCost.amount) return;
-        setLocalCosts([...localCosts, {
+        const newCostItem: FixedCostConfig = {
             id: `FC-${Date.now()}`,
             title: newCost.title,
             amount: Number(newCost.amount),
             day: Number(newCost.day),
-            category: newCost.category,
-            storeId: selectedStoreId !== 'ALL' ? selectedStoreId : undefined
-        }]);
+            category: newCost.category
+        };
+        // Only add storeId if not 'ALL' to avoid undefined in Firestore
+        if (selectedStoreId !== 'ALL') {
+            newCostItem.storeId = selectedStoreId;
+        }
+        setLocalCosts([...localCosts, newCostItem]);
         setNewCost({ title: '', amount: '', day: '', category: '고정지출' });
     };
 
@@ -745,7 +754,11 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixe
     };
 
     const handleSave = () => {
-        onSave(localCosts);
+        // Only save costs that belong to the selected store or are being deleted
+        // Keep costs from other stores unchanged
+        const costsFromOtherStores = fixedCosts.filter(fc => (fc.storeId || 'ALL') !== selectedStoreId);
+        const updatedAllCosts = [...localCosts, ...costsFromOtherStores];
+        onSave(updatedAllCosts);
         onClose();
     };
 
