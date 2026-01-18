@@ -1142,20 +1142,7 @@ const App: React.FC = () => {
       }
 
       const ownerId = currentUser.id;
-      console.log(`🔐 visibleProducts 계산: currentUser.id=${ownerId}, products=${products.length}개`);
-      
-      // 기타 제품이 몇 개인지 확인
-      const etcCount = products.filter(p => p.category === '기타').length;
-      if (etcCount > 0) {
-          console.log(`📊 Firestore의 기타 제품: ${etcCount}개`);
-          const etcByOwner = products.filter(p => p.category === '기타').reduce((acc, p) => {
-              const id = p.ownerId || 'no-owner';
-              acc[id] = (acc[id] || 0) + 1;
-              return acc;
-          }, {} as Record<string, number>);
-          console.log(`📊 기타 제품 owner 분포:`, etcByOwner);
-      }
-      
+      const ownerId = currentUser.id;
       const filtered = products.filter(p => {
           if (shouldHideSeedProducts && isSeedProduct(p)) return false;
           const productOwnerId = normalizeOwnerId(p.ownerId);
@@ -1163,9 +1150,6 @@ const App: React.FC = () => {
           if (!p.name || p.name.trim() === '') return false;
           // ownerId 체크 (빈 ownerId도 허용)
           const pass = !productOwnerId || productOwnerId === ownerId;
-          if (p.category === '기타' && !pass) {
-              console.log(`🔍 기타 항목 필터링됨: ${p.name}, productOwnerId=${productOwnerId}, currentOwnerId=${ownerId}`);
-          }
           return pass;
       });
       console.log(`✅ visibleProducts: ${filtered.length}개 (전체 ${products.length}개 중)`);
