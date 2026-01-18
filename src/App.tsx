@@ -2335,27 +2335,36 @@ const App: React.FC = () => {
     const handleUpdateFixedCosts = (c: FixedCostConfig[]) => {
             // STORE_ADMIN: preserve costs from other stores (only save their own costs)
             // SUPER_ADMIN: save all costs
-            let costsToSave = c;
             if (effectiveUser?.role === 'STORE_ADMIN') {
-                // Get all costs (from state) and merge with the provided ones
-                // Keep costs NOT belonging to this owner, add the new costs
-                const costsFromOtherOwners = fixedCosts.filter(fc => {
-                    // If fc has no storeId, it's a global cost - keep it for now
-                    if (!fc.storeId) return true;
-                    // If fc has storeId, only keep it if it doesn't belong to current user
-                    return !visibleStoreIds.includes(fc.storeId);
+                // Use functional update to get the latest state
+                setFixedCosts(prevFixedCosts => {
+                    // Get all costs from latest state and merge with the provided ones
+                    // Keep costs NOT belonging to this owner, add the new costs
+                    const costsFromOtherOwners = prevFixedCosts.filter(fc => {
+                        // If fc has no storeId, it's a global cost - keep it for now
+                        if (!fc.storeId) return true;
+                        // If fc has storeId, only keep it if it doesn't belong to current user
+                        return !visibleStoreIds.includes(fc.storeId);
+                    });
+                    const costsToSave = [...c, ...costsFromOtherOwners];
+                    console.log('🔧 Fixed costs update:', {
+                        provided: c.length,
+                        fromOtherOwners: costsFromOtherOwners.length,
+                        total: costsToSave.length
+                    });
+                    // Save to Firestore
+                    saveBulkToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, costsToSave)
+                        .then(() => console.log('✅ Fixed costs saved to Firestore:', costsToSave.length))
+                        .catch((err) => console.error('❌ Failed to save fixed costs in Firestore:', err));
+                    return costsToSave;
                 });
-                costsToSave = [...c, ...costsFromOtherOwners];
-                console.log('🔧 Fixed costs update:', {
-                    provided: c.length,
-                    fromOtherOwners: costsFromOtherOwners.length,
-                    total: costsToSave.length
-                });
+            } else {
+                // SUPER_ADMIN: save all costs directly
+                setFixedCosts(c);
+                saveBulkToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, c)
+                    .then(() => console.log('✅ Fixed costs saved to Firestore:', c.length))
+                    .catch((err) => console.error('❌ Failed to save fixed costs in Firestore:', err));
             }
-            setFixedCosts(costsToSave);
-            saveBulkToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, costsToSave)
-                .then(() => console.log('✅ Fixed costs saved to Firestore:', costsToSave.length))
-                .catch((err) => console.error('❌ Failed to save fixed costs in Firestore:', err));
     };
 
     // Shift handlers (Firestore + local)
