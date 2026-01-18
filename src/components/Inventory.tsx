@@ -87,7 +87,12 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
         if (currentUser.role === 'SUPER_ADMIN' && (currentStoreId === 'ALL' || !currentStoreId)) return products;
 
         // Show products matching current owner (allow empty ownerId for products without owner)
-        return products.filter(p => !p.ownerId || p.ownerId === ownerIdForProduct);
+        const filtered = products.filter(p => !p.ownerId || p.ownerId === ownerIdForProduct);
+        const etcItems = filtered.filter(p => p.category === '기타');
+        if (etcItems.length > 0) {
+            console.log(`📦 Inventory ownerScopedProducts: 기타 ${etcItems.length}개, 전체 ${filtered.length}개`);
+        }
+        return filtered;
     }, [products, currentUser, currentStoreId, ownerIdForProduct]);
 
     const filteredProducts = ownerScopedProducts
@@ -135,6 +140,10 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
     return matchesSearch;
   });
 
+  if (filteredProducts.some(p => p.category === '기타')) {
+      console.log(`🎯 filteredProducts에 기타 ${filteredProducts.filter(p => p.category === '기타').length}개`);
+  }
+
 const handleSave = async (e: React.FormEvent) => {
   e.preventDefault();
   if (!editingProduct.name || editingProduct.price === undefined) return;
@@ -169,7 +178,8 @@ const handleSave = async (e: React.FormEvent) => {
     category: editingProduct.category || categories[0],
         specification,
         brand: (editingProduct.brand || '기타')?.trim(),
-        ownerId: editingProduct.ownerId || ownerIdForProduct
+        // 반드시 ownerId 설정 (새 항목은 항상 현재 사용자 소유)
+        ownerId: editingProduct.id ? (editingProduct.ownerId || ownerIdForProduct) : ownerIdForProduct
   };
 
   try {

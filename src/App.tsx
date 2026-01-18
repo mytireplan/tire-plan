@@ -1131,40 +1131,31 @@ const App: React.FC = () => {
       const normalizeOwnerId = (ownerId?: string) => ownerId && ownerId !== 'null' ? ownerId : undefined;
       const isSeedProduct = (product: Product) => product.ownerId === DEFAULT_OWNER_ID;
       const shouldHideSeedProducts = currentUser.id !== DEFAULT_OWNER_ID;
-      const isEtcItem = (p: Product) => {
-          const cat = p.category === '부품/수리' ? '기타' : (p.category || '기타');
-          return cat === '기타';
-      };
 
       if (currentUser.role === 'SUPER_ADMIN') {
           // Super admin: show user-added products only, never seeded demo items
           return products.filter(p => {
               if (isSeedProduct(p)) return false;
               if (!p.name || p.name.trim() === '') return false;
-              // 기타 항목은 모든 필터 무시하고 통과
-              if (isEtcItem(p)) return true;
-              // 타이어/부품은 specification 필수
-              if (!p.specification || p.specification.trim() === '') return false;
               return true;
           });
       }
 
       const ownerId = currentUser.id;
-      return products.filter(p => {
+      const filtered = products.filter(p => {
           if (shouldHideSeedProducts && isSeedProduct(p)) return false;
           const productOwnerId = normalizeOwnerId(p.ownerId);
           // Filter out products with missing or empty name
           if (!p.name || p.name.trim() === '') return false;
-          
-          // 기타 항목은 ownerId 체크만 하고 통과
-          if (isEtcItem(p)) {
-              return !productOwnerId || productOwnerId === ownerId;
+          // ownerId 체크 (빈 ownerId도 허용)
+          const pass = !productOwnerId || productOwnerId === ownerId;
+          if (p.category === '기타' && !pass) {
+              console.log(`🔍 기타 항목 필터링됨: ${p.name}, productOwnerId=${productOwnerId}, currentOwnerId=${ownerId}`);
           }
-          
-          // 타이어/부품은 specification 필수
-          if (!p.specification || p.specification.trim() === '') return false;
-          return !productOwnerId || productOwnerId === ownerId;
+          return pass;
       });
+      console.log(`✅ visibleProducts: ${filtered.length}개 (전체 ${products.length}개 중)`);
+      return filtered;
   }, [products, currentUser]);
 
   const visibleStockHistory = useMemo(() => {
