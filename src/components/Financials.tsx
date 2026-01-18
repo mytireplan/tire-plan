@@ -179,18 +179,19 @@ const Financials: React.FC<FinancialsProps> = ({
             });
         }
 
-        // Fixed Costs (Filter by store)
+        // Fixed Costs (Filter by store) with store label
         if (isAdmin) {
              const filteredFixedCostsForList = selectedStoreId === 'ALL'
                  ? fixedCosts
                  : fixedCosts.filter(fc => (fc.storeId || 'ALL') === selectedStoreId);
              filteredFixedCostsForList.forEach(fc => {
+                 const storeName = stores.find(s => s.id === fc.storeId)?.name || (fc.storeId || '지점 미지정');
                  records.push({
                      id: fc.id,
                      date: `${selectedMonth}-${String(fc.day).padStart(2, '0')}`,
                      type: 'FIXED',
                      category: fc.category,
-                     description: `${fc.title} (고정지출)`,
+                     description: `${storeName} | ${fc.title} (고정지출)`,
                      amount: fc.amount,
                      raw: fc
                  });
@@ -208,7 +209,7 @@ const Financials: React.FC<FinancialsProps> = ({
             if (tableSortOrder === 'desc') return b.amount - a.amount;
             return a.amount - b.amount;
         });
-    }, [filteredExpenses, costEligibleStockHistory, selectedMonth, isAdmin, tableCategoryFilter, tableSortOrder, fixedCosts]);
+    }, [filteredExpenses, costEligibleStockHistory, selectedMonth, isAdmin, tableCategoryFilter, tableSortOrder, fixedCosts, stores]);
 
     // Chart Data Generation
     const expenseChartData = useMemo(() => {
