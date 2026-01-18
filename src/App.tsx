@@ -2335,64 +2335,66 @@ const App: React.FC = () => {
     const handleUpdateFixedCosts = (updatedCosts: FixedCostConfig[]) => {
             // STORE_ADMIN: 자신 지점의 항목만 저장/삭제, 다른 오너 항목은 그대로 유지
             if (effectiveUser?.role === 'STORE_ADMIN') {
+                let ownCosts: FixedCostConfig[] = [];
+                let removedOwn: FixedCostConfig[] = [];
+                let merged: FixedCostConfig[] = [];
+
                 setFixedCosts(prev => {
                     const isOwnCost = (fc: FixedCostConfig) => {
                         if (!fc.storeId) return true; // storeId가 없으면 공용으로 간주
                         return visibleStoreIds.includes(fc.storeId);
                     };
 
-                    const ownCosts = updatedCosts;
+                    ownCosts = updatedCosts;
                     const ownIds = new Set(ownCosts.map(c => c.id));
 
                     const prevOwn = prev.filter(isOwnCost);
-                    const removedOwn = prevOwn.filter(fc => !ownIds.has(fc.id));
+                    removedOwn = prevOwn.filter(fc => !ownIds.has(fc.id));
                     const otherOwnerCosts = prev.filter(fc => !isOwnCost(fc));
 
-                    const merged = [...ownCosts, ...otherOwnerCosts];
-
-                    // Firestore 동기화 (소유 비용만 업서트/삭제)
-                    (async () => {
-                        try {
-                            await Promise.all([
-                                ...ownCosts.map(cost => saveToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, cost)),
-                                ...removedOwn.map(cost => deleteFromFirestore(COLLECTIONS.FIXED_COSTS, cost.id))
-                            ]);
-                            console.log('✅ Fixed costs synced (owner scope):', {
-                                saved: ownCosts.length,
-                                removed: removedOwn.length
-                            });
-                        } catch (err) {
-                            console.error('❌ Failed to sync fixed costs (owner scope):', err);
-                        }
-                    })();
-
+                    merged = [...ownCosts, ...otherOwnerCosts];
                     return merged;
                 });
-                return;
-            }
-
-            // SUPER_ADMIN: 전체 업서트 + 제거
-            setFixedCosts(prev => {
-                const newIds = new Set(updatedCosts.map(c => c.id));
-                const removed = prev.filter(fc => !newIds.has(fc.id));
 
                 (async () => {
                     try {
                         await Promise.all([
-                            ...updatedCosts.map(cost => saveToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, cost)),
-                            ...removed.map(cost => deleteFromFirestore(COLLECTIONS.FIXED_COSTS, cost.id))
+                            ...ownCosts.map(cost => saveToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, cost)),
+                            ...removedOwn.map(cost => deleteFromFirestore(COLLECTIONS.FIXED_COSTS, cost.id))
                         ]);
-                        console.log('✅ Fixed costs synced (super admin):', {
-                            saved: updatedCosts.length,
-                            removed: removed.length
+                        console.log('✅ Fixed costs synced (owner scope):', {
+                            saved: ownCosts.length,
+                            removed: removedOwn.length
                         });
                     } catch (err) {
-                        console.error('❌ Failed to sync fixed costs (super admin):', err);
+                        console.error('❌ Failed to sync fixed costs (owner scope):', err);
                     }
                 })();
+                return;
+            }
 
+            // SUPER_ADMIN: 전체 업서트 + 제거
+            let removed: FixedCostConfig[] = [];
+            setFixedCosts(prev => {
+                const newIds = new Set(updatedCosts.map(c => c.id));
+                removed = prev.filter(fc => !newIds.has(fc.id));
                 return updatedCosts;
             });
+
+            (async () => {
+                try {
+                    await Promise.all([
+                        ...updatedCosts.map(cost => saveToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, cost)),
+                        ...removed.map(cost => deleteFromFirestore(COLLECTIONS.FIXED_COSTS, cost.id))
+                    ]);
+                    console.log('✅ Fixed costs synced (super admin):', {
+                        saved: updatedCosts.length,
+                        removed: removed.length
+                    });
+                } catch (err) {
+                    console.error('❌ Failed to sync fixed costs (super admin):', err);
+                }
+            })();
     };
 
     // Shift handlers (Firestore + local)
