@@ -1151,19 +1151,6 @@ const App: React.FC = () => {
           const pass = !productOwnerId || productOwnerId === ownerId;
           return pass;
       });
-      
-      // 기타 항목이 몇 개나 필터링되는지 확인
-      const etcInProducts = products.filter(p => p.category === '기타');
-      const etcInFiltered = filtered.filter(p => p.category === '기타');
-      if (etcInProducts.length > 0 && etcInFiltered.length < etcInProducts.length) {
-          console.log(`⚠️ 기타 항목 필터링: ${etcInFiltered.length}/${etcInProducts.length}, currentUser=${ownerId}`);
-          etcInProducts.forEach(p => {
-              if (!etcInFiltered.includes(p)) {
-                  console.log(`  ❌ 필터된 기타: ${p.name} (owner=${p.ownerId})`);
-              }
-          });
-      }
-      
       return filtered;
   }, [products, currentUser]);
 
