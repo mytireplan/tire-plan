@@ -2333,9 +2333,23 @@ const App: React.FC = () => {
                 .catch((err) => console.error('❌ Failed to delete expense in Firestore:', err));
     };
     const handleUpdateFixedCosts = (c: FixedCostConfig[]) => {
-            setFixedCosts(c);
-            saveBulkToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, c)
-                .then(() => console.log('✅ Fixed costs saved to Firestore:', c.length))
+            // STORE_ADMIN: preserve costs from other stores (only save their own costs)
+            // SUPER_ADMIN: save all costs
+            let costsToSave = c;
+            if (effectiveUser?.role === 'STORE_ADMIN') {
+                // Get all costs (from state) and merge with the provided ones
+                // Keep costs NOT belonging to this owner, add the new costs
+                const costsFromOtherOwners = fixedCosts.filter(fc => {
+                    // Check if this cost belongs to another owner
+                    if (!fc.storeId) return false; // Global costs stay
+                    // If fc has storeId, check if it matches any of the current user's stores
+                    return !visibleStoreIds.includes(fc.storeId);
+                });
+                costsToSave = [...c, ...costsFromOtherOwners];
+            }
+            setFixedCosts(costsToSave);
+            saveBulkToFirestore<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, costsToSave)
+                .then(() => console.log('✅ Fixed costs saved to Firestore:', costsToSave.length))
                 .catch((err) => console.error('❌ Failed to save fixed costs in Firestore:', err));
     };
 

@@ -754,11 +754,10 @@ const FixedCostModal = ({ fixedCosts, onClose, onSave, selectedStoreId }: { fixe
     };
 
     const handleSave = () => {
-        // Only save costs that belong to the selected store or are being deleted
-        // Keep costs from other stores unchanged
-        const costsFromOtherStores = fixedCosts.filter(fc => (fc.storeId || 'ALL') !== selectedStoreId);
-        const updatedAllCosts = [...localCosts, ...costsFromOtherStores];
-        onSave(updatedAllCosts);
+        // Get the final costs list to save
+        // If selectedStoreId is 'ALL', we need to preserve costs from other stores
+        // If selectedStoreId is specific, onSave will handle the update via App.tsx
+        onSave(localCosts);
         onClose();
     };
 
