@@ -598,6 +598,15 @@ const Settings: React.FC<SettingsProps> = ({
                             ))}
                         </div>
 
+                        <div className="flex justify-end pt-2">
+                            <button 
+                                type="submit"
+                                className="px-4 py-2.5 rounded-lg bg-amber-700 text-white text-sm font-bold hover:bg-amber-800 transition-colors"
+                            >
+                                사장 PIN 변경
+                            </button>
+                        </div>
+
                         <div className="border-t border-amber-200 pt-4 mt-4">
                             <div className="mb-3">
                                 <h5 className="text-xs font-bold text-amber-900 mb-1">PIN 분실 시 초기화</h5>
@@ -612,18 +621,9 @@ const Settings: React.FC<SettingsProps> = ({
                                         setOwnerForm({ current: '', new: '', confirm: '' });
                                     }
                                 }}
-                                className="w-full px-4 py-2.5 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors"
+                                className="w-full px-4 py-2.5 rounded-lg bg-amber-700 text-white text-sm font-bold hover:bg-amber-800 transition-colors"
                             >
-                                1234로 초기화
-                            </button>
-                        </div>
-
-                        <div className="flex justify-end pt-2">
-                            <button 
-                                type="submit"
-                                className="px-4 py-2.5 rounded-lg bg-amber-700 text-white text-sm font-bold hover:bg-amber-800 transition-colors"
-                            >
-                                사장 PIN 변경
+                                초기화
                             </button>
                         </div>
                     </form>
@@ -679,40 +679,31 @@ const Settings: React.FC<SettingsProps> = ({
                                     PIN 변경
                                 </button>
                             </div>
+
+                            <div className="border-t border-slate-200 pt-4 mt-4">
+                                <div className="mb-3">
+                                    <h5 className="text-xs font-bold text-slate-900 mb-1">PIN 분실 시 초기화</h5>
+                                    <p className="text-xs text-slate-500">현재 PIN을 모를 때 기본 PIN(1234)으로 초기화합니다.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (confirm(`${stores.find(s => s.id === currentStoreId)?.name}의 점장 PIN을 1234로 초기화하시겠습니까?`)) {
+                                            onUpdateManagerPin(currentStoreId, '1234');
+                                            setToast({ type: 'success', message: '점장 PIN이 1234로 초기화되었습니다.' });
+                                            setManagerPinForm({ current: '', next: '', confirm: '' });
+                                        }
+                                    }}
+                                    className="w-full px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors"
+                                >
+                                    초기화
+                                </button>
+                            </div>
                         </form>
                     </div>
 
-                    {/* Reset PIN */}
-                    <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-5 shadow-sm">
-                        <div className="mb-3">
-                            <h4 className="text-sm font-bold text-purple-900">점장 PIN 초기화</h4>
-                            <p className="text-xs text-purple-800 mt-1">현재 PIN을 모를 때 기본 PIN(1234)으로 초기화합니다.</p>
-                        </div>
-                        <div className="space-y-3">
-                            <div className="bg-white border border-purple-200 rounded-lg p-3 text-xs text-purple-700">
-                                <div className="flex gap-2">
-                                    <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-                                    <div>
-                                        <strong>초기화 후 상태:</strong>
-                                        <div className="mt-1">새 PIN: 1234 (기본값)</div>
-                                        <div>점장이 로그인 후 직접 변경 필요</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    if (confirm(`${stores.find(s => s.id === currentStoreId)?.name}의 점장 PIN을 1234로 초기화하시겠습니까?`)) {
-                                        onUpdateManagerPin(currentStoreId, '1234');
-                                        setToast({ type: 'success', message: '점장 PIN이 1234로 초기화되었습니다.' });
-                                        setManagerPinForm({ current: '', next: '', confirm: '' });
-                                    }
-                                }}
-                                className="w-full px-4 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-bold hover:bg-purple-700 transition-colors"
-                            >
-                                1234로 초기화
-                            </button>
-                        </div>
-                    </div>
+                    {/* Empty placeholder for grid balance */}
+                    <div></div>
                 </div>
             </div>
         </div>
