@@ -44,6 +44,16 @@ const Financials: React.FC<FinancialsProps> = ({
     const [tableCategoryFilter, setTableCategoryFilter] = useState<string>('ALL');
     const [tableSortOrder] = useState<'desc' | 'asc'>('desc');
 
+    // Expense categories (default + owner-added)
+    const [customCategories, setCustomCategories] = useState<string[]>([]);
+    const [newCategoryInput, setNewCategoryInput] = useState('');
+
+    // Merge defaults with custom while deduping
+    const expenseCategories = useMemo(() => {
+        const combined = [...EXPENSE_CATEGORIES, ...customCategories];
+        return Array.from(new Set(combined));
+    }, [customCategories]);
+
     const dateToLocalString = (date: Date): string => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -59,6 +69,48 @@ const Financials: React.FC<FinancialsProps> = ({
         amount: '',
         receiptImage: null as string | null
     });
+
+    // Load persisted custom categories per owner (so staff cannot alter global list)
+    useEffect(() => {
+        const key = `expenseCategories_${currentUser.id || 'default'}`;
+        try {
+            const saved = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    setCustomCategories(parsed.filter((c): c is string => typeof c === 'string'));
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load custom expense categories', err);
+        }
+    }, [currentUser.id]);
+
+    const persistCategories = (next: string[]) => {
+        const key = `expenseCategories_${currentUser.id || 'default'}`;
+        try {
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(key, JSON.stringify(next));
+            }
+        } catch (err) {
+            console.error('Failed to save custom expense categories', err);
+        }
+    };
+
+    const handleAddCategory = () => {
+        const trimmed = newCategoryInput.trim();
+        if (!trimmed) return;
+        if (expenseCategories.includes(trimmed)) {
+            setNewCategoryInput('');
+            setExpenseForm(prev => ({ ...prev, category: trimmed }));
+            return;
+        }
+        const next = [...customCategories, trimmed];
+        setCustomCategories(next);
+        persistCategories(next);
+        setExpenseForm(prev => ({ ...prev, category: trimmed }));
+        setNewCategoryInput('');
+    };
 
     // Helper: Month Navigation
     const handleMonthChange = (delta: number) => {
@@ -413,8 +465,26 @@ const Financials: React.FC<FinancialsProps> = ({
                             value={expenseForm.category}
                             onChange={(e) => setExpenseForm({...expenseForm, category: e.target.value})}
                         >
-                            {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            {expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
+                        {isAdmin && (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="새 지출 항목 추가"
+                                    className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+                                    value={newCategoryInput}
+                                    onChange={(e) => setNewCategoryInput(e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleAddCategory}
+                                    className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800"
+                                >
+                                    추가
+                                </button>
+                            </div>
+                        )}
                         <input 
                             type="text" 
                             placeholder="지출 내용 (예: 회식)"
@@ -507,7 +577,7 @@ const Financials: React.FC<FinancialsProps> = ({
                             <option value="ALL">전체 보기</option>
                             {isAdmin && <option value="매입원가">매입원가 (Stock)</option>}
                             {isAdmin && <option value="고정지출">고정지출</option>}
-                            {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            {expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
                  </div>
