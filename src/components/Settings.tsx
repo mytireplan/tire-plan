@@ -80,10 +80,6 @@ const Settings: React.FC<SettingsProps> = ({
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const [managerPinForm, setManagerPinForm] = useState({ current: '', next: '', confirm: '' });
     const [managerPinError, setManagerPinError] = useState('');
-    const [resetOwnerPinConfirm, setResetOwnerPinConfirm] = useState(false);
-    const [resetOwnerPinNewPin, setResetOwnerPinNewPin] = useState('');
-    const [resetOwnerPinNewPinConfirm, setResetOwnerPinNewPinConfirm] = useState('');
-    const [resetOwnerPinError, setResetOwnerPinError] = useState('');
         const loginPasswordGuidelines: string[] = [
             '6자리 이상, 숫자와 영문을 조합해 주세요.',
             '최근 사용한 비밀번호는 피해주세요.',
