@@ -403,7 +403,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 // 검색어가 없으면 모든 항목 표시, 있으면 검색 결과만 표시
                 const matchesSearch = !lowerSearch || nameMatch || specMatch || brandMatch;
         
-                const matchesCategory = !selectedCategory || p.category === selectedCategory;
+                // 검색 중에는 카테고리 필터를 무시하여 전 범위에서 검색
+                const matchesCategory = lowerSearch ? true : (!selectedCategory || p.category === selectedCategory);
                 const matchesBrand = selectedBrand === 'All' || p.brand === selectedBrand;
         
                 return matchesSearch && matchesCategory && matchesBrand;

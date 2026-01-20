@@ -126,16 +126,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     if (filter.type === 'DATE' && filter.value) {
         setCurrentDate(new Date(filter.value));
         setViewMode('daily');
-        setSearchTerm(''); // 필터 적용 시 검색어 초기화
     } else if (filter.type === 'PAYMENT') {
         setActivePaymentMethod(filter.value);
         setActiveStoreId('ALL');
         setViewMode('monthly'); 
         setCurrentDate(new Date());
-        setSearchTerm(''); // 필터 적용 시 검색어 초기화
-    } else if (filter.type === 'ALL') {
-        // 전체 판매 내역 보기 - 검색어 초기화
-        setSearchTerm('');
     }
   }, [filter]);
 
@@ -282,52 +277,33 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     return category === '기타' && item.specification ? /\d{3}\/\d{2}/.test(item.specification) : false;
   };
 
-    const filteredSales = useMemo(() => {
-    const normalizeSearchTerm = (term: string) => {
-      // For size search: 245/45R18 -> match as 2454518 or 245/45R18
-      return term.toLowerCase();
-    };
-
+  const filteredSales = useMemo(() => {
     return sales.filter(sale => {
       const saleDate = new Date(sale.date);
       if (saleDate < filterStart || saleDate > filterEnd) return false;
-            // 검색어가 있을 때는 결제수단/지점 필터를 무시하고 전체에서 검색
-            if (!searchTerm) {
-                if (activePaymentMethod !== 'ALL' && sale.paymentMethod !== activePaymentMethod) return false;
-                if (activeStoreId !== 'ALL' && sale.storeId !== activeStoreId) return false;
-            }
+      if (activePaymentMethod !== 'ALL' && sale.paymentMethod !== activePaymentMethod) return false;
+      if (activeStoreId !== 'ALL' && sale.storeId !== activeStoreId) return false;
+      
       if (searchTerm) {
-          const term = normalizeSearchTerm(searchTerm);
+          const term = searchTerm.toLowerCase();
           const vehicle = sale.vehicleNumber?.toLowerCase() || '';
           const phone = sale.customer?.phoneNumber || '';
           const memo = sale.memo?.toLowerCase() || '';
           
           // Search in product names and specifications
           const matchesProduct = sale.items?.some(item => {
-              const productName = (item.productName || '').toLowerCase();
-              const specification = (item.specification || '').toLowerCase();
+              const productName = item.productName?.toLowerCase() || '';
+              const specification = item.specification?.toLowerCase() || '';
+              // Normalize specification for number-only search (245/45R18 -> 2454518)
+              const normalizedSpec = specification.replace(/[\/R]/g, '');
+              const normalizedTerm = term.replace(/[\/R]/g, '');
               
-              // Direct text match
-              if (productName.includes(term) || specification.includes(term)) {
-                return true;
-              }
-              
-              // Numeric-only match for specifications
-              // e.g., search "2454518" should match "245/45R18"
-              const specNumeric = specification.replace(/[^0-9]/g, '');
-              const termNumeric = term.replace(/[^0-9]/g, '');
-              
-              if (termNumeric.length >= 3 && specNumeric.includes(termNumeric)) {
-                return true;
-              }
-              
-              return false;
+              return productName.includes(term) || 
+                     specification.includes(term) || 
+                     normalizedSpec.includes(normalizedTerm);
           });
           
-          // If no match in products, check vehicle/phone/memo
-          if (!matchesProduct && !vehicle.includes(term) && !phone.includes(term) && !memo.includes(term)) {
-            return false;
-          }
+          if (!vehicle.includes(term) && !phone.includes(term) && !memo.includes(term) && !matchesProduct) return false;
       }
       
       return true;
@@ -1212,13 +1188,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                         type="text" 
                         placeholder="차량번호/전화번호/상품명/규격(예:2454518)" 
                         value={searchTerm}
-                        onChange={(e) => {
-                            setSearchTerm(e.target.value);
-                        }}
-                        onInput={(e) => {
-                            const value = (e.target as HTMLInputElement).value;
-                            setSearchTerm(value);
-                        }}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                 </div>

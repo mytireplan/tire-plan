@@ -80,6 +80,10 @@ const Settings: React.FC<SettingsProps> = ({
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const [managerPinForm, setManagerPinForm] = useState({ current: '', next: '', confirm: '' });
     const [managerPinError, setManagerPinError] = useState('');
+    const [resetOwnerPinConfirm, setResetOwnerPinConfirm] = useState(false);
+    const [resetOwnerPinNewPin, setResetOwnerPinNewPin] = useState('');
+    const [resetOwnerPinNewPinConfirm, setResetOwnerPinNewPinConfirm] = useState('');
+    const [resetOwnerPinError, setResetOwnerPinError] = useState('');
         const loginPasswordGuidelines: string[] = [
             '6자리 이상, 숫자와 영문을 조합해 주세요.',
             '최근 사용한 비밀번호는 피해주세요.',
@@ -607,20 +611,106 @@ const Settings: React.FC<SettingsProps> = ({
                             </button>
                         </div>
                     </form>
+
+                    {/* Reset Owner PIN (without current PIN) */}
+                    <div className="rounded-xl border border-red-200 bg-red-50/60 p-5 shadow-sm flex flex-col gap-4 relative">
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-red-900">사장 PIN 초기화</h4>
+                                <span className="text-[11px] text-red-700">PIN 분실 시</span>
+                            </div>
+                            <p className="text-xs text-red-800">기존 사장 PIN을 모를 때 새 PIN으로 직접 초기화합니다.</p>
+                        </div>
+
+                        {!resetOwnerPinConfirm ? (
+                            <button
+                                onClick={() => {
+                                    if (confirm('사장 PIN을 초기화하시겠습니까? 새로운 PIN으로 설정해야 합니다.')) {
+                                        setResetOwnerPinConfirm(true);
+                                    }
+                                }}
+                                className="w-full px-4 py-3 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors"
+                            >
+                                PIN 초기화 시작
+                            </button>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="space-y-2">
+                                    <label className="block text-xs font-bold text-red-900">새 PIN</label>
+                                    <input
+                                        type="password"
+                                        value={resetOwnerPinNewPin}
+                                        onChange={(e) => {
+                                            setResetOwnerPinNewPin(e.target.value);
+                                            setResetOwnerPinError('');
+                                        }}
+                                        className="w-full p-3 pr-10 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                                        placeholder="숫자 4~8자리"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="block text-xs font-bold text-red-900">새 PIN 확인</label>
+                                    <input
+                                        type="password"
+                                        value={resetOwnerPinNewPinConfirm}
+                                        onChange={(e) => {
+                                            setResetOwnerPinNewPinConfirm(e.target.value);
+                                            setResetOwnerPinError('');
+                                        }}
+                                        className="w-full p-3 pr-10 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                                        placeholder="한 번 더 입력"
+                                    />
+                                </div>
+                                {resetOwnerPinError && <p className="text-xs text-red-600">{resetOwnerPinError}</p>}
+                                <div className="flex gap-2 pt-2">
+                                    <button
+                                        onClick={() => {
+                                            setResetOwnerPinConfirm(false);
+                                            setResetOwnerPinNewPin('');
+                                            setResetOwnerPinNewPinConfirm('');
+                                            setResetOwnerPinError('');
+                                        }}
+                                        className="flex-1 px-4 py-2.5 rounded-lg border border-red-300 text-red-600 text-sm font-bold hover:bg-red-50"
+                                    >
+                                        취소
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setResetOwnerPinError('');
+                                            if (!resetOwnerPinNewPin || !/^[0-9]{4,8}$/.test(resetOwnerPinNewPin)) {
+                                                setResetOwnerPinError('숫자 4~8자리로 설정해 주세요.');
+                                                return;
+                                            }
+                                            if (resetOwnerPinNewPin !== resetOwnerPinNewPinConfirm) {
+                                                setResetOwnerPinError('새 PIN이 일치하지 않습니다.');
+                                                return;
+                                            }
+                                            onUpdateOwnerPin(resetOwnerPinNewPin);
+                                            setToast({ type: 'success', message: '사장 PIN이 초기화되었습니다.' });
+                                            setResetOwnerPinConfirm(false);
+                                            setResetOwnerPinNewPin('');
+                                            setResetOwnerPinNewPinConfirm('');
+                                        }}
+                                        className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700"
+                                    >
+                                        초기화 확인
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Manager PIN Change (Owner only) */}
-                <div className="mt-6">
-                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm max-w-xl">
-                        <div className="flex items-center justify-between mb-3">
-                            <div>
-                                <h4 className="text-sm font-bold text-slate-900">점장 PIN 변경</h4>
-                                <p className="text-xs text-slate-500">현재 지점 점장 PIN을 변경합니다. 숫자 4~8자리 권장.</p>
-                            </div>
-                            <span className="text-[11px] text-slate-500">현재 지점: {stores.find(s => s.id === currentStoreId)?.name || '알 수 없음'}</span>
+                <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Change Existing PIN */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="mb-3">
+                            <h4 className="text-sm font-bold text-slate-900">점장 PIN 변경</h4>
+                            <p className="text-xs text-slate-500 mt-1">현재 PIN을 알 때 사용합니다. 숫자 4~8자리 권장.</p>
                         </div>
                         <form onSubmit={handleManagerPinSubmit} className="space-y-3">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="flex flex-col gap-3">
                                 <div className="flex flex-col gap-1">
                                     <label className="text-xs font-bold text-slate-700">현재 PIN</label>
                                     <input
@@ -658,10 +748,42 @@ const Settings: React.FC<SettingsProps> = ({
                                     type="submit"
                                     className="px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800"
                                 >
-                                    점장 PIN 변경
+                                    PIN 변경
                                 </button>
                             </div>
                         </form>
+                    </div>
+
+                    {/* Reset PIN */}
+                    <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-5 shadow-sm">
+                        <div className="mb-3">
+                            <h4 className="text-sm font-bold text-purple-900">점장 PIN 초기화</h4>
+                            <p className="text-xs text-purple-800 mt-1">현재 PIN을 모를 때 사용합니다. 사장 PIN으로 초기화합니다.</p>
+                        </div>
+                        <div className="space-y-3">
+                            <div className="bg-white border border-purple-200 rounded-lg p-3 text-xs text-purple-700">
+                                <div className="flex gap-2">
+                                    <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <strong>초기화 후 상태:</strong>
+                                        <div className="mt-1">새 PIN: 사장님 PIN과 동일</div>
+                                        <div>점장이 로그인 후 직접 변경 필요</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    if (confirm(`${stores.find(s => s.id === currentStoreId)?.name}의 점장 PIN을 사장님 PIN으로 초기화하시겠습니까?`)) {
+                                        onUpdateManagerPin(currentStoreId, currentOwnerPin);
+                                        setToast({ type: 'success', message: '점장 PIN이 초기화되었습니다.' });
+                                        setManagerPinForm({ current: '', next: '', confirm: '' });
+                                    }
+                                }}
+                                className="w-full px-4 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-bold hover:bg-purple-700 transition-colors"
+                            >
+                                지금 초기화하기
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
