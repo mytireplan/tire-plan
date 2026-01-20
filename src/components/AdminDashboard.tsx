@@ -112,9 +112,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [announcements, setAnnouncements] = useState([
-    { id: '1', tag: "중요", title: "1월 설 연휴 휴무 안내", date: "2026.01.03" },
-    { id: '2', tag: "이벤트", title: "엔진오일 교환 20% 할인 프로모션 시작", date: "2026.01.02" },
-    { id: '3', tag: "업데이트", title: "시스템 정기 점검 안내 (01:00 ~ 03:00)", date: "2025.12.31" },
+    { id: '1', tag: "중요", title: "1월 설 연휴 휴무 안내", date: "2026.01.03", content: "설 연휴(1/29~2/1) 전 지점 휴무입니다." },
+    { id: '2', tag: "이벤트", title: "엔진오일 교환 20% 할인 프로모션 시작", date: "2026.01.02", content: "1월 한 달간 엔진오일 교환 20% 할인 진행합니다." },
+    { id: '3', tag: "업데이트", title: "시스템 정기 점검 안내 (01:00 ~ 03:00)", date: "2025.12.31", content: "새벽 1시~3시 사이 POS가 일시 중단됩니다." },
   ]);
   const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
@@ -829,7 +829,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
                         { 
                           id: String(announcements.length + 1),
                           tag: newAnnouncement.tag, 
-                          title: newAnnouncement.title, 
+                          title: newAnnouncement.title.trim(),
+                          content: newAnnouncement.content.trim(),
                           date: dateStr
                         },
                         ...announcements
