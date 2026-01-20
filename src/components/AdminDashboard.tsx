@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Sale, Store, Staff, LeaveRequest, Product } from '../types';
 import { PaymentMethod } from '../types';
 import { 
@@ -44,6 +44,14 @@ interface AdminDashboardProps {
   shifts: any[]; // Shift[]
   onNavigateToLeaveSchedule?: () => void;
 }
+
+type Announcement = {
+  id: string;
+  tag: string;
+  title: string;
+  date: string;
+  content?: string;
+};
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -111,11 +119,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL');
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [announcements, setAnnouncements] = useState(() => {
-    if (typeof window === 'undefined') return [] as any[];
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
+    if (typeof window === 'undefined') return [] as Announcement[];
     try {
       const saved = localStorage.getItem('adminAnnouncements');
-      if (saved) return JSON.parse(saved);
+      if (saved) return JSON.parse(saved) as Announcement[];
     } catch (err) {
       console.error('Failed to load announcements', err);
     }
@@ -126,7 +134,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
     ];
   });
   const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [newAnnouncement, setNewAnnouncement] = useState({ tag: '이벤트', title: '', content: '' });
 
   useEffect(() => {
