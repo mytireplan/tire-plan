@@ -282,7 +282,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     return category === '기타' && item.specification ? /\d{3}\/\d{2}/.test(item.specification) : false;
   };
 
-  const filteredSales = useMemo(() => {
+    const filteredSales = useMemo(() => {
     const normalizeSearchTerm = (term: string) => {
       // For size search: 245/45R18 -> match as 2454518 or 245/45R18
       return term.toLowerCase();
@@ -291,9 +291,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     return sales.filter(sale => {
       const saleDate = new Date(sale.date);
       if (saleDate < filterStart || saleDate > filterEnd) return false;
-      if (activePaymentMethod !== 'ALL' && sale.paymentMethod !== activePaymentMethod) return false;
-      if (activeStoreId !== 'ALL' && sale.storeId !== activeStoreId) return false;
-      
+            // 검색어가 있을 때는 결제수단/지점 필터를 무시하고 전체에서 검색
+            if (!searchTerm) {
+                if (activePaymentMethod !== 'ALL' && sale.paymentMethod !== activePaymentMethod) return false;
+                if (activeStoreId !== 'ALL' && sale.storeId !== activeStoreId) return false;
+            }
       if (searchTerm) {
           const term = normalizeSearchTerm(searchTerm);
           const vehicle = sale.vehicleNumber?.toLowerCase() || '';
