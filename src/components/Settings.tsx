@@ -506,6 +506,26 @@ const Settings: React.FC<SettingsProps> = ({
                                 로그인 비밀번호 변경
                             </button>
                         </div>
+
+                        <div className="border-t border-slate-200 pt-4 mt-4">
+                            <div className="mb-3">
+                                <h5 className="text-xs font-bold text-slate-900 mb-1">비밀번호 분실 시 초기화</h5>
+                                <p className="text-xs text-slate-500">기존 비밀번호를 모를 때 기본 비밀번호(admin1234)로 초기화합니다.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (confirm('로그인 비밀번호를 기본값(admin1234)으로 초기화하시겠습니까?')) {
+                                        onUpdatePassword('admin1234');
+                                        setToast({ type: 'success', message: '로그인 비밀번호가 admin1234로 초기화되었습니다.' });
+                                        setLoginForm({ current: '', new: '', confirm: '' });
+                                    }
+                                }}
+                                className="w-full px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors"
+                            >
+                                초기화
+                            </button>
+                        </div>
                     </form>
 
                     {/* Owner/Admin PIN */}
