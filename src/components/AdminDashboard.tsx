@@ -111,14 +111,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL');
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [announcements, setAnnouncements] = useState([
-    { id: '1', tag: "중요", title: "1월 설 연휴 휴무 안내", date: "2026.01.03", content: "설 연휴(1/29~2/1) 전 지점 휴무입니다." },
-    { id: '2', tag: "이벤트", title: "엔진오일 교환 20% 할인 프로모션 시작", date: "2026.01.02", content: "1월 한 달간 엔진오일 교환 20% 할인 진행합니다." },
-    { id: '3', tag: "업데이트", title: "시스템 정기 점검 안내 (01:00 ~ 03:00)", date: "2025.12.31", content: "새벽 1시~3시 사이 POS가 일시 중단됩니다." },
-  ]);
+  const [announcements, setAnnouncements] = useState(() => {
+    if (typeof window === 'undefined') return [] as any[];
+    try {
+      const saved = localStorage.getItem('adminAnnouncements');
+      if (saved) return JSON.parse(saved);
+    } catch (err) {
+      console.error('Failed to load announcements', err);
+    }
+    return [
+      { id: '1', tag: "중요", title: "1월 설 연휴 휴무 안내", date: "2026.01.03", content: "설 연휴(1/29~2/1) 전 지점 휴무입니다." },
+      { id: '2', tag: "이벤트", title: "엔진오일 교환 20% 할인 프로모션 시작", date: "2026.01.02", content: "1월 한 달간 엔진오일 교환 20% 할인 진행합니다." },
+      { id: '3', tag: "업데이트", title: "시스템 정기 점검 안내 (01:00 ~ 03:00)", date: "2025.12.31", content: "새벽 1시~3시 사이 POS가 일시 중단됩니다." },
+    ];
+  });
   const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
   const [newAnnouncement, setNewAnnouncement] = useState({ tag: '이벤트', title: '', content: '' });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('adminAnnouncements', JSON.stringify(announcements));
+    } catch (err) {
+      console.error('Failed to save announcements', err);
+    }
+  }, [announcements]);
 
   // Helper functions for tire classification
   const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
