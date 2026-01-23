@@ -199,31 +199,41 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
                                     </div>
                                     
                                     <div className="flex-1 flex flex-col gap-1 overflow-y-auto custom-scrollbar">
-                                        {daysRequests.map(req => (
-                                            <div 
-                                                key={req.id}
-                                                className={`text-[10px] px-1.5 py-0.5 rounded border truncate ${getLeaveColor(req.type)} ${req.status === 'approved' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-md'}`}
-                                                title={`${req.staffName} (${getLeaveLabel(req.type)}) ${req.reason}${req.status === 'approved' ? ' (승인완료 - 사장님만 삭제 가능)' : ''}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // If approved, do nothing for staff (read-only)
-                                                    if(req.status === 'approved') {
-                                                        if(currentUser.role === 'STORE_ADMIN') {
-                                                            if(confirm(`${req.staffName}님의 승인된 휴무를 취소하시겠습니까?`)) {
+                                        {daysRequests.map(req => {
+                                            const isApproved = req.status === 'approved';
+                                            const isPending = req.status === 'pending';
+                                            const isAdmin = currentUser.role === 'STORE_ADMIN';
+                                            const isOwner = req.staffId === currentUser.id;
+
+                                            const isClickable = isAdmin || (isPending && isOwner);
+                                            const canDelete = isAdmin || (isPending && isOwner);
+
+                                            return (
+                                                <div 
+                                                    key={req.id}
+                                                    className={`text-[10px] px-1.5 py-0.5 rounded border truncate ${getLeaveColor(req.type)} ${isClickable ? 'cursor-pointer hover:shadow-md' : 'cursor-not-allowed opacity-60'}`}
+                                                    title={`${req.staffName} (${getLeaveLabel(req.type)}) ${req.reason}${isApproved ? ' (승인완료 - 사장님만 삭제 가능)' : ''}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (!canDelete) return;
+
+                                                        if (isApproved) {
+                                                            if (isAdmin && confirm(`${req.staffName}님의 승인된 휴무를 취소하시겠습니까?`)) {
                                                                 onRemoveRequest(req.id);
                                                             }
+                                                            return;
                                                         }
-                                                        return;
-                                                    }
-                                                    // Pending: allow delete
-                                                    if(confirm(`${req.staffName}님의 휴무 신청을 취소하시겠습니까?`)) {
-                                                        onRemoveRequest(req.id);
-                                                    }
-                                                }}
-                                            >
-                                                <span className="font-bold">{req.staffName}</span> {req.type === 'FULL' ? '' : req.type === 'HALF_AM' ? '(오전)' : '(오후)'} {req.status === 'approved' ? '✓' : req.status === 'pending' ? '⏳' : ''}
-                                            </div>
-                                        ))}
+
+                                                        // Pending: allow admin or owner
+                                                        if (confirm(`${req.staffName}님의 휴무 신청을 취소하시겠습니까?`)) {
+                                                            onRemoveRequest(req.id);
+                                                        }
+                                                    }}
+                                                >
+                                                    <span className="font-bold">{req.staffName}</span> {req.type === 'FULL' ? '' : req.type === 'HALF_AM' ? '(오전)' : '(오후)'} {isApproved ? '✓' : isPending ? '⏳' : ''}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );
