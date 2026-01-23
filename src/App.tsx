@@ -1230,7 +1230,7 @@ const App: React.FC = () => {
           const userData: User = {
               id: userDoc.id,
               name: userDoc.name,
-              role: userDoc.role || 'STORE_ADMIN', // Default to STORE_ADMIN if role is missing
+              role: userDoc.role || 'STAFF', // Default to STAFF if role is missing
               storeId: userDoc.storeId
           };
           
