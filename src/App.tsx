@@ -1230,17 +1230,17 @@ const App: React.FC = () => {
           const userData: User = {
               id: userDoc.id,
               name: userDoc.name,
-              role: userDoc.role,
+              role: userDoc.role || 'STORE_ADMIN', // Default to STORE_ADMIN if role is missing
               storeId: userDoc.storeId
           };
           
           setCurrentUser(userData);
           
-          if (userDoc.role === 'STORE_ADMIN') {
+          if (userData.role === 'STORE_ADMIN') {
               setViewState('STORE_SELECT');
               setSessionRole('STAFF');
               console.log('✅ STORE_ADMIN 로그인 완료:', userId);
-          } else if (userDoc.role === 'SUPER_ADMIN') {
+          } else if (userData.role === 'SUPER_ADMIN') {
               setCurrentStoreId('ALL');
               setViewState('SUPER_ADMIN');
               setSessionRole('SUPER_ADMIN');
