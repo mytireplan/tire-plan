@@ -2459,19 +2459,12 @@ const App: React.FC = () => {
         if (!target) return;
 
         const isAdmin = effectiveUser.role === 'STORE_ADMIN';
-        const isOwner = target.staffId === effectiveUser.id;
         const isPending = target.status === 'pending';
 
-        // Only admins can delete approved/rejected; staff can delete only their own pending requests
-        if (!isAdmin) {
-            if (!isPending) {
-                alert('승인된 휴무는 사장님만 삭제할 수 있습니다.');
-                return;
-            }
-            if (!isOwner) {
-                alert('본인이 신청한 휴무만 취소할 수 있습니다.');
-                return;
-            }
+        // Spec: pending → staff 누구나 삭제 가능, approved → 사장만 삭제 가능
+        if (!isAdmin && !isPending) {
+            alert('승인된 휴무는 사장님만 삭제할 수 있습니다.');
+            return;
         }
 
         setLeaveRequests(prev => prev.filter(lr => lr.id !== id));

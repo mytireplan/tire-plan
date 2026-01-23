@@ -203,10 +203,9 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
                                             const isApproved = req.status === 'approved';
                                             const isPending = req.status === 'pending';
                                             const isAdmin = currentUser.role === 'STORE_ADMIN';
-                                            const isOwner = req.staffId === currentUser.id;
 
-                                            const isClickable = isAdmin || (isPending && isOwner);
-                                            const canDelete = isAdmin || (isPending && isOwner);
+                                            const isClickable = isAdmin || isPending; // pending: staff 누구나 삭제 가능
+                                            const canDelete = isAdmin || isPending;
 
                                             return (
                                                 <div 
@@ -224,7 +223,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
                                                             return;
                                                         }
 
-                                                        // Pending: allow admin or owner
+                                                        // Pending: staff/사장 누구나 취소 가능
                                                         if (confirm(`${req.staffName}님의 휴무 신청을 취소하시겠습니까?`)) {
                                                             onRemoveRequest(req.id);
                                                         }
