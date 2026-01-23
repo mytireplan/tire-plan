@@ -2450,6 +2450,12 @@ const App: React.FC = () => {
     };
 
     const handleRemoveLeaveRequest = async (id: string) => {
+        // Only STORE_ADMIN can delete leave requests
+        if (!effectiveUser || effectiveUser.role !== 'STORE_ADMIN') {
+            alert('승인된 휴무는 사장님만 삭제할 수 있습니다.');
+            return;
+        }
+        
         setLeaveRequests(prev => prev.filter(lr => lr.id !== id));
         try {
             await deleteFromFirestore(COLLECTIONS.LEAVE_REQUESTS, id);

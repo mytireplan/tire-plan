@@ -202,19 +202,21 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({ staffList, leaveReque
                                         {daysRequests.map(req => (
                                             <div 
                                                 key={req.id}
-                                                className={`text-[10px] px-1.5 py-0.5 rounded border truncate ${getLeaveColor(req.type)}`}
+                                                className={`text-[10px] px-1.5 py-0.5 rounded border truncate ${getLeaveColor(req.type)} ${req.status === 'approved' && currentUser.role !== 'STORE_ADMIN' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                                                 title={`${req.staffName} (${getLeaveLabel(req.type)}) ${req.reason}`}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    // Allow delete if Store Admin
-                                                    if(currentUser.role === 'STORE_ADMIN') {
-                                                        if(confirm(`${req.staffName}님의 휴무 신청을 취소하시겠습니까?`)) {
-                                                            onRemoveRequest(req.id);
-                                                        }
+                                                    // Only STORE_ADMIN can delete. For approved requests, only STORE_ADMIN allowed.
+                                                    if(currentUser.role !== 'STORE_ADMIN') {
+                                                        alert('승인된 휴무는 사장님만 삭제할 수 있습니다.');
+                                                        return;
+                                                    }
+                                                    if(confirm(`${req.staffName}님의 휴무 신청을 취소하시겠습니까?`)) {
+                                                        onRemoveRequest(req.id);
                                                     }
                                                 }}
                                             >
-                                                <span className="font-bold">{req.staffName}</span> {req.type === 'FULL' ? '' : req.type === 'HALF_AM' ? '(오전)' : '(오후)'}
+                                                <span className="font-bold">{req.staffName}</span> {req.type === 'FULL' ? '' : req.type === 'HALF_AM' ? '(오전)' : '(오후)'} {req.status === 'approved' ? '✓' : ''}
                                             </div>
                                         ))}
                                     </div>
