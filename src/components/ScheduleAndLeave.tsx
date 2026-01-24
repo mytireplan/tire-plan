@@ -511,10 +511,11 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                             return (
                               <button 
                                 key={s.id} 
+                                onMouseDown={(e) => e.stopPropagation()} 
                                 onClick={(e) => { e.stopPropagation(); handleShiftClick(s, e); }} 
                                 className={`w-full px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-sm
                                   ${isApproved 
-                                    ? 'cursor-default ring-2 ring-green-300' 
+                                    ? 'cursor-default border-2 border-green-300' 
                                     : 'hover:brightness-95 cursor-pointer'
                                   }
                                   ${ui.color}`}
