@@ -450,11 +450,10 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                                 return (
                                   <button 
                                     key={s.id} 
-                                    onClick={(e) => handleShiftClick(s, e)}
-                                    disabled={isApproved}
+                                    onClick={(e) => { e.stopPropagation(); handleShiftClick(s, e); }}
                                     className={`w-full text-left px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-sm
                                       ${isApproved 
-                                        ? 'opacity-60 cursor-default hover:opacity-70 ring-1 ring-offset-1 ring-green-300' 
+                                        ? 'cursor-default ring-1 ring-offset-1 ring-green-300' 
                                         : 'hover:scale-[1.02] hover:shadow-md cursor-pointer'
                                       }
                                       ${ui.color}`}
@@ -515,7 +514,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                                 onClick={(e) => { e.stopPropagation(); handleShiftClick(s, e); }} 
                                 className={`px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-sm
                                   ${isApproved 
-                                    ? 'opacity-60 cursor-default hover:opacity-70 ring-1 ring-offset-1 ring-green-300' 
+                                    ? 'cursor-default ring-1 ring-offset-1 ring-green-300' 
                                     : 'hover:brightness-95 cursor-pointer'
                                   }
                                   ${ui.color}`}
