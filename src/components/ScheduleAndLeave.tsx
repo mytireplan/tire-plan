@@ -509,12 +509,12 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                             const storeTheme = storeColorMap[s.storeId] || { badge: 'bg-slate-100 text-slate-700 border-slate-200' };
                             const isApproved = isApprovedLeave(s);
                             return (
-                              <div 
+                              <button 
                                 key={s.id} 
                                 onClick={(e) => { e.stopPropagation(); handleShiftClick(s, e); }} 
-                                className={`px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-sm
+                                className={`w-full px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-sm
                                   ${isApproved 
-                                    ? 'cursor-default ring-1 ring-offset-1 ring-green-300' 
+                                    ? 'cursor-default ring-2 ring-green-300' 
                                     : 'hover:brightness-95 cursor-pointer'
                                   }
                                   ${ui.color}`}
@@ -525,7 +525,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                                   {s.memo && <FileText size={8} className="text-slate-400 shrink-0" />}
                                 </div>
                                 <div className={`px-1.5 py-0.2 rounded-md border-[0.5px] text-[8px] font-black whitespace-nowrap pointer-events-none ${storeTheme.badge}`}>{stores.find(st => st.id === s.storeId)?.name}</div>
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
