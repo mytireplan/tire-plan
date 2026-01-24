@@ -283,6 +283,17 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
 
   const openEditShift = (shift: Shift) => {
     if(!shift) return;
+    
+    // LeaveRequest 기반 Shift는 수정 불가 (ID가 'SHIFT-LEAVE-'로 시작)
+    if (shift.id.startsWith('SHIFT-LEAVE-')) {
+      if (isAdmin) {
+        alert('승인된 휴무입니다. 별도로 관리해주세요.');
+      } else {
+        alert('승인된 휴무는 수정할 수 없습니다.');
+      }
+      return;
+    }
+    
     setShiftDraft({
       groupId: shift.groupId || shift.id, staffId: shift.staffId, storeId: shift.storeId,
       dateStart: isoToLocalDate(shift.start), dateEnd: isoToLocalDate(shift.end),
@@ -423,8 +434,9 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                               {dayShifts.map(s => {
                                 const ui = SHIFT_UI[s.shiftType || 'REGULAR'] || DEFAULT_UI;
                                 const storeTheme = storeColorMap[s.storeId] || { badge: 'bg-slate-100 text-slate-700 border-slate-200' };
+                                const isLeaveBasedShift = s.id.startsWith('SHIFT-LEAVE-');
                                 return (
-                                  <button key={s.id} onClick={(e) => { e.stopPropagation(); openEditShift(s); }} className={`w-full text-left px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all hover:scale-[1.02] shadow-sm ${ui.color}`}>
+                                  <button key={s.id} onClick={(e) => { e.stopPropagation(); if (!isLeaveBasedShift) openEditShift(s); }} disabled={isLeaveBasedShift} className={`w-full text-left px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all hover:scale-[1.02] shadow-sm ${isLeaveBasedShift ? 'opacity-60 cursor-not-allowed' : ''} ${ui.color}`}>
                                     <div className="flex items-center gap-1 min-w-0">
                                       <span className="text-[10px] font-bold truncate">{ui.icon} {ui.label}</span>
                                       {s.memo && <FileText size={10} className="text-slate-400 shrink-0" />}
@@ -474,8 +486,9 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                           {dayShifts.map(s => {
                             const ui = SHIFT_UI[s.shiftType || 'REGULAR'] || DEFAULT_UI;
                             const storeTheme = storeColorMap[s.storeId] || { badge: 'bg-slate-100 text-slate-700 border-slate-200' };
+                            const isLeaveBasedShift = s.id.startsWith('SHIFT-LEAVE-');
                             return (
-                              <div key={s.id} onClick={(e) => { e.stopPropagation(); openEditShift(s); }} className={`px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 cursor-pointer hover:brightness-95 transition-all shadow-sm ${ui.color}`}>
+                              <div key={s.id} onClick={(e) => { e.stopPropagation(); if (!isLeaveBasedShift) openEditShift(s); }} className={`px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-sm ${isLeaveBasedShift ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:brightness-95'} ${ui.color}`}>
                                 <div className="flex items-center gap-1 min-w-0 pointer-events-none">
                                   <span className="text-[10px] font-bold truncate max-w-[45px]">{s.staffName}</span>
                                   <span className="text-[9px] font-medium opacity-80 shrink-0">{ui.icon} {ui.label}</span>
