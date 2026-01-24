@@ -61,6 +61,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
   onApproveLeave, 
   onRejectLeave, 
   onAddLeaveRequest, 
+  onRemoveLeaveRequest,
   currentUser 
 }) => {
   const [anchorDate, setAnchorDate] = useState(new Date());
@@ -75,6 +76,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectingLeaveId, setRejectingLeaveId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null);
   
   const [dragSelection, setDragSelection] = useState<{ staffId: string | null; start: string | null; end: string | null; isDragging: boolean }>({
     staffId: null, start: null, end: null, isDragging: false
@@ -249,11 +251,6 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
     const startDate = new Date(shiftDraft.dateStart);
     const endDate = new Date(shiftDraft.dateEnd);
     const groupId = editingGroupId || `GROUP-${Date.now()}`;
-    
-    let baseShifts = [...shifts];
-    if (editingShiftId) {
-      baseShifts = baseShifts.filter(s => s.id !== editingShiftId && s.groupId !== editingGroupId);
-    }
 
     const newShiftsToAdd: Shift[] = [];
     const currentDate = new Date(startDate);
@@ -284,12 +281,11 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
   const openEditShift = (shift: Shift) => {
     if(!shift) return;
     
-    // LeaveRequest 기반 Shift는 수정 불가 (ID가 'SHIFT-LEAVE-'로 시작)
+    // LeaveRequest 기반 Shift는 상세보기로 열기
     if (shift.id.startsWith('SHIFT-LEAVE-')) {
-      if (isAdmin) {
-        alert('승인된 휴무입니다. 별도로 관리해주세요.');
-      } else {
-        alert('승인된 휴무는 수정할 수 없습니다.');
+      const leave = leaveRequests.find(l => l.id === shift.id.replace('SHIFT-LEAVE-', ''));
+      if (leave) {
+        setSelectedLeaveRequest(leave);
       }
       return;
     }
@@ -418,6 +414,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                         const dateStr = dateToLocalString(d);
                         const dayShifts = shifts.filter(s => s?.staffId === staff.id && isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                         const pendingLeave = leaveRequests.find(r => r.staffId === staff.id && r.date === dateStr && r.status === 'pending');
+                        const approvedLeave = leaveRequests.find(r => r.staffId === staff.id && r.date === dateStr && r.status === 'approved');
                         const dragging = isSelected(dateStr, staff.id);
                         return (
                           <td 
@@ -426,17 +423,22 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                           >
                             <div className="flex flex-col gap-1.5 h-full">
                               {pendingLeave && (
-                                <div className="w-full text-left px-1.5 py-1 rounded-lg border border-dashed border-amber-400 bg-amber-50 text-amber-700 flex items-center gap-1 text-[10px] font-bold">
+                                <div onClick={(e) => { e.stopPropagation(); setSelectedLeaveRequest(pendingLeave); }} className="w-full text-left px-1.5 py-1 rounded-lg border border-dashed border-amber-400 bg-amber-50 text-amber-700 flex items-center gap-1 text-[10px] font-bold cursor-pointer hover:bg-amber-100">
                                   <AlertCircle size={10} />
                                   <span>결재중</span>
+                                </div>
+                              )}
+                              {approvedLeave && (
+                                <div onClick={(e) => { e.stopPropagation(); setSelectedLeaveRequest(approvedLeave); }} className="w-full text-left px-1.5 py-1 rounded-lg border border-solid border-emerald-300 bg-emerald-50 text-emerald-700 flex items-center gap-1 text-[10px] font-bold cursor-pointer hover:bg-emerald-100">
+                                  <AlertCircle size={10} />
+                                  <span>✓ 승인됨</span>
                                 </div>
                               )}
                               {dayShifts.map(s => {
                                 const ui = SHIFT_UI[s.shiftType || 'REGULAR'] || DEFAULT_UI;
                                 const storeTheme = storeColorMap[s.storeId] || { badge: 'bg-slate-100 text-slate-700 border-slate-200' };
-                                const isLeaveBasedShift = s.id.startsWith('SHIFT-LEAVE-');
                                 return (
-                                  <button key={s.id} onClick={(e) => { e.stopPropagation(); if (!isLeaveBasedShift) openEditShift(s); }} disabled={isLeaveBasedShift} className={`w-full text-left px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all hover:scale-[1.02] shadow-sm ${isLeaveBasedShift ? 'opacity-60 cursor-not-allowed' : ''} ${ui.color}`}>
+                                  <button key={s.id} onClick={(e) => { e.stopPropagation(); openEditShift(s); }} className={`w-full text-left px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all hover:scale-[1.02] shadow-sm ${ui.color}`}>
                                     <div className="flex items-center gap-1 min-w-0">
                                       <span className="text-[10px] font-bold truncate">{ui.icon} {ui.label}</span>
                                       {s.memo && <FileText size={10} className="text-slate-400 shrink-0" />}
@@ -471,24 +473,31 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                     const dateStr = dateToLocalString(d), isToday = new Date().toDateString() === d.toDateString();
                     const dayShifts = shifts.filter(s => isoToLocalDate(s.start) === dateStr && (!selectedStoreId || s.storeId === selectedStoreId));
                     const dayPendingLeaves = leaveRequests.filter(l => l.date === dateStr && l.status === 'pending');
+                    const dayApprovedLeaves = leaveRequests.filter(l => l.date === dateStr && l.status === 'approved');
                     const dragging = isSelected(dateStr, null);
                     return (
                       <div key={dateStr} className={`p-1.5 rounded-2xl border flex flex-col gap-1 transition-all cursor-pointer ${dragging ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100' : isToday ? 'bg-blue-50/20 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-slate-100 hover:bg-slate-50/50'}`} onMouseDown={() => handleDragStart(dateStr, null)} onMouseEnter={() => handleDragEnter(dateStr)}>
                         <div className="flex justify-between items-center mb-1 pointer-events-none"><span className={`text-[11px] font-black w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500'}`}>{d.getDate()}</span></div>
                         <div className="flex flex-col gap-0.5 overflow-y-auto max-h-[140px] pr-0.5 custom-scrollbar-mini">
                           {dayPendingLeaves.map(l => (
-                              <div key={l.id} className="px-1.5 py-1 rounded-lg border border-dashed border-amber-400 bg-amber-50 text-amber-700 flex items-center gap-1 text-[10px] font-bold pointer-events-none">
+                              <div key={l.id} onClick={(e) => { e.stopPropagation(); setSelectedLeaveRequest(l); }} className="px-1.5 py-1 rounded-lg border border-dashed border-amber-400 bg-amber-50 text-amber-700 flex items-center gap-1 text-[10px] font-bold cursor-pointer hover:bg-amber-100">
                                 <AlertCircle size={10} />
                                 <span className="truncate">{l.staffName}</span>
                                 <span>결재중</span>
                               </div>
                           ))}
+                          {dayApprovedLeaves.map(l => (
+                              <div key={l.id} onClick={(e) => { e.stopPropagation(); setSelectedLeaveRequest(l); }} className="px-1.5 py-1 rounded-lg border border-solid border-emerald-300 bg-emerald-50 text-emerald-700 flex items-center gap-1 text-[10px] font-bold cursor-pointer hover:bg-emerald-100">
+                                <AlertCircle size={10} />
+                                <span className="truncate">{l.staffName}</span>
+                                <span>✓ 승인</span>
+                              </div>
+                          ))}
                           {dayShifts.map(s => {
                             const ui = SHIFT_UI[s.shiftType || 'REGULAR'] || DEFAULT_UI;
                             const storeTheme = storeColorMap[s.storeId] || { badge: 'bg-slate-100 text-slate-700 border-slate-200' };
-                            const isLeaveBasedShift = s.id.startsWith('SHIFT-LEAVE-');
                             return (
-                              <div key={s.id} onClick={(e) => { e.stopPropagation(); if (!isLeaveBasedShift) openEditShift(s); }} className={`px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-sm ${isLeaveBasedShift ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:brightness-95'} ${ui.color}`}>
+                              <div key={s.id} onClick={(e) => { e.stopPropagation(); openEditShift(s); }} className={`px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 cursor-pointer hover:brightness-95 transition-all shadow-sm ${ui.color}`}>
                                 <div className="flex items-center gap-1 min-w-0 pointer-events-none">
                                   <span className="text-[10px] font-bold truncate max-w-[45px]">{s.staffName}</span>
                                   <span className="text-[9px] font-medium opacity-80 shrink-0">{ui.icon} {ui.label}</span>
@@ -623,6 +632,72 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                 {editingShiftId && <button onClick={() => { onRemoveShift(editingShiftId); setIsShiftModalOpen(false); }} className="flex-1 py-4 rounded-2xl font-black text-xs text-rose-500 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-all">삭제</button>}
                 <button onClick={submitShift} disabled={!shiftDraft.staffId} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-200 hover:bg-blue-700 disabled:opacity-30 transition-all">등록하기</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LeaveRequest 상세보기 모달 */}
+      {selectedLeaveRequest && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-white/20 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${selectedLeaveRequest.status === 'pending' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-800">{selectedLeaveRequest.staffName}님 휴무</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{selectedLeaveRequest.status === 'pending' ? '승인 대기중' : '승인됨'}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedLeaveRequest(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><X size={24} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-400 uppercase">날짜</div>
+                <div className="text-lg font-bold text-slate-800">{selectedLeaveRequest.date}</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-400 uppercase">종류</div>
+                <div className="text-lg font-bold text-slate-800">{selectedLeaveRequest.type === 'FULL' ? '월차(종일)' : selectedLeaveRequest.type === 'HALF_AM' ? '오전 반차' : '오후 반차'}</div>
+              </div>
+              {selectedLeaveRequest.reason && (
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-slate-400 uppercase">사유</div>
+                  <div className="text-sm text-slate-700">{selectedLeaveRequest.reason}</div>
+                </div>
+              )}
+              
+              {/* 사장만 삭제 가능 */}
+              {isAdmin && selectedLeaveRequest.status === 'approved' && (
+                <button 
+                  onClick={() => {
+                    if (confirm('승인된 휴무를 취소하시겠습니까?')) {
+                      onRemoveLeaveRequest?.(selectedLeaveRequest.id);
+                      setSelectedLeaveRequest(null);
+                    }
+                  }}
+                  className="w-full py-3 bg-rose-100 text-rose-700 rounded-xl font-bold text-sm hover:bg-rose-200 transition-all"
+                >
+                  삭제
+                </button>
+              )}
+              
+              {/* Pending: 직원/사장 모두 삭제 가능 */}
+              {selectedLeaveRequest.status === 'pending' && (
+                <button 
+                  onClick={() => {
+                    if (confirm('휴무 신청을 취소하시겠습니까?')) {
+                      onRemoveLeaveRequest?.(selectedLeaveRequest.id);
+                      setSelectedLeaveRequest(null);
+                    }
+                  }}
+                  className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                >
+                  취소
+                </button>
+              )}
             </div>
           </div>
         </div>
