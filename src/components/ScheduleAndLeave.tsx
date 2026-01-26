@@ -42,7 +42,7 @@ interface ScheduleAndLeaveProps {
 const SHIFT_UI: Record<string, { label: string; color: string; badge: string; icon: string }> = {
   REGULAR: { label: '근무', color: 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm', badge: 'bg-blue-100 text-blue-800 border-blue-200', icon: '☀️' },
   NIGHT: { label: '야간', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm', badge: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: '🌙' },
-  OFF: { label: '휴무', color: 'bg-slate-100 text-slate-500 border-slate-200', badge: 'bg-slate-200 text-slate-700 border-slate-300', icon: '🏠' },
+  OFF: { label: '휴무', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: '🏠' },
   VACATION: { label: '월차', color: 'bg-rose-50 text-rose-700 border-rose-200', badge: 'bg-rose-100 text-rose-800 border-rose-200', icon: '✈️' },
   HALF: { label: '반차', color: 'bg-orange-50 text-orange-700 border-orange-200', badge: 'bg-orange-100 text-orange-800 border-orange-200', icon: '🌓' },
   DUTY: { label: '당직', color: 'bg-violet-50 text-violet-700 border-violet-200 shadow-sm', badge: 'bg-violet-100 text-violet-800 border-violet-200', icon: '🚨' }
