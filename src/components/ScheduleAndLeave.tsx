@@ -754,19 +754,36 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                 <div>
                   <p className="text-sm font-bold text-amber-900">승인된 휴무입니다</p>
                   <p className="text-xs text-amber-700 mt-1">
-                    이 휴무는 사장님이 승인한 휴무입니다.<br/>
-                    취소가 필요하면 사장님에게 요청해주세요.
+                    {isAdmin 
+                      ? '이 휴무는 승인된 휴무입니다. 필요시 아래에서 취소할 수 있습니다.'
+                      : '이 휴무는 사장님이 승인한 휴무입니다.\n취소가 필요하면 사장님에게 요청해주세요.'
+                    }
                   </p>
                 </div>
               </div>
 
-              {/* 닫기 버튼만 표시 */}
-              <button 
-                onClick={() => setSelectedApprovedLeave(null)} 
-                className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-all"
-              >
-                확인
-              </button>
+              {/* 버튼 */}
+              <div className="flex gap-3">
+                {isAdmin && (
+                  <button 
+                    onClick={() => {
+                      if (confirm(`${selectedApprovedLeave.shiftType === 'VACATION' ? '월차' : selectedApprovedLeave.shiftType === 'OFF' ? '휴무' : '반차'}를 취소하시겠습니까?`)) {
+                        onRemoveShift?.(selectedApprovedLeave.id);
+                        setSelectedApprovedLeave(null);
+                      }
+                    }} 
+                    className="flex-1 py-4 bg-red-100 text-red-700 rounded-2xl font-bold hover:bg-red-200 transition-all"
+                  >
+                    취소
+                  </button>
+                )}
+                <button 
+                  onClick={() => setSelectedApprovedLeave(null)} 
+                  className="flex-1 py-4 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                >
+                  확인
+                </button>
+              </div>
             </div>
           </div>
         </div>
