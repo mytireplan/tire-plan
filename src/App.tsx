@@ -1388,6 +1388,18 @@ const App: React.FC = () => {
       }
   }, [sessionRole, currentStoreId, deviceBinding, currentUser]);
 
+  // STORE_ADMIN이 APP 진입 시 기본 지점을 현재 지점으로 맞춰줌 (ALL이면 해당 지점으로 스냅)
+  useEffect(() => {
+      if (viewState !== 'APP') return;
+      if (currentUser?.role !== 'STORE_ADMIN') return;
+      if (currentStoreId && currentStoreId !== 'ALL') return;
+
+      const fallbackStoreId = deviceBinding?.storeId || currentUser?.storeId || visibleStores[0]?.id || '';
+      if (fallbackStoreId && fallbackStoreId !== currentStoreId) {
+          setCurrentStoreId(fallbackStoreId);
+      }
+  }, [viewState, currentUser, currentStoreId, deviceBinding, visibleStores]);
+
   const handleLockAdmin = () => {
       const fallbackStoreId = deviceBinding?.storeId || currentUser?.storeId || currentStoreId || '';
       if (currentStoreId === 'ALL' || !currentStoreId) {
