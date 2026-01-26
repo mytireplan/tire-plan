@@ -118,20 +118,21 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, onClick, detailCo
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, currentStoreId, onNavigateToLeaveSchedule }) => {
   // currentStoreId가 있으면 기본값으로 사용, 없으면 'ALL'
-  const [selectedStoreId, setSelectedStoreId] = useState<string>(currentStoreId && currentStoreId !== '' ? currentStoreId : 'ALL');
+  // undefined일 때는 'ALL'로 초기화하되, 나중에 currentStoreId가 전달되면 업데이트
+  const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL');
 
   // 디버깅용: currentStoreId와 selectedStoreId 로깅
   useEffect(() => {
     console.log('[AdminDashboard] currentStoreId:', currentStoreId, 'selectedStoreId:', selectedStoreId);
   }, [currentStoreId, selectedStoreId]);
 
-  // currentStoreId 변경 시 선택 지점 동기화 (드롭다운 변경 포함)
+  // currentStoreId 변경 시 선택 지점 동기화 (처음 진입 포함)
   useEffect(() => {
-    if (currentStoreId && currentStoreId !== selectedStoreId) {
+    if (currentStoreId && currentStoreId !== '' && currentStoreId !== selectedStoreId) {
       console.log('[AdminDashboard] Syncing selectedStoreId to:', currentStoreId);
       setSelectedStoreId(currentStoreId);
     }
-  }, [currentStoreId, selectedStoreId]);
+  }, [currentStoreId]);
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {

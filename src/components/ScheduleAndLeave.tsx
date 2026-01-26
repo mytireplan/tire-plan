@@ -65,7 +65,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
   currentUser 
 }) => {
   const [anchorDate, setAnchorDate] = useState(new Date());
-  const [selectedStoreId, setSelectedStoreId] = useState<string>(currentStoreId || '');
+  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'WEEK' | 'MONTH'>('MONTH'); 
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
@@ -75,7 +75,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
     if (currentStoreId && currentStoreId !== selectedStoreId) {
       setSelectedStoreId(currentStoreId);
     }
-  }, [currentStoreId, selectedStoreId]);
+  }, [currentStoreId]);
 
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
