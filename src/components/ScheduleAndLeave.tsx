@@ -71,6 +71,12 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const isAdmin = currentUser?.role === 'STORE_ADMIN';
 
+  useEffect(() => {
+    if (currentStoreId && currentStoreId !== selectedStoreId) {
+      setSelectedStoreId(currentStoreId);
+    }
+  }, [currentStoreId, selectedStoreId]);
+
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);

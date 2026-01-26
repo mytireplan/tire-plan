@@ -119,6 +119,13 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, onClick, detailCo
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, currentStoreId, onNavigateToLeaveSchedule }) => {
   // currentStoreId가 있으면 기본값으로 사용, 없으면 'ALL'
   const [selectedStoreId, setSelectedStoreId] = useState<string>(currentStoreId && currentStoreId !== '' ? currentStoreId : 'ALL');
+
+  // currentStoreId 변경 시 선택 지점 동기화 (드롭다운 변경 포함)
+  useEffect(() => {
+    if (currentStoreId && currentStoreId !== selectedStoreId) {
+      setSelectedStoreId(currentStoreId);
+    }
+  }, [currentStoreId, selectedStoreId]);
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
