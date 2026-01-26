@@ -659,13 +659,24 @@ const App: React.FC = () => {
             return;
         }
 
-        const salesConstraints: QueryConstraint[] = [orderBy('date', 'desc'), limit(SALES_PAGE_SIZE)];
+        // 최근 1년치 데이터만 로드 (성능 최적화)
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0]; // YYYY-MM-DD
+
+        const salesConstraints: QueryConstraint[] = [
+            orderBy('date', 'desc'),
+            where('date', '>=', oneYearAgoStr)
+        ];
         salesUnsubRef.current = subscribeToQuery<Sale>(COLLECTIONS.SALES, salesConstraints, (data) => {
             const sorted = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setSales(sorted);
         });
 
-        const stockConstraints: QueryConstraint[] = [orderBy('date', 'desc'), limit(SALES_PAGE_SIZE)];
+        const stockConstraints: QueryConstraint[] = [
+            orderBy('date', 'desc'),
+            where('date', '>=', oneYearAgoStr)
+        ];
         stockInUnsubRef.current = subscribeToQuery<StockInRecord>(COLLECTIONS.STOCK_IN, stockConstraints, (data) => {
             // Normalize numeric fields to avoid string -> 0 issues when rendering
             const normalized = data.map(r => ({

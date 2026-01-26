@@ -756,7 +756,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                   <p className="text-xs text-amber-700 mt-1">
                     {isAdmin 
                       ? '이 휴무는 승인된 휴무입니다. 필요시 아래에서 취소할 수 있습니다.'
-                      : '이 휴무는 사장님이 승인한 휴무입니다.\n취소가 필요하면 사장님에게 요청해주세요.'
+                      : '이 휴무는 승인한 휴무입니다.\n취소가 필요하면 관리자에게 요청해주세요.'
                     }
                   </p>
                 </div>
