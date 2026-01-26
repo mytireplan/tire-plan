@@ -29,7 +29,6 @@ interface ScheduleAndLeaveProps {
   onUpdateShift: (shift: Shift) => void;
   onRemoveShift: (id: string) => void;
   stores: Store[];
-  currentStoreId?: string;
   onShiftRangeChange?: (start: string, end: string) => void;
   onApproveLeave?: (leaveId: string) => void;
   onRejectLeave?: (leaveId: string, reason: string) => void;
@@ -57,7 +56,6 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
   onAddShift, 
   onRemoveShift, 
   stores,
-  currentStoreId,
   onShiftRangeChange, 
   onApproveLeave, 
   onRejectLeave, 
@@ -65,17 +63,15 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
   currentUser 
 }) => {
   const [anchorDate, setAnchorDate] = useState(new Date());
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+  // stores 배열의 첫 번째 스토어를 기본값으로 사용 (currentStoreId 대신)
+  const defaultStoreId = stores && stores.length > 0 ? stores[0].id : '';
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(defaultStoreId);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'WEEK' | 'MONTH'>('MONTH'); 
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const isAdmin = currentUser?.role === 'STORE_ADMIN';
 
-  useEffect(() => {
-    if (currentStoreId && currentStoreId !== selectedStoreId) {
-      setSelectedStoreId(currentStoreId);
-    }
-  }, [currentStoreId]);
+  console.log('[ScheduleAndLeave] Rendered - stores:', stores?.length || 0, 'defaultStoreId:', defaultStoreId, 'selectedStoreId:', selectedStoreId);
 
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);

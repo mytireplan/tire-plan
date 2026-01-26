@@ -2952,7 +2952,6 @@ const App: React.FC = () => {
                 leaveRequests={visibleLeaveRequests}
                 products={products}
                 shifts={shifts}
-                currentStoreId={currentStoreId}
                 />
             )}
             {activeTab === 'pos' && (
@@ -2978,7 +2977,6 @@ const App: React.FC = () => {
                     leaveRequests={visibleLeaveRequests}
                     stores={visibleStores}
                     shifts={shifts.filter(s => visibleStoreIds.includes(s.storeId))}
-                    currentStoreId={currentStoreId}
                     onShiftRangeChange={handleShiftRangeChange}
                     onAddShift={handleAddShift}
                     onUpdateShift={handleUpdateShift}

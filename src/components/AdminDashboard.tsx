@@ -42,7 +42,6 @@ interface AdminDashboardProps {
   leaveRequests: LeaveRequest[];
   products: Product[];
   shifts: any[]; // Shift[]
-  currentStoreId?: string;
   onNavigateToLeaveSchedule?: () => void;
 }
 
@@ -116,28 +115,12 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, onClick, detailCo
   );
 };
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, currentStoreId, onNavigateToLeaveSchedule }) => {
-  // currentStoreId가 설정되면 그걸 따르고, 아니면 ALL
-  console.log('[AdminDashboard] Component rendered with currentStoreId:', currentStoreId, 'type:', typeof currentStoreId);
-  
-  const [selectedStoreId, setSelectedStoreId] = useState<string>(() => {
-    const initial = currentStoreId && currentStoreId !== '' ? currentStoreId : 'ALL';
-    console.log('[AdminDashboard] Initial useState value:', initial);
-    return initial;
-  });
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, onNavigateToLeaveSchedule }) => {
+  // stores 배열의 첫 번째 스토어를 기본값으로 사용 (currentStoreId 대신)
+  const defaultStoreId = stores && stores.length > 0 ? stores[0].id : 'ALL';
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(defaultStoreId);
 
-  // 디버깅용: currentStoreId와 selectedStoreId 로깅
-  useEffect(() => {
-    console.log('[AdminDashboard] In useEffect - currentStoreId:', currentStoreId, 'selectedStoreId:', selectedStoreId);
-  }, [currentStoreId, selectedStoreId]);
-
-  // currentStoreId 변경 시 선택 지점 동기화 (처음 진입 포함)
-  useEffect(() => {
-    if (currentStoreId && currentStoreId !== '' && currentStoreId !== selectedStoreId) {
-      console.log('[AdminDashboard] Syncing selectedStoreId to:', currentStoreId);
-      setSelectedStoreId(currentStoreId);
-    }
-  }, [currentStoreId]);
+  console.log('[AdminDashboard] Rendered - stores:', stores?.length || 0, 'defaultStoreId:', defaultStoreId, 'selectedStoreId:', selectedStoreId);
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
