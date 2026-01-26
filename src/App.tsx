@@ -2924,6 +2924,7 @@ const App: React.FC = () => {
                 leaveRequests={visibleLeaveRequests}
                 products={products}
                 shifts={shifts}
+                currentStoreId={currentStoreId}
                 />
             )}
             {activeTab === 'pos' && (

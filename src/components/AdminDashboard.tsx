@@ -42,6 +42,7 @@ interface AdminDashboardProps {
   leaveRequests: LeaveRequest[];
   products: Product[];
   shifts: any[]; // Shift[]
+  currentStoreId?: string;
   onNavigateToLeaveSchedule?: () => void;
 }
 
@@ -115,8 +116,9 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, onClick, detailCo
   );
 };
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, onNavigateToLeaveSchedule }) => {
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL');
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, currentStoreId, onNavigateToLeaveSchedule }) => {
+  // currentStoreId가 있으면 기본값으로 사용, 없으면 'ALL'
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(currentStoreId && currentStoreId !== '' ? currentStoreId : 'ALL');
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
