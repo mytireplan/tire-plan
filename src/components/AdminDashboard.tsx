@@ -42,6 +42,7 @@ interface AdminDashboardProps {
   leaveRequests: LeaveRequest[];
   products: Product[];
   shifts: any[]; // Shift[]
+  currentStoreId?: string; // 현재 선택된 지점 ID
   onNavigateToLeaveSchedule?: () => void;
 }
 
@@ -115,12 +116,22 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, onClick, detailCo
   );
 };
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, onNavigateToLeaveSchedule }) => {
-  // stores 배열의 첫 번째 스토어를 기본값으로 사용 (currentStoreId 대신)
-  const defaultStoreId = stores && stores.length > 0 ? stores[0].id : 'ALL';
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, currentStoreId, onNavigateToLeaveSchedule }) => {
+  // currentStoreId가 있으면 그걸 사용, 없으면 stores의 첫 번째 지점 사용
+  const defaultStoreId = currentStoreId && currentStoreId !== '' && currentStoreId !== 'ALL' 
+    ? currentStoreId 
+    : (stores && stores.length > 0 ? stores[0].id : 'ALL');
   const [selectedStoreId, setSelectedStoreId] = useState<string>(defaultStoreId);
 
-  console.log('[AdminDashboard] Rendered - stores:', stores?.length || 0, 'defaultStoreId:', defaultStoreId, 'selectedStoreId:', selectedStoreId);
+  // currentStoreId가 변경되면 selectedStoreId도 업데이트
+  useEffect(() => {
+    if (currentStoreId && currentStoreId !== '' && currentStoreId !== 'ALL' && currentStoreId !== selectedStoreId) {
+      console.log('[AdminDashboard] Updating selectedStoreId to:', currentStoreId);
+      setSelectedStoreId(currentStoreId);
+    }
+  }, [currentStoreId]);
+
+  console.log('[AdminDashboard] Rendered - currentStoreId:', currentStoreId, 'selectedStoreId:', selectedStoreId, 'stores:', stores?.length || 0);
   const [chartType, setChartType] = useState<'revenue' | 'tires' | 'maint'>('revenue');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
