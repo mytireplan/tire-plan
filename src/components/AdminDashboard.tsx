@@ -117,13 +117,18 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, onClick, detailCo
 };
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffList, leaveRequests, products, shifts, currentStoreId, onNavigateToLeaveSchedule }) => {
-  // currentStoreId가 있으면 기본값으로 사용, 없으면 'ALL'
-  // undefined일 때는 'ALL'로 초기화하되, 나중에 currentStoreId가 전달되면 업데이트
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('ALL');
+  // currentStoreId가 설정되면 그걸 따르고, 아니면 ALL
+  console.log('[AdminDashboard] Component rendered with currentStoreId:', currentStoreId, 'type:', typeof currentStoreId);
+  
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(() => {
+    const initial = currentStoreId && currentStoreId !== '' ? currentStoreId : 'ALL';
+    console.log('[AdminDashboard] Initial useState value:', initial);
+    return initial;
+  });
 
   // 디버깅용: currentStoreId와 selectedStoreId 로깅
   useEffect(() => {
-    console.log('[AdminDashboard] currentStoreId:', currentStoreId, 'selectedStoreId:', selectedStoreId);
+    console.log('[AdminDashboard] In useEffect - currentStoreId:', currentStoreId, 'selectedStoreId:', selectedStoreId);
   }, [currentStoreId, selectedStoreId]);
 
   // currentStoreId 변경 시 선택 지점 동기화 (처음 진입 포함)

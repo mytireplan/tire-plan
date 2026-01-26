@@ -532,7 +532,21 @@ const App: React.FC = () => {
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sessionRole, setSessionRole] = useState<UserRole>('STAFF'); // Role for the current app session
-  const [currentStoreId, setCurrentStoreId] = useState<string>(''); 
+  
+  // Initialize currentStoreId from localStorage if available
+  const [currentStoreId, setCurrentStoreId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('device-binding');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.storeId || '';
+      }
+    } catch (err) {
+      console.error('Failed to load storeId from localStorage', err);
+    }
+    return '';
+  });
+  
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   
   // Sidebar & Menu State
@@ -1392,10 +1406,12 @@ const App: React.FC = () => {
   useEffect(() => {
       if (viewState !== 'APP') return;
       if (currentUser?.role !== 'STORE_ADMIN') return;
-      if (currentStoreId && currentStoreId !== 'ALL') return;
 
       const fallbackStoreId = deviceBinding?.storeId || currentUser?.storeId || visibleStores[0]?.id || '';
-      if (fallbackStoreId && fallbackStoreId !== currentStoreId) {
+      
+      // currentStoreId가 빈 문자열이거나 ALL인 경우 fallback으로 설정
+      if ((!currentStoreId || currentStoreId === 'ALL') && fallbackStoreId && fallbackStoreId !== currentStoreId) {
+          console.log('[App] Setting currentStoreId for STORE_ADMIN:', fallbackStoreId);
           setCurrentStoreId(fallbackStoreId);
       }
   }, [viewState, currentUser, currentStoreId, deviceBinding, visibleStores]);
