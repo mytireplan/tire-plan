@@ -2922,6 +2922,7 @@ const App: React.FC = () => {
                             leaveRequests={visibleLeaveRequests}
                             products={products}
                             shifts={shifts}
+                                                        currentStoreId={currentStoreId}
                             onNavigateToLeaveSchedule={() => {
                               localStorage.setItem('scheduleDefaultType', 'OFF');
                               setActiveTab('leave');
