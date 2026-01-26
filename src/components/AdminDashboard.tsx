@@ -120,9 +120,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   // currentStoreId가 있으면 기본값으로 사용, 없으면 'ALL'
   const [selectedStoreId, setSelectedStoreId] = useState<string>(currentStoreId && currentStoreId !== '' ? currentStoreId : 'ALL');
 
+  // 디버깅용: currentStoreId와 selectedStoreId 로깅
+  useEffect(() => {
+    console.log('[AdminDashboard] currentStoreId:', currentStoreId, 'selectedStoreId:', selectedStoreId);
+  }, [currentStoreId, selectedStoreId]);
+
   // currentStoreId 변경 시 선택 지점 동기화 (드롭다운 변경 포함)
   useEffect(() => {
     if (currentStoreId && currentStoreId !== selectedStoreId) {
+      console.log('[AdminDashboard] Syncing selectedStoreId to:', currentStoreId);
       setSelectedStoreId(currentStoreId);
     }
   }, [currentStoreId, selectedStoreId]);
