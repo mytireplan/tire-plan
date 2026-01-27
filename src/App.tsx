@@ -825,19 +825,29 @@ const App: React.FC = () => {
                 const needsHash = existing.filter(o => !o.passwordHash && o.password);
                 if (needsHash.length > 0) {
                     console.log(`🔐 Migrating ${needsHash.length} owner(s) to hashed passwords...`);
-                    const updated = await Promise.all(
-                        needsHash.map(async (owner) => {
-                            const passwordHash = await hashPassword(owner.password);
-                            const updatedOwner = { ...owner, passwordHash };
-                            await saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, updatedOwner);
-                            return updatedOwner;
-                        })
-                    );
-                    console.log(`✅ Hashed passwords for: ${updated.map(u => u.id).join(', ')}`);
-                    return existing.map(o => {
-                        const hashed = updated.find(u => u.id === o.id);
-                        return hashed || o;
-                    });
+                    try {
+                        const updated = await Promise.all(
+                            needsHash.map(async (owner) => {
+                                try {
+                                    const passwordHash = await hashPassword(owner.password);
+                                    const updatedOwner = { ...owner, passwordHash };
+                                    await saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, updatedOwner);
+                                    return updatedOwner;
+                                } catch (err) {
+                                    console.error(`❌ Failed to hash password for ${owner.id}:`, err);
+                                    return { ...owner, passwordHash: await hashPassword(owner.password) };
+                                }
+                            })
+                        );
+                        console.log(`✅ Hashed passwords for: ${updated.map(u => u.id).join(', ')}`);
+                        return existing.map(o => {
+                            const hashed = updated.find(u => u.id === o.id);
+                            return hashed || o;
+                        });
+                    } catch (err) {
+                        console.error('❌ Password hash migration failed, using existing data:', err);
+                        return existing;
+                    }
                 }
                 return existing;
             }
@@ -1309,17 +1319,22 @@ const App: React.FC = () => {
 
   const handleUpdatePassword = async (newPass: string) => {
       if(!currentUser) return;
-      const passwordHash = await hashPassword(newPass);
-      setUsers(prev => {
-          const next = prev.map(u => u.id === currentUser.id ? { ...u, password: newPass, passwordHash } : u);
-          const owner = next.find(u => u.id === currentUser.id);
-          if (owner) {
-              saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, owner)
-                  .then(() => console.log('✅ Password updated in Firestore for owner:', owner.id))
-                  .catch((err) => console.error('❌ Failed to update owner password in Firestore:', err));
-          }
-          return next;
-      });
+      try {
+          const passwordHash = await hashPassword(newPass);
+          setUsers(prev => {
+              const next = prev.map(u => u.id === currentUser.id ? { ...u, password: newPass, passwordHash } : u);
+              const owner = next.find(u => u.id === currentUser.id);
+              if (owner) {
+                  saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, owner)
+                      .then(() => console.log('✅ Password updated in Firestore for owner:', owner.id))
+                      .catch((err) => console.error('❌ Failed to update owner password in Firestore:', err));
+              }
+              return next;
+          });
+      } catch (err) {
+          console.error('❌ Failed to hash password:', err);
+          alert('비밀번호 변경 중 오류가 발생했습니다. 다시 시도해주세요.');
+      }
   };
 
   const handleUpdateOwnerPin = (newPin: string) => {
