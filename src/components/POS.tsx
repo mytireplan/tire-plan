@@ -702,9 +702,19 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
             // Check if any rental items exist (no inventory adjustment needed)
             const hasRentalItems = cart.some(item => item.id?.startsWith('RENTAL-'));
 
-            // Convert selected date (YYYY-MM-DD) to ISO string
-            const saleDateObj = new Date(checkoutForm.saleDate + 'T00:00:00');
-            const saleDateISO = saleDateObj.toISOString();
+            // Build ISO datetime using selected sale date + current local time (timezone-safe)
+            const saleDateISO = (() => {
+                if (!checkoutForm.saleDate) return new Date().toISOString();
+                const parts = checkoutForm.saleDate.split('-').map(Number);
+                const [year, month, day] = parts;
+                if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+                    return new Date().toISOString();
+                }
+                const now = new Date();
+                const localDateTime = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+                const tzOffset = localDateTime.getTimezoneOffset() * 60000;
+                return new Date(localDateTime.getTime() - tzOffset).toISOString();
+            })();
 
             const newSale: Sale = {
                 id: `S-${Date.now().toString().slice(-6)}`,
