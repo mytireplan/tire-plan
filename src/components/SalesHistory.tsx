@@ -1314,7 +1314,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                         <div className="divide-y divide-gray-100">
                             {salesWithMetrics.map((sale) => {
                                 const displayItem = getPrimaryItem(sale);
-                                const timeLabel = new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                // Extract time from ISO string (YYYY-MM-DDTHH:mm:ss.SSSZ)
+                                const timeFromISO = sale.date ? sale.date.split('T')[1]?.substring(0, 5) : '--:--';
                                 const paymentIcon = getPaymentIcon(sale.paymentMethod);
 
                                 return (
@@ -1325,7 +1326,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                     >
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-base font-extrabold text-gray-900">{timeLabel}</span>
+                                                <span className="text-base font-extrabold text-gray-900">{timeFromISO}</span>
                                                 {sale.isCanceled && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold">취소</span>}
                                                 {!sale.isCanceled && sale.isEdited && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold">수정됨</span>}
                                             </div>
@@ -1398,10 +1399,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                 ) : (
                                     salesWithMetrics.map((sale) => {
                                         const displayItem = getPrimaryItem(sale);
+                                        // Extract time from ISO string (YYYY-MM-DDTHH:mm:ss.SSSZ)
+                                        const timeFromISO = sale.date ? sale.date.split('T')[1]?.substring(0, 5) : '--:--';
                                         return (
                                         <tr key={sale.id} className={`hover:bg-blue-50 transition-colors ${sale.isCanceled ? 'bg-gray-50' : ''}`}>
                                             <td className="px-4 py-3 text-center text-gray-500 font-medium whitespace-nowrap text-xs truncate">
-                                                {new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                {timeFromISO}
                                                 {sale.isEdited && !sale.isCanceled && (
                                                     <span className="block text-[9px] text-blue-500 font-bold mt-0.5">(수정됨)</span>
                                                 )}
