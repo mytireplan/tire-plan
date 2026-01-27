@@ -10,6 +10,7 @@ import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccou
 
 // Firebase imports
 import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery, subscribeToCollection } from './utils/firestore'; 
+import { hashPassword } from './utils/auth';
 // (뒤에 더 있는 것들도 여기에 다 넣어주세요)
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -28,7 +29,7 @@ import AdminDashboard from './components/AdminDashboard';
 import StoreSelectionScreen from './components/StoreSelectionScreen';
 
 // Owner account persisted in Firestore
-type OwnerAccount = { id: string; name: string; role: UserRole; storeId?: string; password: string; ownerPin?: string; phoneNumber?: string; joinDate: string };
+type OwnerAccount = { id: string; name: string; role: UserRole; storeId?: string; password: string; passwordHash?: string; ownerPin?: string; phoneNumber?: string; joinDate: string };
 
 // Mock Password Hash Utility (Simple Simulation)
 const mockHash = (pwd: string) => btoa(pwd); // Base64 encoding for demo purposes
@@ -1278,10 +1279,11 @@ const App: React.FC = () => {
       }
   };
 
-  const handleUpdatePassword = (newPass: string) => {
+  const handleUpdatePassword = async (newPass: string) => {
       if(!currentUser) return;
+      const passwordHash = await hashPassword(newPass);
       setUsers(prev => {
-          const next = prev.map(u => u.id === currentUser.id ? { ...u, password: newPass } : u);
+          const next = prev.map(u => u.id === currentUser.id ? { ...u, password: newPass, passwordHash } : u);
           const owner = next.find(u => u.id === currentUser.id);
           if (owner) {
               saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, owner)
