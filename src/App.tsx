@@ -635,7 +635,8 @@ const App: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>(INITIAL_SALES);
   const [categories, setCategories] = useState<string[]>(INITIAL_CATEGORIES);
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
-  const [stockInHistory, setStockInHistory] = useState<StockInRecord[]>(INITIAL_STOCK_HISTORY);
+    const [stockInHistory, setStockInHistory] = useState<StockInRecord[]>(INITIAL_STOCK_HISTORY);
+    const lastStockInFingerprintRef = useRef<{ key: string; time: number } | null>(null);
   const [transferHistory, setTransferHistory] = useState<StockTransferRecord[]>([]);
     const [shifts, setShifts] = useState<Shift[]>([]);
     const [shiftRange, setShiftRange] = useState<{ start: string; end: string }>(() => {
@@ -2044,6 +2045,16 @@ const App: React.FC = () => {
           .catch((err) => console.error('❌ Failed to delete sale from Firestore:', err));
   };
     const handleStockIn = async (record: StockInRecord, sellingPrice?: number) => {
+        // Deduplicate rapid double submissions (same payload within 3s)
+        const fingerprint = [record.storeId, record.productName, record.specification, record.quantity ?? 0, record.receivedQuantity ?? 0, record.supplier, record.date].join('|');
+        const now = Date.now();
+        const last = lastStockInFingerprintRef.current;
+        if (last && last.key === fingerprint && now - last.time < 3000) {
+            console.warn('⚠️ Duplicate stock-in submission detected, skipping:', fingerprint);
+            return;
+        }
+        lastStockInFingerprintRef.current = { key: fingerprint, time: now };
+
         // Prevent duplicate processing
         if (processingStockInIdsRef.current.has(record.id)) {
             console.warn('⚠️ Stock-in already being processed:', record.id);
