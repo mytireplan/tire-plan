@@ -2164,7 +2164,11 @@ const App: React.FC = () => {
                 return [...prev, productToSave];
             });
 
-            setStockInHistory(prev => [stockRecordToSave, ...prev]);
+            // Avoid duplicate entries when Firestore listener also pushes the same record
+            setStockInHistory(prev => {
+                if (prev.some(r => r.id === stockRecordToSave.id)) return prev;
+                return [stockRecordToSave, ...prev];
+            });
 
             if (record.brand && record.brand.trim() !== '') {
                 setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
