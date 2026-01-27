@@ -1107,7 +1107,30 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       // Calculate total amount from items
       const totalAmount = quickAddForm.items.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
 
-      const isoString = quickAddForm.datetime ? new Date(quickAddForm.datetime).toISOString() : new Date().toISOString();
+      // ✅ FIX: Parse datetime correctly without timezone offset
+      let isoString: string;
+      if (quickAddForm.datetime) {
+          // quickAddForm.datetime format: "2026-01-26T13:30"
+          const [datePart, timePart] = quickAddForm.datetime.split('T');
+          const [year, month, day] = datePart.split('-');
+          const [hour, minute] = timePart.split(':');
+          
+          // Create date at noon UTC to avoid timezone issues
+          const date = new Date(
+              parseInt(year),
+              parseInt(month) - 1,
+              parseInt(day),
+              parseInt(hour),
+              parseInt(minute),
+              0
+          );
+          // Add timezone offset to get the correct UTC time
+          const tzOffset = date.getTimezoneOffset() * 60000;
+          isoString = new Date(date.getTime() - tzOffset).toISOString();
+      } else {
+          isoString = new Date().toISOString();
+      }
+      
       const customer = (quickAddForm.customerName || quickAddForm.customerPhone) ? {
           name: quickAddForm.customerName,
           phoneNumber: quickAddForm.customerPhone
