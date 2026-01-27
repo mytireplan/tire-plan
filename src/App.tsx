@@ -820,14 +820,42 @@ const App: React.FC = () => {
 
         const ensureDefaultOwners = async (existing: OwnerAccount[]): Promise<OwnerAccount[]> => {
             const missing = DEFAULT_OWNER_ACCOUNTS.filter((owner) => !existing.some((o) => o.id === owner.id));
-            if (missing.length === 0) return existing;
+            if (missing.length === 0) {
+                // Migrate existing owners: add passwordHash if missing
+                const needsHash = existing.filter(o => !o.passwordHash && o.password);
+                if (needsHash.length > 0) {
+                    console.log(`🔐 Migrating ${needsHash.length} owner(s) to hashed passwords...`);
+                    const updated = await Promise.all(
+                        needsHash.map(async (owner) => {
+                            const passwordHash = await hashPassword(owner.password);
+                            const updatedOwner = { ...owner, passwordHash };
+                            await saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, updatedOwner);
+                            return updatedOwner;
+                        })
+                    );
+                    console.log(`✅ Hashed passwords for: ${updated.map(u => u.id).join(', ')}`);
+                    return existing.map(o => {
+                        const hashed = updated.find(u => u.id === o.id);
+                        return hashed || o;
+                    });
+                }
+                return existing;
+            }
             try {
-                await saveBulkToFirestore(COLLECTIONS.OWNERS, missing);
-                console.log(`🌱 Added missing default owners: ${missing.map((m) => m.id).join(', ')}`);
+                // Hash passwords for new owners before seeding
+                const withHashes = await Promise.all(
+                    missing.map(async (owner) => ({
+                        ...owner,
+                        passwordHash: await hashPassword(owner.password)
+                    }))
+                );
+                await saveBulkToFirestore(COLLECTIONS.OWNERS, withHashes);
+                console.log(`🌱 Added missing default owners: ${withHashes.map((m) => m.id).join(', ')}`);
+                return [...existing, ...withHashes];
             } catch (error) {
                 console.error('❌ Failed to add missing default owners:', error);
+                return [...existing, ...missing];
             }
-            return [...existing, ...missing];
         };
 
         const initializeData = async () => {
