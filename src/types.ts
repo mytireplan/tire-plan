@@ -104,6 +104,7 @@ export interface Sale {
   cancelDate?: string; // When it was cancelled
   isEdited?: boolean; // If the sale details were modified after creation
   inventoryAdjusted?: boolean; // Whether stock was deducted for this sale
+  pendingRestockItems?: SalesItem[]; // Items deleted during edit, to be restocked on cancel
 }
 
 export interface StockInRecord {

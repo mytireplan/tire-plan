@@ -6,7 +6,7 @@ import { db, auth } from './firebase';
 import { PaymentMethod } from './types';
 
 // 2. 설계도(Type)인 친구들은 type을 붙여서 가져옵니다.
-import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift } from './types';
+import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift, SalesItem } from './types';
 
 // Firebase imports
 import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery, subscribeToCollection } from './utils/firestore'; 
@@ -1869,7 +1869,7 @@ const App: React.FC = () => {
           return Object.keys(cleaned).length === 0 ? undefined : (cleaned as Sale['customer']);
       };
 
-      // Find previous sale to compute stock deltas
+      // Find previous sale to detect deleted items
       const prevSale = sales.find(s => s.id === updatedSale.id);
 
       const sanitizedCustomer = sanitizeCustomer(updatedSale.customer);
@@ -1882,6 +1882,21 @@ const App: React.FC = () => {
           salePayload.customer = sanitizedCustomer;
       } else {
           delete salePayload.customer;
+      }
+
+      // ✅ NEW: Detect deleted items and add to pendingRestockItems
+      if (prevSale && prevSale.items && prevSale.items.length > 0) {
+          const deletedItems = prevSale.items.filter(
+              prevItem => !salePayload.items.some(newItem => newItem.productId === prevItem.productId && newItem.quantity === prevItem.quantity)
+          );
+          
+          if (deletedItems.length > 0) {
+              salePayload.pendingRestockItems = [
+                  ...(salePayload.pendingRestockItems || []),
+                  ...deletedItems
+              ];
+              console.log(`📦 Marked ${deletedItems.length} items for pending restock on cancel:`, deletedItems);
+          }
       }
 
       // Upsert customer when sale updates include customer info
@@ -1955,122 +1970,29 @@ const App: React.FC = () => {
           }
       }
 
-      // Update sale record
-            const saleToPersist = stripUndefined(salePayload);
-            setSales(prev => prev.map(s => s.id === salePayload.id ? saleToPersist : s));
-        saveToFirestore<Sale>(COLLECTIONS.SALES, saleToPersist)
-      .then(() => console.log('✅ Sale updated in Firestore:', salePayload.id))
-      .catch((err) => console.error('❌ Failed to update sale in Firestore:', err));
-
-      // If we have a previous sale, reconcile inventory differences when inventory is tracked
-      if (prevSale) {
-          const storeId = salePayload.storeId;
-          const prevTracked = prevSale.inventoryAdjusted !== false;
-          const newTracked = salePayload.inventoryAdjusted !== false;
-
-          if (prevTracked || newTracked) {
-              const normalizeKey = (name?: string, spec?: string) => `${(name || '').toLowerCase().replace(/\s+/g, '')}__${(spec || '').toLowerCase().replace(/\s+/g, '')}`;
-
-              const prevQtyMap: Record<string, number> = {};
-              const prevNameSpecMap: Record<string, number> = {};
-              prevSale.items.forEach(it => {
-                  prevQtyMap[it.productId] = (prevQtyMap[it.productId] || 0) + it.quantity;
-                  const key = normalizeKey(it.productName, it.specification);
-                  prevNameSpecMap[key] = (prevNameSpecMap[key] || 0) + it.quantity;
-              });
-
-              const newQtyMap: Record<string, number> = {};
-              const newNameSpecMap: Record<string, number> = {};
-              salePayload.items.forEach(it => {
-                  newQtyMap[it.productId] = (newQtyMap[it.productId] || 0) + it.quantity;
-                  const key = normalizeKey(it.productName, it.specification);
-                  newNameSpecMap[key] = (newNameSpecMap[key] || 0) + it.quantity;
-              });
-
-              const allProductIds = new Set<string>([...Object.keys(prevQtyMap), ...Object.keys(newQtyMap)]);
-              const allNameSpecKeys = new Set<string>([...Object.keys(prevNameSpecMap), ...Object.keys(newNameSpecMap)]);
-
-              const updatedProducts: Product[] = [];
-              const consumptionLogs: StockInRecord[] = [];
-
-              setProducts(prevProducts => prevProducts.map(prod => {
-                  const key = normalizeKey(prod.name, prod.specification);
-                  const hasIdMatch = allProductIds.has(prod.id);
-                  const hasKeyMatch = allNameSpecKeys.has(key);
-                  if ((!hasIdMatch && !hasKeyMatch) || prod.id === '99999') return prod;
-
-                  // Only allow fallback to name+spec when productId is absent; never name-only
-                  const safePrevQty = prevQtyMap[prod.id] ?? 0;
-                  const safeNewQty = newQtyMap[prod.id] ?? 0;
-                  const fallbackPrev = prevNameSpecMap[key] ?? 0;
-                  const fallbackNew = newNameSpecMap[key] ?? 0;
-
-                  const oldQty = prevTracked ? (safePrevQty || (prevQtyMap[prod.id] ? safePrevQty : fallbackPrev)) : 0;
-                  const newQty = newTracked ? (safeNewQty || (newQtyMap[prod.id] ? safeNewQty : fallbackNew)) : 0;
-                  const delta = newQty - oldQty; // positive => more sold now -> reduce stock
-
-                  const safeStockByStore = prod.stockByStore || {};
-                  const currentStoreStock = safeStockByStore[storeId] || 0;
-                  const updatedStoreStock = Math.max(0, currentStoreStock - delta);
-                  const newStockByStore = { ...safeStockByStore, [storeId]: updatedStoreStock };
-                  const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-                  const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
-                  updatedProducts.push(updated);
-
-                  // Log consumption when additional quantity is sold via edit (for stock history visibility)
-                  if (newTracked && delta > 0) {
-                      const consumptionRecord: StockInRecord = {
-                          id: `IN-CONSUME-${Date.now()}-${prod.id}`,
-                          date: new Date().toISOString(),
-                          storeId,
-                          productId: prod.id,
-                          supplier: '판매소진',
-                          category: prod.category,
-                          brand: prod.brand || '기타',
-                          productName: prod.name,
-                          specification: prod.specification || '',
-                          quantity: 0,
-                          receivedQuantity: delta,
-                          consumedAtSaleId: salePayload.id,
-                          purchasePrice: 0,
-                          factoryPrice: prod.price
-                      };
-                      consumptionLogs.push(consumptionRecord);
-                      console.log('[Inventory Edit] consumption logged', { saleId: salePayload.id, productId: prod.id, delta });
-                  } else {
-                      console.log('[Inventory Edit] reconciled without consumption log', { saleId: salePayload.id, productId: prod.id, delta });
-                  }
-                  return updated;
-              }));
-
-              // Persist reconciled products
-              updatedProducts.forEach(p => {
-                  saveToFirestore<Product>(COLLECTIONS.PRODUCTS, p)
-                    .then(() => console.log('✅ Product stock reconciled after sale edit:', p.id))
-                    .catch(err => console.error('❌ Failed to persist reconciled product:', err));
-              });
-
-              // Persist consumption logs so stock history shows the deductions after edits
-              if (consumptionLogs.length > 0) {
-                  consumptionLogs.forEach(log => {
-                      const clean = JSON.parse(JSON.stringify(log)) as StockInRecord;
-                      setStockInHistory(prev => [clean, ...prev]);
-                      saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, clean)
-                        .then(() => console.log('✅ Stock consumption logged after sale edit:', clean.id))
-                        .catch(err => console.error('❌ Failed to log stock consumption after sale edit:', err));
-                  });
-              }
-          }
-      }
+      // Update sale record (WITHOUT inventory adjustment - only record pending restock items)
+      const saleToPersist = stripUndefined(salePayload);
+      setSales(prev => prev.map(s => s.id === salePayload.id ? saleToPersist : s));
+      saveToFirestore<Sale>(COLLECTIONS.SALES, saleToPersist)
+        .then(() => console.log('✅ Sale updated in Firestore:', salePayload.id))
+        .catch((err) => console.error('❌ Failed to update sale in Firestore:', err));
   };
   const handleCancelSale = (saleId: string) => { 
       const targetSale = sales.find(s => s.id === saleId);
       if (!targetSale || targetSale.isCanceled) return;
-      const canceledSale = { ...targetSale, isCanceled: true, cancelDate: new Date().toISOString() };
+      const canceledSale = { ...targetSale, isCanceled: true, cancelDate: new Date().toISOString(), pendingRestockItems: [] };
+      
+      // ✅ Collect all items to restock: current items + pending items
+      const allItemsToRestock: SalesItem[] = [
+          ...targetSale.items,
+          ...(targetSale.pendingRestockItems || [])
+      ];
+      
       const qtyMap: Record<string, number> = {};
-      targetSale.items.forEach(it => {
+      allItemsToRestock.forEach(it => {
           qtyMap[it.productId] = (qtyMap[it.productId] || 0) + it.quantity;
       });
+      
       const storeId = targetSale.storeId;
       const updatedProducts: Product[] = [];
 
@@ -2083,6 +2005,7 @@ const App: React.FC = () => {
           return;
       }
 
+      // ✅ Restock both current and pending items
       setProducts(prev => prev.map(prod => {
           const qty = qtyMap[prod.id];
           if (!qty || prod.id === '99999' || !storeId) return prod;
@@ -2091,6 +2014,7 @@ const App: React.FC = () => {
           const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
           const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
           updatedProducts.push(updated);
+          console.log(`✅ Restocked on cancel: ${prod.name} in store ${storeId}: ${currentStoreStock} → ${newTotalStock}`);
           return updated;
       }));
 
@@ -2101,9 +2025,9 @@ const App: React.FC = () => {
       });
 
       setSales(prev => prev.map(s => s.id === canceledSale.id ? canceledSale : s));
-            saveToFirestore<Sale>(COLLECTIONS.SALES, canceledSale)
-                .then(() => console.log('✅ Sale canceled in Firestore:', canceledSale.id))
-                .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
+      saveToFirestore<Sale>(COLLECTIONS.SALES, canceledSale)
+          .then(() => console.log('✅ Sale canceled in Firestore:', canceledSale.id))
+          .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
   };
 
   const handleDeleteSale = (saleId: string) => {
