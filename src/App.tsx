@@ -529,6 +529,7 @@ const App: React.FC = () => {
     const [pinError, setPinError] = useState('');
     const [managerSession, setManagerSession] = useState(false);
     const adminTimerRef = useRef<number | null>(null);
+    const processingStockInIdsRef = useRef<Set<string>>(new Set()); // Track in-progress stock-in records
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sessionRole, setSessionRole] = useState<UserRole>('STAFF'); // Role for the current app session
@@ -2118,11 +2119,18 @@ const App: React.FC = () => {
           .then(() => console.log('✅ Sale deleted from Firestore:', saleId))
           .catch((err) => console.error('❌ Failed to delete sale from Firestore:', err));
   };
-
     const handleStockIn = async (record: StockInRecord, sellingPrice?: number) => {
-        const isConsumed = Boolean(record.consumedAtSaleId);
-        const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
-        const qtyForStock = isConsumed ? 0 : receivedQty;
+        // Prevent duplicate processing
+        if (processingStockInIdsRef.current.has(record.id)) {
+            console.warn('⚠️ Stock-in already being processed:', record.id);
+            return;
+        }
+        processingStockInIdsRef.current.add(record.id);
+
+        try {
+            const isConsumed = Boolean(record.consumedAtSaleId);
+            const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
+            const qtyForStock = isConsumed ? 0 : receivedQty;
 
         // 정규화 함수
         const normalizeName = (v?: string) => (v || '').toLowerCase().trim().replace(/\s+/g, '');
@@ -2154,7 +2162,7 @@ const App: React.FC = () => {
             ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
             : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
 
-        try {
+
             // 1) Product 찾기 및 계산
             let existingProductIndex = products.findIndex(p => p.id === resolvedProductId);
             if (existingProductIndex < 0) {
@@ -2241,6 +2249,9 @@ const App: React.FC = () => {
         } catch (err) {
             console.error('❌ 입고 처리 실패 (batch):', err);
             alert(`❌ 입고 처리 실패!\\n${record.productName}\\n네트워크를 확인하고 다시 시도해주세요.`);
+        } finally {
+            // Remove from processing set
+            processingStockInIdsRef.current.delete(record.id);
         }
     };
 

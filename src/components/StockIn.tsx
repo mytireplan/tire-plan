@@ -49,6 +49,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     // --- Stock In Confirmation Modal State ---
     const [confirmationData, setConfirmationData] = useState<StockInRecord | null>(null);
     const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     // --- Verification & History State ---
     const getLocalYearMonth = (): string => {
@@ -203,24 +204,29 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
         setIsConfirmationOpen(true);
     };
 
-    const handleConfirmStockIn = () => {
-        if (!confirmationData) return;
+    const handleConfirmStockIn = async () => {
+        if (!confirmationData || isProcessing) return;
 
-        // Pass 0 as selling price since input is removed. 
-        // New products will have price 0 until updated in Inventory.
-        onStockIn(confirmationData, 0);
-        
-        setFormData(prev => ({
-            ...prev,
-            productName: '',
-            specification: '',
-            quantity: 0,
-            factoryPrice: 0
-        }));
-        setInputs({ quantity: '', factoryPrice: '' });
-        setIsConfirmationOpen(false);
-        setConfirmationData(null);
-        alert('입고 처리가 완료되었습니다.');
+        setIsProcessing(true);
+        try {
+            // Pass 0 as selling price since input is removed. 
+            // New products will have price 0 until updated in Inventory.
+            await Promise.resolve(onStockIn(confirmationData, 0));
+            
+            setFormData(prev => ({
+                ...prev,
+                productName: '',
+                specification: '',
+                quantity: 0,
+                factoryPrice: 0
+            }));
+            setInputs({ quantity: '', factoryPrice: '' });
+            setIsConfirmationOpen(false);
+            setConfirmationData(null);
+            alert('입고 처리가 완료되었습니다.');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const handleUpdatePurchasePrice = (record: StockInRecord, val: string) => {
@@ -807,15 +813,24 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                     setIsConfirmationOpen(false);
                                     setConfirmationData(null);
                                 }}
-                                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 transition-colors"
+                                disabled={isProcessing}
+                                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 취소
                             </button>
                             <button
                                 onClick={handleConfirmStockIn}
-                                className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                                disabled={isProcessing}
+                                className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
-                                입고 처리
+                                {isProcessing ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        처리 중...
+                                    </>
+                                ) : (
+                                    '입고 처리'
+                                )}
                             </button>
                         </div>
                     </div>
