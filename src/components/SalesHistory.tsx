@@ -2025,6 +2025,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                              <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold bg-white shadow-sm mb-1 ${selectedSale.paymentMethod === PaymentMethod.CARD ? 'text-blue-600' : selectedSale.paymentMethod === PaymentMethod.CASH ? 'text-emerald-600' : 'text-violet-600'}`}>
                                 {getPaymentLabel(selectedSale.paymentMethod)}
                              </div>
+                             {selectedSale.paymentMethod === PaymentMethod.COMPLEX && selectedSale.paymentDetails && (
+                                 <div className="text-xs text-gray-600 mb-1 space-y-0.5">
+                                     <div>• {getPaymentLabel(selectedSale.paymentDetails.method1)}: {formatCurrency(selectedSale.paymentDetails.amount1)}</div>
+                                     {selectedSale.paymentDetails.method2 && (
+                                         <div>• {getPaymentLabel(selectedSale.paymentDetails.method2)}: {formatCurrency(selectedSale.paymentDetails.amount2 || 0)}</div>
+                                     )}
+                                 </div>
+                             )}
                              <div className="text-xs text-gray-500 mb-1">{new Date(selectedSale.date).toLocaleString()}</div>
                              <div className="text-xs text-emerald-700 font-bold flex items-center justify-end gap-1">
                                 <BadgeCheck size={12}/> {editFormData.staffName || '-'}
