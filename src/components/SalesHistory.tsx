@@ -270,11 +270,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
   const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
 
-  const isTireItem = (item: SalesItem) => {
+  const isTireItem = (item: SalesItem | null | undefined) => {
+    if (!item) return false;
     const product = products.find(p => p.id === item.productId);
     const category = normalizeCategory(product?.category);
     if (category === '타이어') return true;
-    return category === '기타' && item.specification ? /\d{3}\/\d{2}/.test(item.specification) : false;
+    return category === '기타' && (item.specification || '').length > 0 ? /\d{3}\/\d{2}/.test(item.specification || '') : false;
   };
 
   const filteredSales = useMemo(() => {
@@ -286,14 +287,15 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       
       if (searchTerm) {
           const term = searchTerm.toLowerCase();
-          const vehicle = sale.vehicleNumber?.toLowerCase() || '';
-          const phone = sale.customer?.phoneNumber || '';
-          const memo = sale.memo?.toLowerCase() || '';
+          const vehicle = (sale.vehicleNumber || '').toLowerCase();
+          const phone = (sale.customer?.phoneNumber || '');
+          const memo = (sale.memo || '').toLowerCase();
           
           // Search in product names and specifications
-          const matchesProduct = sale.items?.some(item => {
-              const productName = item.productName?.toLowerCase() || '';
-              const specification = item.specification?.toLowerCase() || '';
+          const matchesProduct = sale.items && Array.isArray(sale.items) && sale.items.some(item => {
+              if (!item) return false;
+              const productName = (item.productName || '').toLowerCase();
+              const specification = (item.specification || '').toLowerCase();
               // Normalize specification for number-only search (245/45R18 -> 2454518)
               const normalizedSpec = specification.replace(/[\/R]/g, '');
               const normalizedTerm = term.replace(/[\/R]/g, '');
@@ -433,14 +435,18 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
 
   // --- Display Priority Logic ---
   const getPrimaryItem = (sale: Sale) => {
-    const itemsWithCat = sale.items.map(item => {
-        const product = products.find(p => p.id === item.productId);
-        let category = normalizeCategory(product?.category);
-        if (category === '기타' && item.specification && /\d{3}\/\d{2}/.test(item.specification)) {
-            category = '타이어';
-        }
-        return { ...item, category };
-    });
+    if (!sale.items || sale.items.length === 0) return null;
+    
+    const itemsWithCat = sale.items
+        .filter(item => item) // Filter out undefined/null items
+        .map(item => {
+            const product = products.find(p => p.id === item.productId);
+            let category = normalizeCategory(product?.category);
+            if (category === '기타' && item.specification && /\d{3}\/\d{2}/.test(item.specification)) {
+                category = '타이어';
+            }
+            return { ...item, category };
+        });
 
     const tires = itemsWithCat.filter(i => i.category === '타이어');
     if (tires.length > 0) return tires[0];
@@ -1306,11 +1312,18 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                             </div>
                                         </div>
                                         <div className="mt-2 flex items-center gap-2">
-                                            <span className={`text-sm font-bold ${sale.isCanceled ? 'text-red-400 line-through' : 'text-blue-600'}`}>{displayItem.specification}</span>
-                                            <span className={`text-sm ${sale.isCanceled ? 'text-red-400 line-through' : 'text-gray-800'} truncate`}>
-                                                {displayItem.brand} {displayItem.productName}
-                                                {sale.items.length > 1 && <span className="text-gray-400 text-xs ml-1">외 {sale.items.length - 1}건</span>}
-                                            </span>
+                                            {displayItem && (
+                                                <>
+                                                    <span className={`text-sm font-bold ${sale.isCanceled ? 'text-red-400 line-through' : 'text-blue-600'}`}>{displayItem.specification}</span>
+                                                    <span className={`text-sm ${sale.isCanceled ? 'text-red-400 line-through' : 'text-gray-800'} truncate`}>
+                                                        {displayItem.brand} {displayItem.productName}
+                                                        {sale.items && sale.items.length > 1 && <span className="text-gray-400 text-xs ml-1">외 {sale.items.length - 1}건</span>}
+                                                    </span>
+                                                </>
+                                            )}
+                                            {!displayItem && (
+                                                <span className="text-sm text-gray-500">상품 정보 없음</span>
+                                            )}
                                         </div>
                                         <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
                                             <span className="truncate">{isStoreSelected ? sale.staffName : `${stores.find(s => s.id === sale.storeId)?.name || ''} / ${sale.staffName}`}</span>
@@ -1378,16 +1391,22 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                                     {sale.isCanceled && (
                                                         <span className="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-red-200">취소됨</span>
                                                     )}
-                                                    {sale.items[0].productId === '99999' && !sale.isCanceled && !displayItem.specification && !displayItem.brand && (
+                                                    {displayItem && sale.items[0] && sale.items[0].productId === '99999' && !sale.isCanceled && !displayItem.specification && !displayItem.brand && (
                                                         <span className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0.5 rounded font-bold border border-orange-200 animate-pulse">⚠️ 우선결제</span>
                                                     )}
-                                                    <span className={`text-sm font-bold truncate ${sale.isCanceled ? 'text-red-400 line-through' : 'text-blue-600'}`}>
-                                                        {displayItem.specification}
-                                                    </span>
-                                                    <span className={`font-medium truncate ${sale.isCanceled ? 'text-red-400 line-through' : 'text-gray-800'}`}>
-                                                        {displayItem.brand} {displayItem.productName}
-                                                        {sale.items.length > 1 && <span className="text-gray-400 text-xs ml-1">외 {sale.items.length - 1}건</span>}
-                                                    </span>
+                                                    {displayItem ? (
+                                                        <>
+                                                            <span className={`text-sm font-bold truncate ${sale.isCanceled ? 'text-red-400 line-through' : 'text-blue-600'}`}>
+                                                                {displayItem.specification}
+                                                            </span>
+                                                            <span className={`font-medium truncate ${sale.isCanceled ? 'text-red-400 line-through' : 'text-gray-800'}`}>
+                                                                {displayItem.brand} {displayItem.productName}
+                                                                {sale.items && sale.items.length > 1 && <span className="text-gray-400 text-xs ml-1">외 {sale.items.length - 1}건</span>}
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-sm text-gray-500">상품 정보 없음</span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center text-gray-800 font-bold whitespace-nowrap">
