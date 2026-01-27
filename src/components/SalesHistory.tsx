@@ -254,8 +254,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const getLatestCost = (productName: string, spec?: string) => {
     if (!stockInHistory || stockInHistory.length === 0) return 0;
     const matches = stockInHistory.filter(r => {
-        const nameMatch = r.productName.trim() === productName.trim();
-        const specMatch = spec ? (r.specification || '').trim() === (spec || '').trim() : true;
+        const nameMatch = (r.productName || '').trim() === (productName || '').trim();
+        const specMatch = spec ? ((r.specification || '').trim() === (spec || '').trim()) : true;
         return nameMatch && specMatch && (r.purchasePrice || 0) > 0;
     });
     matches.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -265,7 +265,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const getItemCost = (item: SalesItem) => {
     const manualCost = item.purchasePrice ?? 0;
     if (manualCost > 0) return manualCost;
-    return getLatestCost(item.productName, item.specification);
+    return getLatestCost(item.productName || '', item.specification);
   };
 
   const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
@@ -313,10 +313,16 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const salesWithMetrics = useMemo(() => {
     return filteredSales.map(sale => {
         let totalCost = 0;
-        sale.items.forEach(item => {
-            const cost = getItemCost(item);
-            totalCost += (cost * item.quantity);
-        });
+        if (sale.items && Array.isArray(sale.items)) {
+            sale.items.forEach(item => {
+                try {
+                    const cost = getItemCost(item);
+                    totalCost += (cost * (item.quantity || 0));
+                } catch (err) {
+                    console.error('❌ Error calculating item cost:', err, item);
+                }
+            });
+        }
         const margin = sale.totalAmount - totalCost;
         return {
             ...sale,
