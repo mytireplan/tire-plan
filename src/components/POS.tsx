@@ -711,13 +711,13 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                     return new Date().toISOString();
                 }
                 const now = new Date();
+                // 로컬 날짜 + 현재 시간을 그대로 ISO로 변환 (timezone offset 조작 불필요)
                 const localDateTime = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-                const tzOffset = localDateTime.getTimezoneOffset() * 60000;
-                return new Date(localDateTime.getTime() - tzOffset).toISOString();
+                return localDateTime.toISOString();
             })();
 
             const newSale: Sale = {
-                id: `S-${Date.now().toString().slice(-6)}`,
+                id: `S-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 date: saleDateISO,
                 storeId: activeStoreId,
                 totalAmount: payableTotal,

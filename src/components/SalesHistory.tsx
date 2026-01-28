@@ -35,7 +35,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
 
   const [activePaymentMethod, setActivePaymentMethod] = useState<string>('ALL');
-  const [activeStoreId, setActiveStoreId] = useState<string>('ALL');
+  const [activeStoreId, setActiveStoreId] = useState<string>(currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : 'ALL');
   const [searchTerm, setSearchTerm] = useState(''); // Vehicle or Phone
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
@@ -107,6 +107,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
   const [inlineEditMemo, setInlineEditMemo] = useState<string>('');
   const [inlineEditPurchasePrice, setInlineEditPurchasePrice] = useState<Record<string, string>>({});
 
+  // --- Payment Method Edit State ---
+  const [isPaymentEditModalOpen, setIsPaymentEditModalOpen] = useState(false);
+  const [paymentEditForm, setPaymentEditForm] = useState<{
+    paymentMethod: PaymentMethod;
+    paymentDetails?: { method1: PaymentMethod; amount1: number; method2?: PaymentMethod; amount2?: number };
+  }>({ paymentMethod: PaymentMethod.CARD });
+
   // --- Immediate Stock In State ---
   const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
   const [stockInForm, setStockInForm] = useState({
@@ -152,6 +159,27 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           setShowCancelConfirm(false);
       }
   }, [selectedSale]);
+
+  const openPaymentEditModal = () => {
+    if (!selectedSale) return;
+    setPaymentEditForm({
+      paymentMethod: selectedSale.paymentMethod,
+      paymentDetails: selectedSale.paymentDetails ? { ...selectedSale.paymentDetails } : undefined
+    });
+    setIsPaymentEditModalOpen(true);
+  };
+
+  const savePaymentMethodChange = () => {
+    if (!editFormData) return;
+    const updated = { 
+      ...editFormData, 
+      paymentMethod: paymentEditForm.paymentMethod,
+      paymentDetails: paymentEditForm.paymentMethod === PaymentMethod.COMPLEX ? paymentEditForm.paymentDetails : undefined
+    };
+    setEditFormData(updated);
+    setHasUnsavedChanges(true);
+    setIsPaymentEditModalOpen(false);
+  };
 
   // Auto-update staff when date or store changes in quick add form
   useEffect(() => {
@@ -1137,7 +1165,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       } : undefined;
 
       const quickSale: Sale = {
-          id: `Q-${Date.now()}`,
+          id: `Q-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           date: isoString,
           storeId,
           totalAmount,
@@ -2022,14 +2050,25 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                               <div className="text-[10px] text-blue-600 mt-0.5 font-semibold">상품/수량 변경 시 단가가 자동 조정됩니다.</div>
                           </div>
                          <div className="text-right">
-                             <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold bg-white shadow-sm mb-1 ${selectedSale.paymentMethod === PaymentMethod.CARD ? 'text-blue-600' : selectedSale.paymentMethod === PaymentMethod.CASH ? 'text-emerald-600' : 'text-violet-600'}`}>
-                                {getPaymentLabel(selectedSale.paymentMethod)}
+                             <div className="flex items-center justify-end gap-2 mb-1">
+                                 <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold bg-white shadow-sm ${editFormData.paymentMethod === PaymentMethod.CARD ? 'text-blue-600' : editFormData.paymentMethod === PaymentMethod.CASH ? 'text-emerald-600' : 'text-violet-600'}`}>
+                                    {getPaymentLabel(editFormData.paymentMethod)}
+                                 </div>
+                                 {!selectedSale.isCanceled && (
+                                     <button
+                                         onClick={openPaymentEditModal}
+                                         className="p-1 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
+                                         title="결제 방식 수정"
+                                     >
+                                         <Edit3 size={14} />
+                                     </button>
+                                 )}
                              </div>
-                             {selectedSale.paymentMethod === PaymentMethod.COMPLEX && selectedSale.paymentDetails && (
+                             {editFormData.paymentMethod === PaymentMethod.COMPLEX && editFormData.paymentDetails && (
                                  <div className="text-xs text-gray-600 mb-1 space-y-0.5">
-                                     <div>• {getPaymentLabel(selectedSale.paymentDetails.method1)}: {formatCurrency(selectedSale.paymentDetails.amount1)}</div>
-                                     {selectedSale.paymentDetails.method2 && (
-                                         <div>• {getPaymentLabel(selectedSale.paymentDetails.method2)}: {formatCurrency(selectedSale.paymentDetails.amount2 || 0)}</div>
+                                     <div>• {getPaymentLabel(editFormData.paymentDetails.method1)}: {formatCurrency(editFormData.paymentDetails.amount1)}</div>
+                                     {editFormData.paymentDetails.method2 && (
+                                         <div>• {getPaymentLabel(editFormData.paymentDetails.method2)}: {formatCurrency(editFormData.paymentDetails.amount2 || 0)}</div>
                                      )}
                                  </div>
                              )}
@@ -2305,6 +2344,161 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                           className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700"
                       >
                           삭제
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Payment Method Edit Modal */}
+      {isPaymentEditModalOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
+                          <CreditCard size={20} className="text-blue-600" /> 결제 방식 수정
+                      </div>
+                      <button onClick={() => setIsPaymentEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                          <X size={20} />
+                      </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-2">결제 방식 선택</label>
+                          <div className="grid grid-cols-2 gap-2">
+                              {[
+                                  { value: PaymentMethod.CARD, label: '카드', icon: CreditCard, color: 'blue' },
+                                  { value: PaymentMethod.CASH, label: '현금', icon: Banknote, color: 'emerald' },
+                                  { value: PaymentMethod.TRANSFER, label: '계좌이체', icon: Smartphone, color: 'violet' },
+                                  { value: PaymentMethod.COMPLEX, label: '복합결제', icon: CreditCard, color: 'orange' }
+                              ].map(method => {
+                                  const Icon = method.icon;
+                                  const isActive = paymentEditForm.paymentMethod === method.value;
+                                  return (
+                                      <button
+                                          key={method.value}
+                                          onClick={() => setPaymentEditForm(prev => ({ 
+                                              ...prev, 
+                                              paymentMethod: method.value,
+                                              paymentDetails: method.value === PaymentMethod.COMPLEX ? {
+                                                  method1: PaymentMethod.CARD,
+                                                  amount1: lockedTotalAmount,
+                                                  method2: undefined,
+                                                  amount2: 0
+                                              } : undefined
+                                          }))}
+                                          className={`p-3 rounded-lg border-2 flex items-center justify-center gap-2 font-bold transition-all ${
+                                              isActive 
+                                                  ? `border-${method.color}-500 bg-${method.color}-50 text-${method.color}-700` 
+                                                  : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                          }`}
+                                      >
+                                          <Icon size={18} />
+                                          {method.label}
+                                      </button>
+                                  );
+                              })}
+                          </div>
+                      </div>
+
+                      {paymentEditForm.paymentMethod === PaymentMethod.COMPLEX && (
+                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
+                              <div className="text-sm font-bold text-orange-800 mb-2">
+                                  총 금액: {formatCurrency(lockedTotalAmount)}
+                              </div>
+                              
+                              {/* First Payment Method */}
+                              <div className="space-y-2">
+                                  <label className="block text-xs font-bold text-gray-700">첫 번째 결제 수단</label>
+                                  <select
+                                      value={paymentEditForm.paymentDetails?.method1 || PaymentMethod.CARD}
+                                      onChange={(e) => setPaymentEditForm(prev => ({
+                                          ...prev,
+                                          paymentDetails: {
+                                              ...prev.paymentDetails!,
+                                              method1: e.target.value as PaymentMethod
+                                          }
+                                      }))}
+                                      className="w-full p-2 border border-gray-200 rounded-lg text-sm"
+                                  >
+                                      <option value={PaymentMethod.CARD}>카드</option>
+                                      <option value={PaymentMethod.CASH}>현금</option>
+                                      <option value={PaymentMethod.TRANSFER}>계좌이체</option>
+                                  </select>
+                                  <input
+                                      type="number"
+                                      value={paymentEditForm.paymentDetails?.amount1 || 0}
+                                      onChange={(e) => {
+                                          const val = Number(e.target.value);
+                                          setPaymentEditForm(prev => ({
+                                              ...prev,
+                                              paymentDetails: {
+                                                  ...prev.paymentDetails!,
+                                                  amount1: val,
+                                                  amount2: lockedTotalAmount - val
+                                              }
+                                          }));
+                                      }}
+                                      className="w-full p-2 border border-gray-200 rounded-lg text-sm"
+                                      placeholder="금액 입력"
+                                  />
+                              </div>
+
+                              {/* Second Payment Method */}
+                              <div className="space-y-2">
+                                  <label className="block text-xs font-bold text-gray-700">두 번째 결제 수단</label>
+                                  <select
+                                      value={paymentEditForm.paymentDetails?.method2 || PaymentMethod.CASH}
+                                      onChange={(e) => setPaymentEditForm(prev => ({
+                                          ...prev,
+                                          paymentDetails: {
+                                              ...prev.paymentDetails!,
+                                              method2: e.target.value as PaymentMethod
+                                          }
+                                      }))}
+                                      className="w-full p-2 border border-gray-200 rounded-lg text-sm"
+                                  >
+                                      <option value={PaymentMethod.CARD}>카드</option>
+                                      <option value={PaymentMethod.CASH}>현금</option>
+                                      <option value={PaymentMethod.TRANSFER}>계좌이체</option>
+                                  </select>
+                                  <input
+                                      type="number"
+                                      value={paymentEditForm.paymentDetails?.amount2 || 0}
+                                      readOnly
+                                      className="w-full p-2 border border-gray-200 rounded-lg text-sm bg-gray-50"
+                                      placeholder="자동 계산"
+                                  />
+                              </div>
+
+                              {paymentEditForm.paymentDetails && 
+                               (paymentEditForm.paymentDetails.amount1 + (paymentEditForm.paymentDetails.amount2 || 0)) !== lockedTotalAmount && (
+                                  <div className="text-xs text-red-600 font-bold">
+                                      ⚠️ 합계가 총 금액과 일치하지 않습니다
+                                  </div>
+                              )}
+                          </div>
+                      )}
+                  </div>
+
+                  <div className="flex gap-2 justify-end pt-2">
+                      <button 
+                          onClick={() => setIsPaymentEditModalOpen(false)}
+                          className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-bold hover:bg-gray-50"
+                      >
+                          취소
+                      </button>
+                      <button 
+                          onClick={savePaymentMethodChange}
+                          disabled={
+                              paymentEditForm.paymentMethod === PaymentMethod.COMPLEX && 
+                              paymentEditForm.paymentDetails &&
+                              (paymentEditForm.paymentDetails.amount1 + (paymentEditForm.paymentDetails.amount2 || 0)) !== lockedTotalAmount
+                          }
+                          className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          적용
                       </button>
                   </div>
               </div>

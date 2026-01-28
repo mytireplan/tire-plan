@@ -344,6 +344,36 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
     const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
     const [noticeForm, setNoticeForm] = useState({ title: '', content: '', urgent: false });
 
+    // Load admin announcements (saved in localStorage by AdminDashboard) so staff view sees them
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('adminAnnouncements');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    setNotices(parsed);
+                }
+            }
+
+            const handleStorage = (e: StorageEvent) => {
+                if (e.key === 'adminAnnouncements' && e.newValue) {
+                    try {
+                        const next = JSON.parse(e.newValue);
+                        if (Array.isArray(next)) {
+                            setNotices(next);
+                        }
+                    } catch (err) {
+                        console.error('Failed to sync adminAnnouncements', err);
+                    }
+                }
+            };
+            window.addEventListener('storage', handleStorage);
+            return () => window.removeEventListener('storage', handleStorage);
+        } catch (err) {
+            console.error('Failed to load adminAnnouncements', err);
+        }
+    }, []);
+
     const handleAddNotice = () => {
         if (!noticeForm.title.trim()) { alert('제목을 입력하세요.'); return; }
         const newNotice = { id: `N-${Date.now()}`, title: noticeForm.title.trim(), content: noticeForm.content.trim(), urgent: noticeForm.urgent };

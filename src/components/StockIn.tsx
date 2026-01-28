@@ -235,6 +235,22 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
         onUpdateStockInRecord({ ...record, purchasePrice: numValue });
     };
 
+    const handleUpdateDiscountRate = (record: StockInRecord, val: string) => {
+        const cleaned = val.replace(/[^0-9.]/g, '');
+        if (!cleaned) return;
+        if (!record.factoryPrice) {
+            alert('공장도가를 먼저 입력해주세요.');
+            return;
+        }
+
+        const percent = Number(cleaned);
+        if (Number.isNaN(percent)) return;
+
+        const boundedPercent = Math.min(Math.max(percent, 0), 100);
+        const newPurchasePrice = Math.round(record.factoryPrice * (1 - boundedPercent / 100));
+        onUpdateStockInRecord({ ...record, purchasePrice: newPurchasePrice });
+    };
+
     const handleUpdateQuantity = (record: StockInRecord, val: number) => {
         // Don't allow editing consumed records (from sales)
         if (record.consumedAtSaleId) {
@@ -306,16 +322,11 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     }, [filteredHistory]);
 
     // Calculation of Discount Rate Badge
-    const getDiscountBadge = (factoryPrice: number, purchasePrice: number) => {
-        if (!factoryPrice || !purchasePrice) return null;
+    const getDiscountPercent = (factoryPrice: number, purchasePrice: number) => {
+        if (!factoryPrice || !purchasePrice) return '';
         const discount = ((factoryPrice - purchasePrice) / factoryPrice) * 100;
-        if (discount <= 0) return null;
-
-        return (
-            <div className="bg-blue-50 text-blue-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-100 text-center whitespace-nowrap">
-                {discount.toFixed(1)}%
-            </div>
-        );
+        if (discount < 0) return '0.0';
+        return discount.toFixed(1);
     };
 
     return (
@@ -598,7 +609,7 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                         {isAdminView && (
                                             <>
                                                 <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-right">공장도가</th>
-                                                <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-center">매입가(입력)</th>
+                                                <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-center">매입가 · 할인율(%)</th>
                                                 <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-right">총 매입가</th>
                                                 <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-center">관리</th>
                                             </>
@@ -655,7 +666,15 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                                                     placeholder="0"
                                                                     onChange={(e) => handleUpdatePurchasePrice(record, e.target.value)}
                                                                 />
-                                                                {getDiscountBadge(record.factoryPrice || 0, record.purchasePrice || 0)}
+                                                                <input
+                                                                    type="text"
+                                                                    inputMode="decimal"
+                                                                    className="w-16 p-1 text-[11px] border border-blue-200 rounded text-center font-bold bg-blue-50 text-blue-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                                                    value={getDiscountPercent(record.factoryPrice || 0, record.purchasePrice || 0)}
+                                                                    placeholder="%"
+                                                                    onChange={(e) => handleUpdateDiscountRate(record, e.target.value)}
+                                                                    title="할인율 입력 시 매입가가 자동 계산됩니다"
+                                                                />
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3 text-right font-bold text-gray-800 whitespace-nowrap align-middle">

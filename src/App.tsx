@@ -686,7 +686,16 @@ const App: React.FC = () => {
             where('date', '>=', oneYearAgoStr)
         ];
         salesUnsubRef.current = subscribeToQuery<Sale>(COLLECTIONS.SALES, salesConstraints, (data) => {
-            const sorted = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            // 중복 제거: 같은 sale.id를 가진 문서가 여러 개 있으면 가장 최신 것만 유지
+            const uniqueSalesMap = new Map<string, Sale>();
+            data.forEach(sale => {
+                const existing = uniqueSalesMap.get(sale.id);
+                if (!existing || new Date(sale.date) > new Date(existing.date)) {
+                    uniqueSalesMap.set(sale.id, sale);
+                }
+            });
+            const uniqueSales = Array.from(uniqueSalesMap.values());
+            const sorted = [...uniqueSales].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setSales(sorted);
         });
 
@@ -1741,7 +1750,17 @@ const App: React.FC = () => {
         }
 
         const cleanSaleToSave = JSON.parse(JSON.stringify(saleToSave)) as Sale;
-        setSales(prev => [cleanSaleToSave, ...prev]);
+        
+        // 중복 방지: 같은 ID가 이미 있으면 추가하지 않음
+        setSales(prev => {
+            const exists = prev.some(s => s.id === cleanSaleToSave.id);
+            if (exists) {
+                console.log('⚠️  판매 ID 중복, 추가 생략:', cleanSaleToSave.id);
+                return prev;
+            }
+            return [cleanSaleToSave, ...prev];
+        });
+        
         saveToFirestore<Sale>(COLLECTIONS.SALES, cleanSaleToSave)
                 .then(() => console.log('✅ Sale saved to Firestore:', cleanSaleToSave.id))
                 .catch((err) => console.error('❌ Failed to save sale to Firestore:', err));

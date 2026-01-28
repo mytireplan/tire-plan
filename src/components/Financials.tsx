@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Sale, StockInRecord, ExpenseRecord, FixedCostConfig, SalesFilter, User, Store } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, Trash2, Image as ImageIcon, X, CheckCircle2, AlertTriangle, Calculator, Table, CreditCard, PieChart as PieChartIcon, ChevronLeft, ChevronRight, Store as StoreIcon, Settings as SettingsIcon } from 'lucide-react';
-import { formatCurrency, formatNumber } from '../utils/format';
+import { formatCurrency, formatNumber, isDateInRange } from '../utils/format';
 
 interface FinancialsProps {
   sales: Sale[];
@@ -146,6 +146,20 @@ const Financials: React.FC<FinancialsProps> = ({
         return expenses.filter(e => !e.storeId || e.storeId === selectedStoreId);
     }, [expenses, selectedStoreId]);
 
+    // 판매 상세에 입력된 매입가(원가)를 월별로 집계해 재무에 반영
+    const saleCostFromDetails = useMemo(() => {
+        return filteredSales
+            .filter(s => s.date.startsWith(selectedMonth) && !s.isCanceled)
+            .reduce((saleSum, sale) => {
+                const itemCost = (sale.items || []).reduce((sum, item) => {
+                    const cost = item?.purchasePrice || 0;
+                    const qty = item?.quantity || 0;
+                    return sum + (cost * qty);
+                }, 0);
+                return saleSum + itemCost;
+            }, 0);
+    }, [filteredSales, selectedMonth]);
+
     // --- Data Aggregation Logic ---
 
     // 1. Unsettled Stock (Cost = 0) Analysis
@@ -156,9 +170,16 @@ const Financials: React.FC<FinancialsProps> = ({
 
     // 2. Revenue
     const monthlyRevenue = useMemo(() => {
-        return filteredSales
-            .filter(s => s.date.startsWith(selectedMonth))
-            .reduce((sum, s) => sum + s.totalAmount, 0);
+        const [y, m] = selectedMonth.split('-').map(Number);
+        const start = new Date(y, m - 1, 1);
+        const end = new Date(y, m, 0);
+        end.setHours(23, 59, 59, 999);
+
+        return filteredSales.reduce((sum, s) => {
+            if (s.isCanceled) return sum;
+            if (!isDateInRange(s.date, start, end)) return sum;
+            return sum + s.totalAmount;
+        }, 0);
     }, [filteredSales, selectedMonth]);
 
     // 3. Expenses Calculation
@@ -183,14 +204,15 @@ const Financials: React.FC<FinancialsProps> = ({
         const fixedCost = isAdmin ? filteredFixedCosts.reduce((sum, fc) => sum + fc.amount, 0) : 0;
 
         return {
-            total: confirmedStockCost + variableCost + fixedCost,
+            total: confirmedStockCost + variableCost + fixedCost + saleCostFromDetails,
             stock: confirmedStockCost,
             variable: variableCost,
-            fixed: fixedCost
+            fixed: fixedCost,
+            saleCost: saleCostFromDetails
         };
     };
 
-    const currentStats = useMemo(() => calculateStats(selectedMonth), [selectedMonth, filteredStockHistory, filteredExpenses, fixedCosts, isAdmin]);
+    const currentStats = useMemo(() => calculateStats(selectedMonth), [selectedMonth, filteredStockHistory, filteredExpenses, fixedCosts, isAdmin, saleCostFromDetails]);
     
     // 4. Net Profit (Provisional)
     const netProfit = monthlyRevenue - currentStats.total;
@@ -229,6 +251,28 @@ const Financials: React.FC<FinancialsProps> = ({
                     raw: r
                 });
             });
+
+            // 2-1. 판매 상세 입력 원가를 비용 리스트에 추가 (중복 방지 위해 값이 있는 항목만)
+            filteredSales
+                .filter(s => s.date.startsWith(selectedMonth) && !s.isCanceled)
+                .forEach(sale => {
+                    const costFromDetail = (sale.items || []).reduce((sum, item) => {
+                        const cost = item?.purchasePrice || 0;
+                        const qty = item?.quantity || 0;
+                        return sum + (cost * qty);
+                    }, 0);
+                    if (costFromDetail > 0) {
+                        records.push({
+                            id: `SALECOST-${sale.id}`,
+                            date: sale.date,
+                            type: 'SALE_COST',
+                            category: '판매원가',
+                            description: `${sale.items?.[0]?.productName || '판매'} 원가 입력`,
+                            amount: costFromDetail,
+                            raw: sale
+                        });
+                    }
+                });
         }
 
         // Fixed Costs (Filter by store) with store label

@@ -81,16 +81,21 @@ export const validateOwnerPassword = async (
       };
     }
 
-    // Firestore에서 점주 정보 조회
-    const owner = await getFromFirestore<User>(COLLECTIONS.OWNERS, ownerId);
+    // Firestore에서 점주 정보 조회 (직접 쿼리)
+    const { db } = await import('../firebase');
+    const { getDoc, doc } = await import('firebase/firestore');
     
-    if (!owner) {
+    const ownerDoc = await getDoc(doc(db, COLLECTIONS.OWNERS, ownerId));
+    
+    if (!ownerDoc.exists()) {
       incrementLoginAttempts(ownerId);
       return { 
         valid: false, 
         error: '아이디 또는 비밀번호가 잘못되었습니다.' 
       };
     }
+
+    const owner = ownerDoc.data() as User;
 
     // 비밀번호 검증 (해시 또는 평문)
     let passwordValid = false;
@@ -137,7 +142,7 @@ export const validateOwnerPassword = async (
     console.error('Password validation error:', error);
     return { 
       valid: false, 
-      error: '인증 처리 중 오류가 발생했습니다.' 
+      error: '아이디 또는 비밀번호가 잘못되었습니다.' 
     };
   }
 };
