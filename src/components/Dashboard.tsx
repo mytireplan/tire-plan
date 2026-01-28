@@ -439,37 +439,27 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                {/* 1. Announcements & Leave */}
+                {/* 1. Announcements */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col h-[400px]">
                     <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <Bell className="text-orange-500" size={20} /> 공지 및 휴무
+                        <Bell className="text-orange-500" size={20} /> 공지사항
                     </h3>
                     <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                                                  {/* Notices (local quick announcements) */}
-                                                 {notices.map(n => (
-                                                         <div key={n.id} className={`p-3 ${n.urgent ? 'bg-orange-50 border-orange-100' : 'bg-gray-50 border-gray-100'} rounded-lg relative group`}>
+                                                 {notices.length > 0 ? (
+                                                     notices.map(n => (
+                                                         <div key={n.id} className={`p-3 ${n.urgent ? 'bg-orange-50 border-orange-100' : 'bg-gray-50 border-gray-100'} rounded-lg relative group border`}>
                                                                  <span className={`text-xs font-bold ${n.urgent ? 'text-orange-600' : 'text-gray-500'} bg-white px-2 py-0.5 rounded border ${n.urgent ? 'border-orange-200' : 'border-gray-200'} mb-1 inline-block`}>{n.urgent ? '긴급' : '일반'}</span>
                                                                  <p className="text-sm font-bold text-gray-800 mt-1">{n.title}</p>
                                                                  <p className="text-xs text-gray-500 mt-1">{n.content}</p>
                                                          </div>
-                                                 ))}
-
-                         {/* Staff Leave for Selected Date */}
-                         {upcomingLeaves.length > 0 && (
-                             <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg mb-2">
-                                 <h4 className="text-xs font-bold text-purple-700 mb-2 flex items-center gap-1"><Palmtree size={12}/> 금일 휴무자</h4>
-                                 <div className="space-y-1">
-                                     {upcomingLeaves.map(req => (
-                                         <div key={req.id} className="text-sm text-gray-700 flex justify-between">
-                                             <span>{req.staffName}</span>
-                                             <span className="font-medium text-purple-600">
-                                                {req.type === 'FULL' ? '연차' : req.type === 'HALF_AM' ? '오전반차' : '오후반차'}
-                                             </span>
-                                         </div>
-                                     ))}
-                                 </div>
-                             </div>
-                         )}
+                                                     ))
+                                                 ) : (
+                                                     <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                                                         <Bell size={32} className="opacity-20 mb-2"/>
+                                                         <p className="text-sm">등록된 공지가 없습니다.</p>
+                                                     </div>
+                                                 )}
                     </div>
                 </div>
 
@@ -611,6 +601,37 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                                     );
                                 })}
                              </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* 6. Today's Leave Requests (Staff Off) */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col h-[400px]">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <Palmtree className="text-purple-600" size={20} /> 금일 휴무자
+                    </h3>
+                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                        {upcomingLeaves.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                                <Palmtree size={32} className="opacity-20 mb-2"/>
+                                <p className="text-sm">금일 휴무자가 없습니다.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {upcomingLeaves.map(req => (
+                                    <div key={req.id} className="p-3 bg-purple-50 border border-purple-100 rounded-lg hover:bg-purple-100 transition-colors">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <div className="font-bold text-sm text-gray-800">{req.staffName}</div>
+                                                <div className="text-xs text-gray-500 mt-0.5">{req.date}</div>
+                                            </div>
+                                            <span className="text-sm font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded">
+                                                {req.type === 'FULL' ? '연차' : req.type === 'HALF_AM' ? '오전반차' : '오후반차'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </div>
