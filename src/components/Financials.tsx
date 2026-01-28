@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Sale, StockInRecord, ExpenseRecord, FixedCostConfig, SalesFilter, User, Store } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, Trash2, Image as ImageIcon, X, CheckCircle2, AlertTriangle, Calculator, Table, CreditCard, PieChart as PieChartIcon, ChevronLeft, ChevronRight, Store as StoreIcon, Settings as SettingsIcon } from 'lucide-react';
-import { formatCurrency, formatNumber, isDateInRange } from '../utils/format';
+import { formatCurrency, formatNumber, isDateInRange, formatDateShort } from '../utils/format';
 
 interface FinancialsProps {
   sales: Sale[];
@@ -643,7 +643,7 @@ const Financials: React.FC<FinancialsProps> = ({
                              ) : (
                                  unifiedFinancialRecords.map((record, _idx) => (
                                      <tr key={`${record.type}-${record.id}`} className={`hover:bg-gray-50 transition-colors ${record.isUnsettled ? 'bg-orange-50/60' : ''}`}>
-                                         <td className="px-3 py-2 text-gray-500 font-mono whitespace-nowrap text-center">{record.date.slice(5)}</td>
+                                         <td className="px-3 py-2 text-gray-500 font-mono whitespace-nowrap text-center">{formatDateShort(record.date)}</td>
                                          <td className="px-3 py-2 whitespace-nowrap">
                                              <span className={`px-2 py-0.5 rounded text-xs font-bold border ${
                                                  record.type === 'STOCK' 

@@ -61,4 +61,25 @@ export const formatToKoreaTime = (isoString: string): string => {
   }
 };
 
+// ISO 문자열 또는 YYYY-MM-DD 문자열을 MM-DD 형식으로 변환
+export const formatDateShort = (dateString: string): string => {
+  try {
+    // 이미 YYYY-MM-DD 형식인 경우
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString.slice(5); // "01-30"
+    }
+    // ISO 타임스탬프 형식인 경우 (YYYY-MM-DDTHH:mm:ss.SSSZ)
+    if (dateString.includes('T')) {
+      const date = new Date(dateString);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${month}-${day}`;
+    }
+    // 기타 형식 시도
+    return dateString.slice(5, 10); // 최선의 시도
+  } catch (e) {
+    return dateString.slice(0, 10); // 안전 장치
+  }
+};
+
 export default formatCurrency;
