@@ -83,9 +83,11 @@ const Settings: React.FC<SettingsProps> = ({
         { key: 'pos', label: 'POS 판매', description: '판매 상품 추가 및 결제' },
         { key: 'salesHistory', label: '판매 내역', description: '일일 판매 기록 조회' },
         { key: 'inventory', label: '재고 관리', description: '현재 보유 재고 조회' },
+        { key: 'stockIn', label: '입고 관리', description: '상품 입고 및 매입가 관리' },
         { key: 'reservation', label: '예약 관리', description: '타이어 예약 등록 및 관리' },
         { key: 'customers', label: '고객 관리', description: '고객 정보 조회' },
         { key: 'taxInvoice', label: '세금계산서', description: '세금계산서 발급' },
+        { key: 'financials', label: '재무/결산', description: '매출, 지출, 손익 관리' },
         { key: 'schedule', label: '스케줄', description: '직원 일정 관리' },
     ];
 
