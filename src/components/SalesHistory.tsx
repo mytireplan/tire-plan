@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff } from '../types';
 import { PaymentMethod } from '../types';
-import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar } from 'lucide-react';
+import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar, Zap } from 'lucide-react';
 import { formatCurrency, formatNumber, isDateInRange, formatToKoreaTime } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -427,6 +427,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       case PaymentMethod.CARD: return '카드';
       case PaymentMethod.CASH: return '현금';
       case PaymentMethod.TRANSFER: return '이체';
+      case PaymentMethod.COMPLEX: return '복합결제';
       default: return method;
     }
   };
@@ -456,6 +457,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           case PaymentMethod.CARD: return <CreditCard size={14} />;
           case PaymentMethod.CASH: return <Banknote size={14} />;
           case PaymentMethod.TRANSFER: return <Smartphone size={14} />;
+          case PaymentMethod.COMPLEX: return <Zap size={14} />;
           default: return <CreditCard size={14} />;
       }
   };
@@ -2371,7 +2373,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                   { value: PaymentMethod.CARD, label: '카드', icon: CreditCard, color: 'blue' },
                                   { value: PaymentMethod.CASH, label: '현금', icon: Banknote, color: 'emerald' },
                                   { value: PaymentMethod.TRANSFER, label: '계좌이체', icon: Smartphone, color: 'violet' },
-                                  { value: PaymentMethod.COMPLEX, label: '복합결제', icon: CreditCard, color: 'orange' }
+                                  { value: PaymentMethod.COMPLEX, label: '복합결제', icon: Zap, color: 'orange' }
                               ].map(method => {
                                   const Icon = method.icon;
                                   const isActive = paymentEditForm.paymentMethod === method.value;
