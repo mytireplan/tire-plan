@@ -9,6 +9,8 @@ interface SettingsProps {
   onAddStore: (name: string) => void;
   onUpdateStore: (id: string, name: string) => void;
   onRemoveStore: (id: string) => void;
+  onUpdateStorePassword?: (storeId: string, password: string) => void;
+  onToggleStorePasswordRequired?: (storeId: string, required: boolean) => void;
   
   currentAdminPassword: string;
   onUpdatePassword: (newPass: string) => void;
@@ -37,6 +39,7 @@ interface SettingsProps {
 
 const Settings: React.FC<SettingsProps> = ({ 
     stores, onUpdateStore, onRemoveStore, 
+    onUpdateStorePassword, onToggleStorePasswordRequired,
     currentAdminPassword, onUpdatePassword,
     currentOwnerPin, onUpdateOwnerPin,
     currentManagerPin, onUpdateManagerPin,
@@ -303,24 +306,57 @@ const Settings: React.FC<SettingsProps> = ({
                 
                 <div className="flex-1 overflow-y-auto min-h-[200px] mb-4 border rounded-lg bg-gray-50">
                     {stores.map(store => (
-                        <div key={store.id} className="flex justify-between items-center p-3 border-b border-gray-200 last:border-0 hover:bg-gray-50 group transition-colors">
-                            <span className="font-medium text-gray-700">{store.name}</span>
-                            <div className="flex items-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                    onClick={() => openEditModal(store)}
-                                    className="text-blue-400 hover:text-blue-600 p-1.5 hover:bg-blue-50 rounded transition-colors"
-                                    title="수정"
-                                >
-                                    <Edit2 size={16} />
-                                </button>
-                                {/* Only allow delete if multiple stores exist, though logic might need to be stricter */}
-                                {stores.length > 1 && (
+                        <div key={store.id} className="p-3 border-b border-gray-200 last:border-0 hover:bg-gray-50 group transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="font-medium text-gray-700">{store.name}</span>
+                                <div className="flex items-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
                                     <button 
-                                        onClick={() => openDeleteModal(store)}
-                                        className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition-colors"
-                                        title="폐점 (삭제)"
+                                        onClick={() => openEditModal(store)}
+                                        className="text-blue-400 hover:text-blue-600 p-1.5 hover:bg-blue-50 rounded transition-colors"
+                                        title="수정"
                                     >
-                                        <Trash2 size={16} />
+                                        <Edit2 size={16} />
+                                    </button>
+                                    {stores.length > 1 && (
+                                        <button 
+                                            onClick={() => openDeleteModal(store)}
+                                            className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition-colors"
+                                            title="폐점 (삭제)"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* Store Password Settings */}
+                            <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={store.requiresPassword || false}
+                                            onChange={(e) => {
+                                                if (onToggleStorePasswordRequired) {
+                                                    onToggleStorePasswordRequired(store.id, e.target.checked);
+                                                }
+                                            }}
+                                            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <span className="text-gray-700 font-medium">진입 시 비밀번호 필요</span>
+                                    </label>
+                                </div>
+                                {store.requiresPassword && (
+                                    <button
+                                        onClick={() => {
+                                            const newPassword = prompt(`${store.name} 비밀번호 변경 (숫자 4자리 권장):`, store.storePassword || '1234');
+                                            if (newPassword && onUpdateStorePassword) {
+                                                onUpdateStorePassword(store.id, newPassword);
+                                            }
+                                        }}
+                                        className="px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium"
+                                    >
+                                        비밀번호 변경
                                     </button>
                                 )}
                             </div>

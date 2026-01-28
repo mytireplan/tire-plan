@@ -3,6 +3,8 @@ export interface Store {
   id: string;
   name: string;
   ownerId?: string; // Owning account ID (for scoping)
+  requiresPassword?: boolean; // Toggle: true면 지점 진입 시 비밀번호 필요
+  storePassword?: string; // 지점별 비밀번호 (기본값: '1234')
 }
 
 // Store Account for Login (Owners)

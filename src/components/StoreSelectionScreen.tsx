@@ -15,6 +15,12 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [error, setError] = useState('');
+  
+  // Store-specific password modal state
+  const [showStorePasswordModal, setShowStorePasswordModal] = useState(false);
+  const [selectedStore, setSelectedStore] = useState<StoreAccount | null>(null);
+  const [storePasswordInput, setStorePasswordInput] = useState('');
+  const [storePasswordError, setStorePasswordError] = useState('');
 
   const handleAdminLoginClick = () => {
       setShowPasswordModal(true);
@@ -34,8 +40,29 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
   };
 
   const handleStoreClick = (store: StoreAccount) => {
-      // Direct Click -> Enter as STAFF for that store
-      onSelectStore(store.id, 'STAFF');
+      // Check if store requires password
+      if (store.requiresPassword) {
+          setSelectedStore(store);
+          setShowStorePasswordModal(true);
+          setStorePasswordInput('');
+          setStorePasswordError('');
+      } else {
+          // Direct entry without password
+          onSelectStore(store.id, 'STAFF');
+      }
+  };
+
+  const handleStorePasswordSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!selectedStore) return;
+      
+      const correctPassword = selectedStore.storePassword || '1234';
+      if (storePasswordInput === correctPassword) {
+          setShowStorePasswordModal(false);
+          onSelectStore(selectedStore.id, 'STAFF');
+      } else {
+          setStorePasswordError('비밀번호가 일치하지 않습니다.');
+      }
   };
 
   return (
@@ -158,6 +185,56 @@ const StoreSelectionScreen: React.FC<StoreSelectionScreenProps> = ({ stores, onS
                       >
                           <Lock size={16} />
                           통합 로그인 진입
+                      </button>
+                  </form>
+              </div>
+          </div>
+      )}
+
+      {/* Store Password Modal */}
+      {showStorePasswordModal && selectedStore && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 animate-scale-in relative">
+                  <button 
+                    onClick={() => {
+                        setShowStorePasswordModal(false);
+                        setSelectedStore(null);
+                    }} 
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                  >
+                      <X size={20} />
+                  </button>
+                  
+                  <div className="text-center mb-6">
+                      <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Lock size={32} />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900">{selectedStore.name}</h3>
+                      <p className="text-sm text-gray-500 mt-1">지점 비밀번호를 입력하세요</p>
+                  </div>
+
+                  <form onSubmit={handleStorePasswordSubmit}>
+                      <input 
+                          autoFocus
+                          type="password" 
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="비밀번호" 
+                          className="w-full p-3 border border-gray-300 rounded-xl mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center text-lg"
+                          value={storePasswordInput}
+                          onChange={(e) => {
+                              setStorePasswordInput(e.target.value);
+                              setStorePasswordError('');
+                          }}
+                      />
+                      {storePasswordError && <p className="text-xs text-red-500 text-center mb-3 font-bold">{storePasswordError}</p>}
+                      
+                      <button 
+                        type="submit"
+                        className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg flex items-center justify-center gap-2"
+                      >
+                          <Lock size={16} />
+                          지점 접속
                       </button>
                   </form>
               </div>

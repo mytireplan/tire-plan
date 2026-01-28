@@ -1677,6 +1677,28 @@ const App: React.FC = () => {
                 .then(() => console.log('✅ Store deleted in Firestore:', id))
                 .catch((err) => console.error('❌ Failed to delete store in Firestore:', err));
     };
+
+    const handleUpdateStorePassword = (storeId: string, password: string) => {
+        const updated = stores.map(s => s.id === storeId ? { ...s, storePassword: password } : s);
+        setStores(updated);
+        const target = updated.find(s => s.id === storeId);
+        if (target) {
+            saveToFirestore<StoreAccount>(COLLECTIONS.STORES, target)
+                .then(() => console.log('✅ Store password updated in Firestore:', target.id))
+                .catch((err) => console.error('❌ Failed to update store password in Firestore:', err));
+        }
+    };
+
+    const handleToggleStorePasswordRequired = (storeId: string, required: boolean) => {
+        const updated = stores.map(s => s.id === storeId ? { ...s, requiresPassword: required } : s);
+        setStores(updated);
+        const target = updated.find(s => s.id === storeId);
+        if (target) {
+            saveToFirestore<StoreAccount>(COLLECTIONS.STORES, target)
+                .then(() => console.log('✅ Store password requirement updated in Firestore:', target.id))
+                .catch((err) => console.error('❌ Failed to update store password requirement in Firestore:', err));
+        }
+    };
   
   const handleAddStaff = (name: string) => {
       const selectStoreId = currentStoreId && currentStoreId !== 'ALL'
@@ -3054,6 +3076,8 @@ const App: React.FC = () => {
             {activeTab === 'settings' && effectiveUser.role === 'STORE_ADMIN' && (
                 <Settings
                 stores={visibleStores} onAddStore={handleAddStore} onUpdateStore={handleUpdateStore} onRemoveStore={handleRemoveStore}
+                onUpdateStorePassword={handleUpdateStorePassword}
+                onToggleStorePasswordRequired={handleToggleStorePasswordRequired}
                 staffPermissions={staffPermissions} onUpdatePermissions={setStaffPermissions}
                 currentAdminPassword={currentUserPassword} onUpdatePassword={handleUpdatePassword}
                 currentOwnerPin={ownerPin} onUpdateOwnerPin={handleUpdateOwnerPin}
