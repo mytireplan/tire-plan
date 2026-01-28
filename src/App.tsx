@@ -6,7 +6,7 @@ import { db, auth } from './firebase';
 import { PaymentMethod } from './types';
 
 // 2. 설계도(Type)인 친구들은 type을 붙여서 가져옵니다.
-import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift, SalesItem } from './types';
+import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift, SalesItem, MenuType } from './types';
 
 // Firebase imports
 import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery, subscribeToCollection } from './utils/firestore'; 
@@ -625,6 +625,42 @@ const App: React.FC = () => {
     viewSalesHistory: true,
     viewTaxInvoice: true,
   });
+
+  // Staff Menu Access Control
+  const [staffMenuAccess, setStaffMenuAccess] = useState<Record<MenuType, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(`staffMenuAccess_${DEFAULT_OWNER_ID}`);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (err) {
+      console.error('Failed to load staff menu access', err);
+    }
+    // Default menu access
+    return {
+      dashboard: true,
+      pos: true,
+      salesHistory: true,
+      inventory: true,
+      reservation: true,
+      customers: true,
+      taxInvoice: false,
+      stockIn: false,
+      financials: false,
+      schedule: true,
+      settings: false,
+    };
+  });
+
+  // Save menu access to localStorage
+  const handleUpdateStaffMenuAccess = (menus: Record<MenuType, boolean>) => {
+    setStaffMenuAccess(menus);
+    try {
+      localStorage.setItem(`staffMenuAccess_${currentUser?.id || DEFAULT_OWNER_ID}`, JSON.stringify(menus));
+    } catch (err) {
+      console.error('Failed to save staff menu access', err);
+    }
+  };
 
         const [stores, setStores] = useState<StoreAccount[]>(INITIAL_STORE_ACCOUNTS);
         const [tireBrands, setTireBrands] = useState<string[]>(INITIAL_TIRE_BRANDS);
@@ -2606,24 +2642,36 @@ const App: React.FC = () => {
         return [{ id: 'superadmin', label: '매장 관리', icon: LayoutDashboard, show: true, type: 'CORE' }];
     }
     const isAdmin = effectiveUser?.role === 'STORE_ADMIN'; 
+    const isStaff = effectiveUser?.role === 'STAFF';
+    
     const items = [
-      { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, show: true, type: 'CORE' },
-      { id: 'pos', label: '판매 (POS)', icon: ShoppingCart, show: true, type: 'CORE' },
-      { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: true, type: 'CORE' },
-      { id: 'history', label: '판매 내역', icon: List, show: true, type: 'CORE' }, 
-      { id: 'tax', label: '세금계산서', icon: FileText, show: true, type: 'CORE' }, 
-    { id: 'customers', label: '고객 관리', icon: Users, show: isAdmin && !managerSession, type: 'ADMIN' }, // Admin Only (숨김: 점장 세션)
+      { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, show: true, type: 'CORE', menuKey: 'dashboard' as MenuType },
+      { id: 'pos', label: '판매 (POS)', icon: ShoppingCart, show: true, type: 'CORE', menuKey: 'pos' as MenuType },
+      { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: true, type: 'CORE', menuKey: 'reservation' as MenuType },
+      { id: 'history', label: '판매 내역', icon: List, show: true, type: 'CORE', menuKey: 'salesHistory' as MenuType }, 
+      { id: 'tax', label: '세금계산서', icon: FileText, show: true, type: 'CORE', menuKey: 'taxInvoice' as MenuType }, 
+      { id: 'customers', label: '고객 관리', icon: Users, show: isAdmin && !managerSession, type: 'ADMIN', menuKey: 'customers' as MenuType }, // Admin Only (숨김: 점장 세션)
       { id: 'DIVIDER_1', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
-      { id: 'inventory', label: '재고 관리', icon: Package, show: true, type: 'CORE' }, 
-      { id: 'stockIn', label: '입고 관리', icon: Truck, show: true, type: 'CORE' }, 
-      { id: 'financials', label: isAdmin ? '재무/결산' : '지출', icon: PieChart, show: true, type: 'CORE' }, // Dynamic Label
+      { id: 'inventory', label: '재고 관리', icon: Package, show: true, type: 'CORE', menuKey: 'inventory' as MenuType }, 
+      { id: 'stockIn', label: '입고 관리', icon: Truck, show: true, type: 'CORE', menuKey: 'stockIn' as MenuType }, 
+      { id: 'financials', label: isAdmin ? '재무/결산' : '지출', icon: PieChart, show: true, type: 'CORE', menuKey: 'financials' as MenuType }, // Dynamic Label
       { id: 'DIVIDER_2', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
-    { id: 'leave', label: '근무표', icon: Calendar, show: true, type: 'CORE' },
+      { id: 'leave', label: '근무표', icon: Calendar, show: true, type: 'CORE', menuKey: 'schedule' as MenuType },
       // Settings: Show only if isAdmin
-            { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin && !managerSession, type: 'ADMIN' } 
+      { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin && !managerSession, type: 'ADMIN', menuKey: 'settings' as MenuType } 
     ];
-    return items.filter(item => item.show);
-  }, [effectiveUser, staffPermissions]);
+    
+    // Filter by staff menu access if user is STAFF
+    return items.filter(item => {
+      if (!item.show) return false;
+      if (item.type === 'DIVIDER') return true;
+      if (isAdmin) return true; // Admin sees all
+      if (isStaff && item.menuKey) {
+        return staffMenuAccess[item.menuKey] !== false; // Hide if explicitly disabled
+      }
+      return true;
+    });
+  }, [effectiveUser, staffPermissions, staffMenuAccess, managerSession]);
 
   const currentUserPassword = users.find(u => u.id === currentUser?.id)?.password || '';
 
@@ -3055,6 +3103,7 @@ const App: React.FC = () => {
                 <Settings
                 stores={visibleStores} onAddStore={handleAddStore} onUpdateStore={handleUpdateStore} onRemoveStore={handleRemoveStore}
                 staffPermissions={staffPermissions} onUpdatePermissions={setStaffPermissions}
+                staffMenuAccess={staffMenuAccess} onUpdateStaffMenuAccess={handleUpdateStaffMenuAccess}
                 currentAdminPassword={currentUserPassword} onUpdatePassword={handleUpdatePassword}
                 currentOwnerPin={ownerPin} onUpdateOwnerPin={handleUpdateOwnerPin}
                 currentManagerPin={storePin} onUpdateManagerPin={handleUpdateManagerPin}
