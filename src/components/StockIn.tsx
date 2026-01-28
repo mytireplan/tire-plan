@@ -232,23 +232,25 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     const handleUpdatePurchasePrice = (record: StockInRecord, val: string) => {
         const rawValue = val.replace(/[^0-9]/g, '');
         const numValue = Number(rawValue);
+        // 매입가가 입력되면 factoryPrice도 설정되지 않았다면 그대로 저장
+        // 이미 factoryPrice가 있다면, 매입가만 변경 (할인율은 자동 계산됨)
         onUpdateStockInRecord({ ...record, purchasePrice: numValue });
     };
 
     const handleUpdateDiscountRate = (record: StockInRecord, val: string) => {
         const cleaned = val.replace(/[^0-9.]/g, '');
         if (!cleaned) return;
-        if (!record.factoryPrice) {
-            alert('공장도가를 먼저 입력해주세요.');
-            return;
-        }
 
         const percent = Number(cleaned);
         if (Number.isNaN(percent)) return;
 
         const boundedPercent = Math.min(Math.max(percent, 0), 100);
-        const newPurchasePrice = Math.round(record.factoryPrice * (1 - boundedPercent / 100));
-        onUpdateStockInRecord({ ...record, purchasePrice: newPurchasePrice });
+        
+        // factoryPrice가 있으면 매입가 계산, 없으면 현재 factoryPrice 유지
+        if (record.factoryPrice && record.factoryPrice > 0) {
+            const newPurchasePrice = Math.round(record.factoryPrice * (1 - boundedPercent / 100));
+            onUpdateStockInRecord({ ...record, purchasePrice: newPurchasePrice });
+        }
     };
 
     const handleUpdateQuantity = (record: StockInRecord, val: number) => {
@@ -665,15 +667,21 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                                                     value={record.purchasePrice ? formatNumber(record.purchasePrice) : ''}
                                                                     placeholder="0"
                                                                     onChange={(e) => handleUpdatePurchasePrice(record, e.target.value)}
+                                                                    title="매입가 입력 (factoryPrice 있으면 할인율에서 자동 계산)"
                                                                 />
                                                                 <input
                                                                     type="text"
                                                                     inputMode="decimal"
-                                                                    className="w-16 p-1 text-[11px] border border-blue-200 rounded text-center font-bold bg-blue-50 text-blue-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                                                    className={`w-16 p-1 text-[11px] border rounded text-center font-bold focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none ${
+                                                                        record.factoryPrice && record.factoryPrice > 0 
+                                                                            ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                                                            : 'bg-gray-50 text-gray-500 border-gray-200'
+                                                                    }`}
                                                                     value={getDiscountPercent(record.factoryPrice || 0, record.purchasePrice || 0)}
                                                                     placeholder="%"
                                                                     onChange={(e) => handleUpdateDiscountRate(record, e.target.value)}
-                                                                    title="할인율 입력 시 매입가가 자동 계산됩니다"
+                                                                    title={record.factoryPrice && record.factoryPrice > 0 ? "할인율 입력 시 매입가가 자동 계산됩니다" : "공장도가가 필요합니다"}
+                                                                    disabled={!record.factoryPrice || record.factoryPrice <= 0}
                                                                 />
                                                             </div>
                                                         </td>
