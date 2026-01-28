@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
-import type { Store, Staff, StaffPermissions, Subscription, BillingKey, PaymentHistory, SubscriptionPlan } from '../types';
-import { Settings as SettingsIcon, Plus, Trash2, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, Eye, EyeOff, Check, CreditCard } from 'lucide-react';
+import type { Store, Staff, StaffPermissions, Subscription, BillingKey, PaymentHistory, SubscriptionPlan, MenuType } from '../types';
+import { Settings as SettingsIcon, Plus, Trash2, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, Eye, EyeOff, Check, CreditCard, Zap } from 'lucide-react';
 import SubscriptionManagement from './SubscriptionManagement';
 
 interface SettingsProps {
@@ -26,6 +26,9 @@ interface SettingsProps {
     staffPermissions: StaffPermissions;
     onUpdatePermissions: (next: StaffPermissions) => void;
     
+  staffMenuAccess?: Record<MenuType, boolean>;
+  onUpdateStaffMenuAccess?: (menus: Record<MenuType, boolean>) => void;
+    
   // Subscription props
   currentSubscription?: Subscription | null;
   billingKeys?: BillingKey[];
@@ -42,6 +45,8 @@ const Settings: React.FC<SettingsProps> = ({
     currentManagerPin, onUpdateManagerPin,
         staffList, onAddStaff, onRemoveStaff, currentStoreId,
         staffPermissions, onUpdatePermissions,
+        staffMenuAccess,
+        onUpdateStaffMenuAccess,
         currentSubscription = null,
         billingKeys = [],
         paymentHistory = [],
@@ -55,6 +60,46 @@ const Settings: React.FC<SettingsProps> = ({
     
     // Tab Navigation State
     const [activeSettingsTab, setActiveSettingsTab] = useState<'system' | 'subscription'>('system');
+    
+    // Menu Access State - initialize with proper typing
+    const defaultMenuAccess: Record<MenuType, boolean> = {
+        dashboard: true,
+        pos: true,
+        salesHistory: true,
+        inventory: true,
+        reservation: true,
+        customers: true,
+        taxInvoice: false,
+        stockIn: false,
+        financials: false,
+        schedule: true,
+        settings: false,
+    };
+    const [menuAccess, setMenuAccess] = useState<Record<MenuType, boolean>>(staffMenuAccess || defaultMenuAccess);
+
+    // Menu configuration
+    const staffMenuItems: { key: MenuType; label: string; description: string }[] = [
+        { key: 'dashboard', label: '대시보드', description: '판매량, 수익, 지표 조회' },
+        { key: 'pos', label: 'POS 판매', description: '판매 상품 추가 및 결제' },
+        { key: 'salesHistory', label: '판매 내역', description: '일일 판매 기록 조회' },
+        { key: 'inventory', label: '재고 관리', description: '현재 보유 재고 조회' },
+        { key: 'reservation', label: '예약 관리', description: '타이어 예약 등록 및 관리' },
+        { key: 'customers', label: '고객 관리', description: '고객 정보 조회' },
+        { key: 'taxInvoice', label: '세금계산서', description: '세금계산서 발급' },
+        { key: 'schedule', label: '스케줄', description: '직원 일정 관리' },
+    ];
+
+    useEffect(() => {
+        if (staffMenuAccess) {
+            setMenuAccess(staffMenuAccess);
+        }
+    }, [staffMenuAccess]);
+
+    const handleMenuToggle = (menu: MenuType) => {
+        const updated = { ...menuAccess, [menu]: !menuAccess[menu] };
+        setMenuAccess(updated);
+        onUpdateStaffMenuAccess?.(updated);
+    };
   // Store Editing State
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [editStoreNameInput, setEditStoreNameInput] = useState('');
@@ -387,6 +432,57 @@ const Settings: React.FC<SettingsProps> = ({
                     </button>
                 </form>
 
+            </div>
+        </div>
+
+        {/* Menu Access Control for Staff */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+            <div className="p-6 bg-gradient-to-r from-purple-50 to-blue-50 border-b border-gray-200 flex items-center gap-3">
+                <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
+                    <Zap className="text-purple-600" size={24} />
+                </div>
+                <div>
+                    <h3 className="font-bold text-lg text-gray-800">직원 메뉴 접근 권한</h3>
+                    <p className="text-xs text-gray-500 mt-1">직원 화면에 표시될 메뉴를 선택하세요. 토글을 켜면 직원이 해당 메뉴를 사용할 수 있습니다.</p>
+                </div>
+            </div>
+
+            <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {staffMenuItems.map((item) => (
+                        <button
+                            key={item.key}
+                            onClick={() => handleMenuToggle(item.key)}
+                            className={`p-4 rounded-lg border-2 transition-all text-left flex items-center justify-between ${
+                                menuAccess[item.key]
+                                    ? 'border-purple-300 bg-purple-50'
+                                    : 'border-gray-200 bg-gray-50'
+                            }`}
+                        >
+                            <div className="flex-1">
+                                <div className="font-bold text-gray-800">{item.label}</div>
+                                <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>
+                            </div>
+                            <div className={`ml-3 w-12 h-7 rounded-full flex items-center transition-all ${
+                                menuAccess[item.key] ? 'bg-purple-600' : 'bg-gray-300'
+                            }`}>
+                                <div className={`w-6 h-6 rounded-full bg-white transition-transform ${
+                                    menuAccess[item.key] ? 'translate-x-5' : 'translate-x-0.5'
+                                }`} />
+                            </div>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex gap-2">
+                        <AlertCircle size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-xs text-blue-700">
+                            <div className="font-bold mb-1">💡 팁</div>
+                            <div>토글을 끈 메뉴는 직원이 접근할 수 없습니다. 필요시 선택적으로 활성화하세요.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
