@@ -41,4 +41,24 @@ export const isDateInRange = (
   return dateStr >= startStr && dateStr <= endStr;
 };
 
+// ISO 문자열을 한국 시간(Asia/Seoul)으로 포맷된 문자열로 변환
+export const formatToKoreaTime = (isoString: string): string => {
+  try {
+    const date = new Date(isoString);
+    // Intl.DateTimeFormat을 사용하여 한국 시간으로 포맷
+    const formatter = new Intl.DateTimeFormat('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    return formatter.format(date);
+  } catch (e) {
+    return isoString;
+  }
+};
+
 export default formatCurrency;

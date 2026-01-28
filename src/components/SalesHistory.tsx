@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff } from '../types';
 import { PaymentMethod } from '../types';
 import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar } from 'lucide-react';
-import { formatCurrency, formatNumber, isDateInRange } from '../utils/format';
+import { formatCurrency, formatNumber, isDateInRange, formatToKoreaTime } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface SalesHistoryProps {
@@ -2037,7 +2037,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                           <div className="bg-red-50 border border-red-200 p-4 rounded-xl text-center">
                               <AlertTriangle size={32} className="text-red-500 mx-auto mb-2"/>
                               <h3 className="font-bold text-red-600">결제 취소된 내역입니다.</h3>
-                              <p className="text-xs text-gray-500">취소일시: {selectedSale.cancelDate ? new Date(selectedSale.cancelDate).toLocaleString() : '-'}</p>
+                              <p className="text-xs text-gray-500">취소일시: {selectedSale.cancelDate ? formatToKoreaTime(selectedSale.cancelDate) : '-'}</p>
                           </div>
                       )}
 
@@ -2072,7 +2072,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                      )}
                                  </div>
                              )}
-                             <div className="text-xs text-gray-500 mb-1">{new Date(selectedSale.date).toLocaleString()}</div>
+                             <div className="text-xs text-gray-500 mb-1">{formatToKoreaTime(selectedSale.date)}</div>
                              <div className="text-xs text-emerald-700 font-bold flex items-center justify-end gap-1">
                                 <BadgeCheck size={12}/> {editFormData.staffName || '-'}
                              </div>
