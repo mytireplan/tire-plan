@@ -75,7 +75,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     // 계정 잠금 확인
     if (isAccountLocked(userId)) {
-        setError('너무 많은 로그인 실패로 계정이 잠겼습니다. 30분 후 다시 시도해주세요.');
+        setError('너무 많은 로그인 실패로 계정이 잠겼습니다. 5분 후 다시 시도해주세요.');
         return;
     }
 

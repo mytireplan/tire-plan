@@ -35,8 +35,8 @@ const getLoginAttempts = (ownerId: string): number => {
   if (!data) return 0;
   
   const { count, timestamp } = JSON.parse(data);
-  // 30분 후 초기화
-  if (Date.now() - timestamp > 30 * 60 * 1000) {
+  // 5분 후 초기화
+  if (Date.now() - timestamp > 5 * 60 * 1000) {
     localStorage.removeItem(key);
     return 0;
   }
@@ -77,7 +77,7 @@ export const validateOwnerPassword = async (
       return { 
         valid: false,
         locked: true,
-        error: '너무 많은 로그인 실패로 계정이 잠겼습니다. 30분 후 다시 시도해주세요.' 
+        error: '너무 많은 로그인 실패로 계정이 잠겼습니다. 5분 후 다시 시도해주세요.' 
       };
     }
 
@@ -126,7 +126,7 @@ export const validateOwnerPassword = async (
         return { 
           valid: false,
           locked: true,
-          error: '너무 많은 로그인 실패로 계정이 잠겼습니다. 30분 후 다시 시도해주세요.' 
+          error: '너무 많은 로그인 실패로 계정이 잠겼습니다. 5분 후 다시 시도해주세요.' 
         };
       }
       return { 
