@@ -1638,7 +1638,7 @@ const App: React.FC = () => {
       })));
   };
 
-  const handleResetPassword = (ownerId: string) => {
+  const handleResetPassword = async (ownerId: string) => {
       console.log('🔄 Attempting to reset password for:', ownerId);
       
       // 현재 사용자 정보를 찾기
@@ -1651,23 +1651,31 @@ const App: React.FC = () => {
 
       console.log('📋 Current user data:', userToUpdate);
 
-      // 메모리 상태 업데이트
-      setUsers(prev => prev.map(u => u.id === ownerId ? { ...u, password: 'admin1234' } : u));
-      
-      // Firestore에 저장 (id는 반드시 포함)
-      const updatedUser = { ...userToUpdate, password: 'admin1234' };
-      console.log('💾 Data to save in Firestore:', updatedUser);
-      
-      saveToFirestore<User>(COLLECTIONS.OWNERS, updatedUser)
-          .then(() => {
-              console.log('✅ Password reset successfully in Firestore:', ownerId);
-              console.log('📍 Saved to: owners/', ownerId);
-              alert('비밀번호가 admin1234로 초기화되었습니다.\n\n✅ Firestore에 저장되었습니다.');
-          })
-          .catch((err) => {
-              console.error('❌ Failed to reset password in Firestore:', err);
-              alert('❌ 비밀번호 초기화에 실패했습니다.\n\n오류: ' + err.message);
-          });
+      try {
+          // 새 비밀번호를 해시로 변환
+          const newPasswordHash = await hashPassword('admin1234');
+          
+          // 메모리 상태 업데이트 (password와 passwordHash 모두)
+          setUsers(prev => prev.map(u => u.id === ownerId ? { ...u, password: 'admin1234', passwordHash: newPasswordHash } : u));
+          
+          // Firestore에 저장 (password와 passwordHash 모두 포함)
+          const updatedUser = { ...userToUpdate, password: 'admin1234', passwordHash: newPasswordHash };
+          console.log('💾 Data to save in Firestore:', { id: updatedUser.id, password: 'admin1234', hasPasswordHash: !!newPasswordHash });
+          
+          await saveToFirestore<User>(COLLECTIONS.OWNERS, updatedUser)
+              .then(() => {
+                  console.log('✅ Password reset successfully in Firestore:', ownerId);
+                  console.log('📍 Saved to: owners/', ownerId, '{ password, passwordHash }');
+                  alert('비밀번호가 admin1234로 초기화되었습니다.\n\n✅ Firestore에 저장되었습니다.');
+              })
+              .catch((err) => {
+                  console.error('❌ Failed to reset password in Firestore:', err);
+                  alert('❌ 비밀번호 초기화에 실패했습니다.\n\n오류: ' + err.message);
+              });
+      } catch (err) {
+          console.error('❌ Hash generation failed:', err);
+          alert('❌ 비밀번호 초기화에 실패했습니다.\n\n오류: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
+      }
   };
 
     const handleDeleteStore = (storeId: string) => {
