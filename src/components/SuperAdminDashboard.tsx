@@ -633,7 +633,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                                 ) : (
                                     <>
                                         <span className="font-bold text-gray-800">{actionConfirm.targetName}</span> 님의 비밀번호를<br/>
-                                        <span className="font-bold text-blue-600">'1234'</span>로 초기화하시겠습니까?
+                                        <span className="font-bold text-blue-600">'admin1234'</span>로 초기화하시겠습니까?
                                     </>
                                 )}
                             </p>
