@@ -1639,27 +1639,34 @@ const App: React.FC = () => {
   };
 
   const handleResetPassword = (ownerId: string) => {
+      console.log('🔄 Attempting to reset password for:', ownerId);
+      
       // 현재 사용자 정보를 찾기
       const userToUpdate = users.find(u => u.id === ownerId);
       if (!userToUpdate) {
+          console.error('❌ User not found:', ownerId);
           alert('사용자를 찾을 수 없습니다.');
           return;
       }
+
+      console.log('📋 Current user data:', userToUpdate);
 
       // 메모리 상태 업데이트
       setUsers(prev => prev.map(u => u.id === ownerId ? { ...u, password: '1234' } : u));
       
       // Firestore에 저장 (id는 반드시 포함)
       const updatedUser = { ...userToUpdate, password: '1234' };
+      console.log('💾 Data to save in Firestore:', updatedUser);
       
       saveToFirestore<User>(COLLECTIONS.OWNERS, updatedUser)
           .then(() => {
               console.log('✅ Password reset successfully in Firestore:', ownerId);
-              alert('비밀번호가 1234로 초기화되었습니다.');
+              console.log('📍 Saved to: owners/', ownerId);
+              alert('비밀번호가 1234로 초기화되었습니다.\n\n✅ Firestore에 저장되었습니다.');
           })
           .catch((err) => {
               console.error('❌ Failed to reset password in Firestore:', err);
-              alert('비밀번호 초기화에 실패했습니다.');
+              alert('❌ 비밀번호 초기화에 실패했습니다.\n\n오류: ' + err.message);
           });
   };
 
