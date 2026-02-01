@@ -1193,12 +1193,14 @@ const App: React.FC = () => {
 
   const visibleCustomers = useMemo(() => {
       if (currentUser?.role === 'SUPER_ADMIN') return customers;
-      // Filter customers by ownerId. 
-      // For Staff, currentUser.id is the Owner's ID (since they logged in via Owner account essentially)
-      // or we rely on the fact that staff view is scoped by store anyway.
-      // But customers are shared per Owner.
-      return customers.filter(c => c.ownerId === currentUser?.id);
-  }, [customers, currentUser]);
+      // Filter customers by ownerId and storeId for multi-tenant data isolation
+      // STORE_ADMIN: see only customers from their assigned stores
+      // STAFF: see only customers from their assigned store
+      return customers.filter(c => 
+          c.ownerId === currentUser?.id && 
+          (c.storeId ? visibleStoreIds.includes(c.storeId) : true) // backward compatible with old data
+      );
+  }, [customers, currentUser, visibleStoreIds]);
 
   const visibleProducts = useMemo(() => {
       if (!currentUser) return [];
@@ -1795,8 +1797,8 @@ const App: React.FC = () => {
         
         // Find existing customer by phone OR vehicle number
         const existing = customers.find(c => {
-            const phoneMatch = custPhone && c.phoneNumber === custPhone && c.ownerId === ownerScopeId;
-            const vehicleMatch = custVehicle && c.vehicleNumber === custVehicle && c.ownerId === ownerScopeId;
+            const phoneMatch = custPhone && c.phoneNumber === custPhone && c.ownerId === ownerScopeId && c.storeId === saleToSave.storeId;
+            const vehicleMatch = custVehicle && c.vehicleNumber === custVehicle && c.ownerId === ownerScopeId && c.storeId === saleToSave.storeId;
             return phoneMatch || vehicleMatch;
         });
         
@@ -1808,7 +1810,8 @@ const App: React.FC = () => {
                 totalSpent: saleToSave.totalAmount,
                 lastVisitDate: saleToSave.date,
                 visitCount: 1,
-                ownerId: ownerScopeId
+                ownerId: ownerScopeId,
+                storeId: saleToSave.storeId // Multi-tenant data isolation
             };
             if (saleToSave.customer!.carModel) base.carModel = saleToSave.customer!.carModel;
             if (custVehicle) base.vehicleNumber = custVehicle;
@@ -1829,8 +1832,8 @@ const App: React.FC = () => {
             // Update existing customer stats
             let updatedCustomer: Customer | null = null;
             setCustomers(prev => prev.map(c => {
-                const phoneMatch = custPhone && c.phoneNumber === custPhone && c.ownerId === ownerScopeId;
-                const vehicleMatch = custVehicle && c.vehicleNumber === custVehicle && c.ownerId === ownerScopeId;
+                const phoneMatch = custPhone && c.phoneNumber === custPhone && c.ownerId === ownerScopeId && c.storeId === saleToSave.storeId;
+                const vehicleMatch = custVehicle && c.vehicleNumber === custVehicle && c.ownerId === ownerScopeId && c.storeId === saleToSave.storeId;
                 
                 if (phoneMatch || vehicleMatch) {
                     const updated = {
@@ -3071,6 +3074,7 @@ const App: React.FC = () => {
                 <CustomerList 
                     customers={visibleCustomers} 
                     sales={visibleSales}
+                    currentStoreId={currentStoreId}
                 />
             )}
             {activeTab === 'settings' && effectiveUser.role === 'STORE_ADMIN' && (

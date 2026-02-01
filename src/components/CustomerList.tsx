@@ -7,9 +7,10 @@ import { formatCurrency } from '../utils/format';
 interface CustomerListProps {
     customers: Customer[];
     sales: Sale[];
+    currentStoreId?: string; // For multi-tenant filtering
 }
 
-const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
+const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, currentStoreId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -24,11 +25,21 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
         setCurrentPage(1);
     }, [searchTerm]);
 
-    const filteredCustomers = customers.filter(c => 
-        c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c.phoneNumber?.includes(searchTerm) ||
-        c.carModel?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredCustomers = customers.filter(c => {
+        // Store-level filtering for multi-tenant data isolation
+        if (currentStoreId && currentStoreId !== 'ALL') {
+            // If customer has storeId, must match; if not, show for backward compatibility
+            if (c.storeId && c.storeId !== currentStoreId) {
+                return false;
+            }
+        }
+        // Search filtering
+        return (
+            c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            c.phoneNumber?.includes(searchTerm) ||
+            c.carModel?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    });
 
     const sortedCustomers = [...filteredCustomers].sort((a, b) => {
         const getDate = (value: string) => {
@@ -81,9 +92,12 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
     startPage = Math.max(1, endPage - 4);
     const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, idx) => startPage + idx);
 
-  // Helper function to get actual visit count from sales
+  // Helper function to get actual visit count from sales (scoped by store)
   const getActualVisitCount = (customer: Customer): number => {
       return sales.filter(s => {
+          // Store-level filtering: if customer has storeId, must match
+          if (customer.storeId && s.storeId !== customer.storeId) return false;
+          
           const phoneMatch = s.customer?.phoneNumber && s.customer.phoneNumber === customer.phoneNumber;
           const vehicleMatch = (s.customer?.vehicleNumber || s.vehicleNumber) && 
                              (s.customer?.vehicleNumber === customer.vehicleNumber || 
@@ -92,9 +106,12 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales }) => {
       }).length;
   };
 
-  // Filter sales for the selected customer (by phone OR vehicle number)
+  // Filter sales for the selected customer (by phone OR vehicle number, scoped by store)
   const customerSales = selectedCustomer 
     ? sales.filter(s => {
+        // Store-level filtering: if customer has storeId, must match
+        if (selectedCustomer.storeId && s.storeId !== selectedCustomer.storeId) return false;
+        
         const phoneMatch = s.customer?.phoneNumber && s.customer.phoneNumber === selectedCustomer.phoneNumber;
         const vehicleMatch = (s.customer?.vehicleNumber || s.vehicleNumber) && 
                            (s.customer?.vehicleNumber === selectedCustomer.vehicleNumber || 

@@ -73,6 +73,7 @@ export interface Customer {
   companyName?: string;
   email?: string;
   ownerId?: string; // Link to Owner for scoping
+  storeId?: string; // Link to Store for multi-tenant data isolation (optional for backward compatibility)
 }
 
 export interface Sale {
