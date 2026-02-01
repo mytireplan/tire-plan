@@ -1638,9 +1638,29 @@ const App: React.FC = () => {
       })));
   };
 
-  const handleResetPassword = (code: string) => {
-      setUsers(prev => prev.map(u => u.id === code ? { ...u, password: '1234', ownerPin: '1234' } : u));
-      alert('비밀번호가 1234로 초기화되었습니다.');
+  const handleResetPassword = (ownerId: string) => {
+      // 현재 사용자 정보를 찾기
+      const userToUpdate = users.find(u => u.id === ownerId);
+      if (!userToUpdate) {
+          alert('사용자를 찾을 수 없습니다.');
+          return;
+      }
+
+      // 메모리 상태 업데이트
+      setUsers(prev => prev.map(u => u.id === ownerId ? { ...u, password: '1234' } : u));
+      
+      // Firestore에 저장 (id는 반드시 포함)
+      const updatedUser = { ...userToUpdate, password: '1234' };
+      
+      saveToFirestore<User>(COLLECTIONS.OWNERS, updatedUser)
+          .then(() => {
+              console.log('✅ Password reset successfully in Firestore:', ownerId);
+              alert('비밀번호가 1234로 초기화되었습니다.');
+          })
+          .catch((err) => {
+              console.error('❌ Failed to reset password in Firestore:', err);
+              alert('비밀번호 초기화에 실패했습니다.');
+          });
   };
 
     const handleDeleteStore = (storeId: string) => {
