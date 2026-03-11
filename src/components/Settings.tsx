@@ -13,7 +13,7 @@ interface SettingsProps {
   onToggleStorePasswordRequired?: (storeId: string, required: boolean) => void;
   
   currentAdminPassword: string;
-  onUpdatePassword: (newPass: string) => void;
+    onUpdatePassword: (newPass: string) => Promise<void>;
 
     currentOwnerPin: string;
     onUpdateOwnerPin: (newPin: string) => void;
@@ -184,7 +184,7 @@ const Settings: React.FC<SettingsProps> = ({
       return errors;
   };
 
-  const handlePasswordSubmit = (kind: 'login' | 'owner') => (e: React.FormEvent) => {
+    const handlePasswordSubmit = (kind: 'login' | 'owner') => async (e: React.FormEvent) => {
       e.preventDefault();
       const form = kind === 'login' ? loginForm : ownerForm;
       const setErrors = kind === 'login' ? setLoginErrors : setOwnerErrors;
@@ -198,12 +198,19 @@ const Settings: React.FC<SettingsProps> = ({
       }
 
       if (kind === 'login') {
-          onUpdatePassword(form.new);
-          setToast({ type: 'success', message: '로그인 비밀번호를 변경했어요.' });
-      } else {
-          onUpdateOwnerPin(form.new);
-          setToast({ type: 'success', message: '사장 PIN을 변경했어요.' });
+          try {
+              await onUpdatePassword(form.new);
+              setToast({ type: 'success', message: '로그인 비밀번호를 변경했어요.' });
+              setForm({ current: '', new: '', confirm: '' });
+          } catch (err) {
+              console.error('❌ Failed to update login password:', err);
+              setToast({ type: 'error', message: '로그인 비밀번호 변경에 실패했습니다.' });
+          }
+          return;
       }
+
+      onUpdateOwnerPin(form.new);
+      setToast({ type: 'success', message: '사장 PIN을 변경했어요.' });
       setForm({ current: '', new: '', confirm: '' });
   };
 
@@ -550,11 +557,15 @@ const Settings: React.FC<SettingsProps> = ({
                             </div>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    if (confirm('로그인 비밀번호를 기본값(admin1234)으로 초기화하시겠습니까?')) {
-                                        onUpdatePassword('admin1234');
+                                onClick={async () => {
+                                    if (!confirm('로그인 비밀번호를 기본값(admin1234)으로 초기화하시겠습니까?')) return;
+                                    try {
+                                        await onUpdatePassword('admin1234');
                                         setToast({ type: 'success', message: '로그인 비밀번호가 admin1234로 초기화되었습니다.' });
                                         setLoginForm({ current: '', new: '', confirm: '' });
+                                    } catch (err) {
+                                        console.error('❌ Failed to reset login password:', err);
+                                        setToast({ type: 'error', message: '로그인 비밀번호 초기화에 실패했습니다.' });
                                     }
                                 }}
                                 className="w-full px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors"

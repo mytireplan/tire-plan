@@ -58,7 +58,11 @@ export const saveToFirestore = async <T extends { id: string }>(
       }
     }
     
-    await setDoc(docRef, dataToSave, { merge: true });
+    const sanitizedData = Object.fromEntries(
+      Object.entries(dataToSave).filter(([, value]) => value !== undefined)
+    ) as T;
+
+    await setDoc(docRef, sanitizedData, { merge: true });
   } catch (error) {
     console.error(`Error saving to ${collectionName}:`, error);
     throw error;

@@ -1137,16 +1137,16 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
       // Calculate total amount from items
       const totalAmount = quickAddForm.items.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
 
-      // ✅ FIX: Parse datetime correctly without timezone offset
+      // ✅ FIX: Parse datetime correctly - Create local date and convert to ISO
       let isoString: string;
       if (quickAddForm.datetime) {
-          // quickAddForm.datetime format: "2026-01-26T13:30"
+          // quickAddForm.datetime format: "2026-02-01T22:00" (local time in browser)
           const [datePart, timePart] = quickAddForm.datetime.split('T');
           const [year, month, day] = datePart.split('-');
           const [hour, minute] = timePart.split(':');
           
-          // Create date at noon UTC to avoid timezone issues
-          const date = new Date(
+          // Create Date object in local timezone
+          const localDate = new Date(
               parseInt(year),
               parseInt(month) - 1,
               parseInt(day),
@@ -1154,9 +1154,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
               parseInt(minute),
               0
           );
-          // Add timezone offset to get the correct UTC time
-          const tzOffset = date.getTimezoneOffset() * 60000;
-          isoString = new Date(date.getTime() - tzOffset).toISOString();
+          
+          // toISOString() automatically converts to UTC
+          // For KST (UTC+9): 2026-02-01 22:00 KST → 2026-02-01 13:00 UTC (correct)
+          isoString = localDate.toISOString();
       } else {
           isoString = new Date().toISOString();
       }

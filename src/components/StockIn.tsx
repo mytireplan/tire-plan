@@ -76,12 +76,17 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     const [isComparing, setIsComparing] = useState(false);
 
     // Lookup for previously entered factory prices by (name + spec)
+    // Use newest record first so recently edited/entered price is applied.
     const factoryPriceLookup = useMemo(() => {
         const map = new Map<string, number>();
-        stockInHistory.forEach(r => {
+        const sortedHistory = [...stockInHistory].sort((a, b) => b.date.localeCompare(a.date));
+
+        sortedHistory.forEach(r => {
             if (!r.productName || !r.specification || !r.factoryPrice) return;
             const key = `${r.productName.trim().toLowerCase()}|${r.specification.trim().toLowerCase()}`;
-            map.set(key, r.factoryPrice);
+            if (!map.has(key)) {
+                map.set(key, r.factoryPrice);
+            }
         });
         return map;
     }, [stockInHistory]);

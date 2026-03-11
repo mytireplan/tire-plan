@@ -7,7 +7,7 @@ interface SuperAdminDashboardProps {
     stores: StoreAccount[];
     users: {id: string, name: string, phoneNumber?: string, joinDate: string}[]; // Need users list to map names and phones
     onCreateOwner: (name: string, region: string, phoneNumber: string, branchName: string) => void;
-    onUpdateOwner: (id: string, updates: { name?: string, phoneNumber?: string, status?: boolean, password?: string }) => void;
+    onUpdateOwner: (id: string, updates: { name?: string, phoneNumber?: string, status?: boolean, password?: string }) => Promise<void>;
     onAddBranch: (ownerId: string, branchName: string, region: string) => void;
     onResetPassword: (code: string) => void;
     onDeleteStore: (storeId: string) => void; // Delete specific branch
@@ -137,16 +137,16 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         }
     };
 
-    const handleEditOwnerSubmit = (e: React.FormEvent) => {
+    const handleEditOwnerSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (editOwner.id === '999999') {
             // Master: Only Password
             if (editOwner.password) {
-                onUpdateOwner(editOwner.id, { password: editOwner.password });
+                await onUpdateOwner(editOwner.id, { password: editOwner.password });
             }
         } else {
             // Normal: Name, Phone, Status
-            onUpdateOwner(editOwner.id, {
+            await onUpdateOwner(editOwner.id, {
                 name: editOwner.name,
                 phoneNumber: editOwner.phone,
                 status: editOwner.isActive

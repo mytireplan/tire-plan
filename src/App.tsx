@@ -1329,22 +1329,18 @@ const App: React.FC = () => {
   };
 
   const handleUpdatePassword = async (newPass: string) => {
-      if(!currentUser) return;
+      if (!currentUser) return;
+      const owner = users.find(u => u.id === currentUser.id);
+      if (!owner) return;
       try {
           const passwordHash = await hashPassword(newPass);
-          setUsers(prev => {
-              const next = prev.map(u => u.id === currentUser.id ? { ...u, password: newPass, passwordHash } : u);
-              const owner = next.find(u => u.id === currentUser.id);
-              if (owner) {
-                  saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, owner)
-                      .then(() => console.log('✅ Password updated in Firestore for owner:', owner.id))
-                      .catch((err) => console.error('❌ Failed to update owner password in Firestore:', err));
-              }
-              return next;
-          });
+          const updatedOwner = { ...owner, password: newPass, passwordHash };
+          await saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, updatedOwner);
+          console.log('✅ Password updated in Firestore for owner:', updatedOwner.id);
+          setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedOwner : u));
       } catch (err) {
-          console.error('❌ Failed to hash password:', err);
-          alert('비밀번호 변경 중 오류가 발생했습니다. 다시 시도해주세요.');
+          console.error('❌ Failed to update owner password in Firestore:', err);
+          throw err;
       }
   };
 
@@ -1581,34 +1577,43 @@ const App: React.FC = () => {
       })));
   };
 
-  const handleUpdateOwner = (id: string, updates: { name?: string, phoneNumber?: string, status?: boolean, password?: string }) => {
-      // 1. Update User Record
-      setUsers(prev => prev.map(u => {
-          if (u.id === id) {
-              return {
-                  ...u,
-                  name: updates.name || u.name,
-                  phoneNumber: updates.phoneNumber || u.phoneNumber,
-                  password: updates.password || u.password
-              };
-          }
-          return u;
-      }));
+  const handleUpdateOwner = async (id: string, updates: { name?: string, phoneNumber?: string, status?: boolean, password?: string }) => {
+      const owner = users.find(u => u.id === id);
+      if (!owner) return;
 
-      // 2. Update Status for All Stores associated with this owner (if status is provided)
+      const nextName = updates.name ?? owner.name;
+      const nextPhone = updates.phoneNumber ?? owner.phoneNumber;
+      const nextPassword = updates.password ?? owner.password;
+      const nextPasswordHash = updates.password ? await hashPassword(updates.password) : owner.passwordHash;
+
+      const updatedOwner: OwnerAccount = {
+          ...owner,
+          name: nextName,
+          phoneNumber: nextPhone,
+          password: nextPassword,
+          passwordHash: nextPasswordHash
+      };
+
+      setUsers(prev => prev.map(u => (u.id === id ? updatedOwner : u)));
+      
+      try {
+          await saveToFirestore<OwnerAccount>(COLLECTIONS.OWNERS, updatedOwner);
+          console.log('✅ Owner updated in Firestore:', updatedOwner.id);
+      } catch (err) {
+          console.error('❌ Failed to update owner in Firestore:', err);
+      }
+
       if (updates.status !== undefined) {
-          setStores(prev => prev.map(s => {
-              if (s.ownerId === id) {
-                  return { ...s, isActive: updates.status! };
-              }
-              return s;
-          }));
+          setStores(prev => prev.map(s => (s.ownerId === id ? { ...s, isActive: updates.status! } : s)));
           const affected = stores.filter(s => s.ownerId === id).map(s => ({ ...s, isActive: updates.status! }));
-          affected.forEach(s => {
-            saveToFirestore<StoreAccount>(COLLECTIONS.STORES, s)
-              .then(() => console.log('✅ Store status updated in Firestore:', s.id))
-              .catch((err) => console.error('❌ Failed to update store status in Firestore:', err));
-          });
+          for (const s of affected) {
+              try {
+                  await saveToFirestore<StoreAccount>(COLLECTIONS.STORES, s);
+                  console.log('✅ Store status updated in Firestore:', s.id);
+              } catch (err) {
+                  console.error('❌ Failed to update store status in Firestore:', err);
+              }
+          }
       }
   };
 
