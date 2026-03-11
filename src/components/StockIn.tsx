@@ -79,7 +79,14 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
     // Use newest record first so recently edited/entered price is applied.
     const factoryPriceLookup = useMemo(() => {
         const map = new Map<string, number>();
-        const sortedHistory = [...stockInHistory].sort((a, b) => b.date.localeCompare(a.date));
+        const getRecencyKey = (record: StockInRecord) => record.updatedAt || `${record.date}T00:00:00.000Z`;
+        const sortedHistory = [...stockInHistory].sort((a, b) => {
+            const recencyCompare = getRecencyKey(b).localeCompare(getRecencyKey(a));
+            if (recencyCompare !== 0) return recencyCompare;
+            const dateCompare = b.date.localeCompare(a.date);
+            if (dateCompare !== 0) return dateCompare;
+            return b.id.localeCompare(a.id);
+        });
 
         sortedHistory.forEach(r => {
             if (!r.productName || !r.specification || !r.factoryPrice) return;

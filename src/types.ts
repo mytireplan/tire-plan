@@ -113,6 +113,7 @@ export interface Sale {
 export interface StockInRecord {
   id: string;
   date: string;
+  updatedAt?: string; // Last update timestamp (ISO)
   storeId: string;
   productId?: string; // Linked product for precise stock updates
   supplier: string; // 거래처

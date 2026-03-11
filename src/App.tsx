@@ -2281,6 +2281,7 @@ const App: React.FC = () => {
             const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
             const stockRecordToSave: StockInRecord = {
                 ...sanitizedRecord,
+                updatedAt: new Date().toISOString(),
                 ownerId: resolvedOwnerId
             };
 
@@ -2326,35 +2327,39 @@ const App: React.FC = () => {
     const handleUpdateStockInRecord = (r: StockInRecord) => {
             // Find the old record to calculate the difference
             const oldRecord = stockInHistory.find(old => old.id === r.id);
+            const updatedRecord: StockInRecord = {
+                ...r,
+                updatedAt: new Date().toISOString()
+            };
             
-            setStockInHistory(prev => prev.map(old => old.id === r.id ? r : old));
-            saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, r)
-                .then(() => console.log('✅ Stock-in record updated in Firestore:', r.id))
+            setStockInHistory(prev => prev.map(old => old.id === updatedRecord.id ? updatedRecord : old));
+            saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, updatedRecord)
+                .then(() => console.log('✅ Stock-in record updated in Firestore:', updatedRecord.id))
                 .catch((err) => console.error('❌ Failed to update stock-in record in Firestore:', err));
             
             // Update product stock if quantity changed
-            if (oldRecord && r.productId) {
+            if (oldRecord && updatedRecord.productId) {
                 const oldQty = oldRecord.receivedQuantity ?? oldRecord.quantity ?? 0;
-                const newQty = r.receivedQuantity ?? r.quantity ?? 0;
-                const isConsumed = Boolean(r.consumedAtSaleId);
+                const newQty = updatedRecord.receivedQuantity ?? updatedRecord.quantity ?? 0;
+                const isConsumed = Boolean(updatedRecord.consumedAtSaleId);
                 
                 // Only adjust stock for non-consumed records
                 if (!isConsumed && oldQty !== newQty) {
                     const qtyDiff = newQty - oldQty;
-                    console.log(`📦 Stock quantity changed for ${r.productName}: ${oldQty} → ${newQty} (diff: ${qtyDiff})`);
+                    console.log(`📦 Stock quantity changed for ${updatedRecord.productName}: ${oldQty} → ${newQty} (diff: ${qtyDiff})`);
                     
                     setProducts(prev => {
-                        const productIndex = prev.findIndex(p => p.id === r.productId);
+                        const productIndex = prev.findIndex(p => p.id === updatedRecord.productId);
                         if (productIndex < 0) {
-                            console.warn('⚠️ Product not found for stock update:', r.productId);
+                            console.warn('⚠️ Product not found for stock update:', updatedRecord.productId);
                             return prev;
                         }
                         
                         const updatedProducts = [...prev];
                         const product = updatedProducts[productIndex];
-                        const currentStoreStock = product.stockByStore[r.storeId] || 0;
+                        const currentStoreStock = product.stockByStore[updatedRecord.storeId] || 0;
                         const newStoreStock = Math.max(0, currentStoreStock + qtyDiff);
-                        const newStockByStore = { ...product.stockByStore, [r.storeId]: newStoreStock };
+                        const newStockByStore = { ...product.stockByStore, [updatedRecord.storeId]: newStoreStock };
                         const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
                         
                         const updatedProduct = { 
