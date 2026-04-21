@@ -178,7 +178,8 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
             const type = shift.shiftType || 'REGULAR';
             if (type === 'REGULAR') stats[staff.id].regular++;
             else if (type === 'NIGHT') stats[staff.id].night++;
-            else if (['OFF', 'VACATION', 'HALF'].includes(type)) stats[staff.id].off++;
+            else if (['OFF', 'VACATION'].includes(type)) stats[staff.id].off++;
+            else if (type === 'HALF') stats[staff.id].off += 0.5;
             else if (type === 'DUTY') stats[staff.id].duty++;
           }
         }
@@ -580,7 +581,7 @@ const ScheduleAndLeave: React.FC<ScheduleAndLeaveProps> = ({
                       {label:'휴무',val:staffStatistics[staff.id]?.off,c:'text-slate-600'},
                       {label:'당직',val:staffStatistics[staff.id]?.duty,c:'text-violet-600'}
                     ].map(item => (
-                      <div key={item.label} className="flex justify-between items-center text-[9px] bg-white px-2 py-1 rounded-lg border border-slate-100"><span className="text-slate-400 font-medium">{item.label}</span><span className={`font-black ${item.c}`}>{item.val}회</span></div>
+                      <div key={item.label} className="flex justify-between items-center text-[9px] bg-white px-2 py-1 rounded-lg border border-slate-100"><span className="text-slate-400 font-medium">{item.label}</span><span className={`font-black ${item.c}`}>{(item.val ?? 0) % 1 === 0 ? item.val ?? 0 : item.val}일</span></div>
                     ))}
                   </div>
                 </div>
