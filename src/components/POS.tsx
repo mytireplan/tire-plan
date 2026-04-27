@@ -406,8 +406,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 // 검색 중에는 카테고리 필터를 무시하여 전 범위에서 검색
                 const matchesCategory = lowerSearch ? true : (!selectedCategory || p.category === selectedCategory);
                 const matchesBrand = selectedBrand === 'All' || p.brand === selectedBrand;
+
+                // 검색 시 재고 0인 제품 숨김 (서비스 상품 제외)
+                const isService = p.category === '기타' || (p.stockByStore[activeStoreId] || 0) > 900;
+                const hasStock = !lowerSearch || isService || (p.stockByStore[activeStoreId] || 0) > 0;
         
-                return matchesSearch && matchesCategory && matchesBrand;
+                return matchesSearch && matchesCategory && matchesBrand && hasStock;
             });
 
             const brandOrder = (tireBrands || []).reduce((acc, brand, idx) => {
@@ -426,7 +430,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
           return a.name.localeCompare(b.name);
       });
       return result;
-  }, [fireProducts, searchTerm, selectedCategory, selectedBrand, tireBrands]);
+  }, [fireProducts, searchTerm, selectedCategory, selectedBrand, tireBrands, activeStoreId]);
 
   const getStock = (product: Product) => product.stockByStore[activeStoreId] || 0;
 
