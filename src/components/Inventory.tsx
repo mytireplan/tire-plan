@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Product, Store, User } from '../types';
-import { Search, Plus, Edit2, Save, X, AlertTriangle, MapPin, ArrowRightLeft, Disc, Trash2 } from 'lucide-react';
+import { Search, Plus, Edit2, Save, X, AlertTriangle, MapPin, ArrowRightLeft, Trash2 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/format';
 import { saveToFirestore, deleteFromFirestore, COLLECTIONS } from '../utils/firestore';
 
@@ -23,6 +23,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({});
+  const [selectedCategory, setSelectedCategory] = useState<string>(categories[0] || '타이어');
     const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
   
   // Low Stock Logic
@@ -51,27 +52,33 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
       return currentUser.id;
   }, [currentUser, stores, currentStoreId]);
 
-  // Calculate Total Tire Stock for the current view context
-    const totalTireStock = useMemo(() => {
-        return products.reduce((sum, p) => {
-                const category = normalizeCategory(p.category);
-                const totalStock = p.stock || 0;
-                const isService = category !== '타이어' || totalStock > 900;
-                if (isService) return sum;
+  // Calculate Total Tier Stock for the current view context
+  const getCategoryStock = (categoryName: string) => {
+    return products.reduce((sum, p) => {
+      const category = normalizeCategory(p.category);
+      if (category !== categoryName) return sum;
+      
+      const totalStock = p.stock || 0;
+      const isService = categoryName === '기타' && totalStock > 900;
+      if (isService) return sum;
 
-                const stockByStore = p.stockByStore || {};
-                const viewStock = (currentStoreId === 'ALL' || !currentStoreId)
-                    ? totalStock
-                    : (stockByStore[currentStoreId] || 0);
+      const stockByStore = p.stockByStore || {};
+      const viewStock = (currentStoreId === 'ALL' || !currentStoreId)
+        ? totalStock
+        : (stockByStore[currentStoreId] || 0);
 
-                return sum + (viewStock || 0);
-        }, 0);
-    }, [products, currentStoreId]);
+      return sum + (viewStock || 0);
+    }, 0);
+  };
 
-  const currentStoreName = useMemo(() => {
-    if (currentStoreId === 'ALL' || !currentStoreId) return '전체 매장';
-    return stores.find(s => s.id === currentStoreId)?.name || '해당 지점';
-  }, [currentStoreId, stores]);
+  // Calculate category stock map for tab display
+  const categoryStockMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    categories.forEach(cat => {
+      map[cat] = getCategoryStock(cat);
+    });
+    return map;
+  }, [products, currentStoreId, categories]);
 
         const uniqueBrands = useMemo(() => {
             const fromProducts = products
@@ -90,50 +97,56 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
         return products.filter(p => !p.ownerId || p.ownerId === ownerIdForProduct);
     }, [products, currentUser, currentStoreId, ownerIdForProduct]);
 
-    const filteredProducts = ownerScopedProducts
-        .map(p => ({ ...p, category: normalizeCategory(p.category), stockByStore: p.stockByStore || {} }))
-        .filter(p => {
-    const lowerTerm = (searchTerm || '').toLowerCase();
-    // Create a version of the search term with only numbers for flexible spec matching (e.g. "2454518")
-    const numericSearchTerm = lowerTerm.replace(/\D/g, '');
+    const filteredProducts = useMemo(() => {
+        return ownerScopedProducts
+            .map(p => ({ ...p, category: normalizeCategory(p.category), stockByStore: p.stockByStore || {} }))
+            .filter(p => {
+        const lowerTerm = (searchTerm || '').toLowerCase();
+        // Create a version of the search term with only numbers for flexible spec matching (e.g. "2454518")
+        const numericSearchTerm = lowerTerm.replace(/\D/g, '');
 
-    const normalizedName = (p.name || '').toLowerCase();
-    const normalizedCategory = (p.category || '').toLowerCase();
-    const matchesNameOrCategory = normalizedName.includes(lowerTerm) || 
-                                  normalizedCategory.includes(lowerTerm);
-    
-    let matchesSpec = false;
-    if (p.specification) {
-        const lowerSpec = p.specification.toLowerCase();
-        // 1. Standard exact match (e.g. user types "245/45" or "R18")
-        if (lowerSpec.includes(lowerTerm)) {
-            matchesSpec = true;
-        } 
-        // 2. Flexible numeric match (e.g. user types "2454518" for "245/45R18")
-        else if (numericSearchTerm.length > 0) {
-             const numericSpec = lowerSpec.replace(/\D/g, ''); // Remove /, R, Z, etc. from product spec
-             if (numericSpec.includes(numericSearchTerm)) {
-                 matchesSpec = true;
-             }
+        const normalizedName = (p.name || '').toLowerCase();
+        const normalizedCategory = (p.category || '').toLowerCase();
+        const matchesNameOrCategory = normalizedName.includes(lowerTerm) || 
+                                      normalizedCategory.includes(lowerTerm);
+        
+        let matchesSpec = false;
+        if (p.specification) {
+            const lowerSpec = p.specification.toLowerCase();
+            // 1. Standard exact match (e.g. user types "245/45" or "R18")
+            if (lowerSpec.includes(lowerTerm)) {
+                matchesSpec = true;
+            } 
+            // 2. Flexible numeric match (e.g. user types "2454518" for "245/45R18")
+            else if (numericSearchTerm.length > 0) {
+                 const numericSpec = lowerSpec.replace(/\D/g, ''); // Remove /, R, Z, etc. from product spec
+                 if (numericSpec.includes(numericSearchTerm)) {
+                     matchesSpec = true;
+                 }
+            }
         }
-    }
 
-        // 검색어가 없으면 모든 항목 표시, 있으면 검색 결과만 표시
-        const matchesSearch = !lowerTerm || matchesNameOrCategory || matchesSpec;
+            // 검색어가 없으면 모든 항목 표시, 있으면 검색 결과만 표시
+            const matchesSearch = !lowerTerm || matchesNameOrCategory || matchesSpec;
 
-        const totalStock = p.stock ?? 0;
-        const viewStock = currentStoreId === 'ALL' || !currentStoreId ? totalStock : (p.stockByStore[currentStoreId] || 0);
+            const totalStock = p.stock ?? 0;
+            const viewStock = currentStoreId === 'ALL' || !currentStoreId ? totalStock : (p.stockByStore[currentStoreId] || 0);
 
-    // Logic: Service items (category '기타' or high sentinel stock) are never "low stock"
-        const isServiceItem = p.category === '기타' || totalStock > 900;
-        const isLowStock = !isServiceItem && viewStock <= lowStockThreshold;
-    
-        // 기타 항목은 hideZeroStock 필터 무시 (수량 상관없이 표시)
-        if (hideZeroStock && viewStock === 0 && p.category !== '기타') return false;
-    if (filterLowStock && !isLowStock) return false;
-    
-    return matchesSearch;
-  });
+        // Logic: Service items (category '기타' or high sentinel stock) are never "low stock"
+            const isServiceItem = p.category === '기타' || totalStock > 900;
+            const isLowStock = !isServiceItem && viewStock <= lowStockThreshold;
+        
+            // 선택된 카테고리로 필터링
+            const matchesCategory = normalizeCategory(p.category) === selectedCategory;
+        
+            // 기타 항목은 hideZeroStock 필터 무시 (수량 상관없이 표시)
+            if (hideZeroStock && viewStock === 0 && p.category !== '기타') return false;
+        if (filterLowStock && !isLowStock) return false;
+        if (!matchesCategory) return false;
+        
+        return matchesSearch;
+      });
+    }, [ownerScopedProducts, searchTerm, currentStoreId, lowStockThreshold, hideZeroStock, filterLowStock, selectedCategory]);
 
 const handleSave = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -266,48 +279,41 @@ const handleSave = async (e: React.FormEvent) => {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
       {/* Toolbar */}
-      <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
-            <div className="relative flex-1 sm:w-64 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="타이어 모델명, 사이즈(예: 2454518) 검색" 
-                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={searchTerm}
-                    onChange={(e) => {
-                        let val = e.target.value;
-                        // Auto format only if 7 digit number and looks like spec
-                        if (/^\d{7}$/.test(val)) {
-                            val = `${val.slice(0, 3)}/${val.slice(3, 5)}R${val.slice(5, 7)}`;
-                        }
-                        setSearchTerm(val);
-                    }}
-                />
-            </div>
-            
-            {/* Total Tire Stock Badge */}
-            <div className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-md border border-slate-700">
-                <Disc size={18} className="text-blue-400" />
-                <span className="text-sm font-bold">
-                    {currentStoreName} 타이어 총 재고: <span className="text-blue-400 text-lg ml-1">{formatNumber(totalTireStock)}</span>개
-                </span>
-            </div>
+      <div className="p-6 border-b border-gray-100 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+              <div className="relative flex-1 sm:w-64 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input 
+                      type="text" 
+                      placeholder="타이어 모델명, 사이즈(예: 2454518) 검색" 
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={searchTerm}
+                      onChange={(e) => {
+                          let val = e.target.value;
+                          // Auto format only if 7 digit number and looks like spec
+                          if (/^\d{7}$/.test(val)) {
+                              val = `${val.slice(0, 3)}/${val.slice(3, 5)}R${val.slice(5, 7)}`;
+                          }
+                          setSearchTerm(val);
+                      }}
+                  />
+              </div>
 
-            {/* Low Stock Config & Filter */}
-            <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
-                     <div className="flex items-center pl-2 pr-2 gap-2 border-r border-gray-300 mr-1">
-                            <span className="text-xs text-gray-500 whitespace-nowrap font-medium">기준:</span>
-                            <input 
-                                type="number" 
-                                min="1" 
-                                max="100"
-                                value={lowStockThreshold}
-                                onChange={(e) => setLowStockThreshold(Math.max(1, Number(e.target.value)))}
-                                className="w-12 bg-white border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:border-blue-500 text-center"
-                            />
-                            <span className="text-xs text-gray-500 whitespace-nowrap">개 이하시 부족</span>
-                </div>
+              {/* Low Stock Config & Filter */}
+              <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                       <div className="flex items-center pl-2 pr-2 gap-2 border-r border-gray-300 mr-1">
+                              <span className="text-xs text-gray-500 whitespace-nowrap font-medium">기준:</span>
+                              <input 
+                                  type="number" 
+                                  min="1" 
+                                  max="100"
+                                  value={lowStockThreshold}
+                                  onChange={(e) => setLowStockThreshold(Math.max(1, Number(e.target.value)))}
+                                  className="w-12 bg-white border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:border-blue-500 text-center"
+                              />
+                              <span className="text-xs text-gray-500 whitespace-nowrap">개 이하시 부족</span>
+                      </div>
                 <button
                     onClick={() => setFilterLowStock(!filterLowStock)}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -330,15 +336,40 @@ const handleSave = async (e: React.FormEvent) => {
                     <span className="hidden sm:inline">재고 0 숨기기</span>
                 </button>
             </div>
+          </div>
+
+          <button 
+              onClick={openAdd}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 w-full sm:w-auto justify-center"
+          >
+              <Plus size={18} />
+              <span className="font-medium">신규 등록</span>
+          </button>
         </div>
 
-        <button 
-            onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 w-full sm:w-auto justify-center"
-        >
-            <Plus size={18} />
-            <span className="font-medium">신규 등록</span>
-        </button>
+        {/* Category Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {categories.map(category => {
+            const catStock = categoryStockMap[category] || 0;
+            const isSelected = selectedCategory === category;
+            return (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                  isSelected
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <span>{category}</span>
+                <span className={`text-sm font-bold ${isSelected ? 'text-blue-100' : 'text-gray-600'}`}>
+                  {formatNumber(catStock)}개
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Table Header (Desktop Only) */}

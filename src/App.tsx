@@ -464,7 +464,7 @@ const INITIAL_FIXED_COSTS: FixedCostConfig[] = [
     { id: 'FC4', title: '보험료(화재/배상)', amount: 90000, day: 10, category: '고정지출', storeId: 'ST-2' },
     { id: 'FC5', title: '보안/경비 서비스', amount: 65000, day: 15, category: '기타', storeId: 'ST-2' },
 ];
-const INITIAL_CATEGORIES = ['타이어', '기타'];
+const INITIAL_CATEGORIES = ['타이어', '중고타이어', '브레이크패드', '오일필터', '에어크리너', '기타'];
 const INITIAL_LEAVE_REQUESTS = generateMockLeaveRequests();
 const INITIAL_RESERVATIONS = generateMockReservations();
 const INITIAL_TRANSFER_HISTORY: StockTransferRecord[] = [
