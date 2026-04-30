@@ -67,7 +67,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
     // Check if discounted
     const isDiscounted = item.originalPrice !== undefined && item.price < item.originalPrice;
     const isTempProduct = item.id === '99999';
-    const isService = item.category === '기타' || (item.stock || 0) > 900;
+    const isService = item.category === '기타' || item.category === '정비' || (item.stock || 0) > 900;
 
     // Local state for formatted price input
     const [localPrice, setLocalPrice] = useState('');
@@ -212,15 +212,15 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
 const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = [], currentUser, currentStoreId, staffList, shifts, customers, onSaleComplete }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-      const [selectedCategory, setSelectedCategory] = useState<string | null>('기타');
+      const [selectedCategory, setSelectedCategory] = useState<string | null>('정비');
   const [selectedBrand, setSelectedBrand] = useState<string>('All');
     const [forceShowBrandTabs, setForceShowBrandTabs] = useState(false);
     const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
         const normalizedCategories = useMemo(() => {
                 const uniq = Array.from(new Set(categories.map(normalizeCategory)));
-                // Surface '기타' first for initial view clarity
-                if (uniq.includes('기타')) {
-                        return ['기타', ...uniq.filter(c => c !== '기타')];
+                // Surface '정비' first for initial view clarity
+                if (uniq.includes('정비')) {
+                        return ['정비', ...uniq.filter(c => c !== '정비')];
                 }
                 return uniq;
         }, [categories]);
@@ -408,7 +408,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 const matchesBrand = selectedBrand === 'All' || p.brand === selectedBrand;
 
                 // 검색 시 재고 0인 제품 숨김 (서비스 상품 제외)
-                const isService = p.category === '기타' || (p.stockByStore[activeStoreId] || 0) > 900;
+                const isService = p.category === '기타' || p.category === '정비' || (p.stockByStore[activeStoreId] || 0) > 900;
                 const hasStock = !lowerSearch || isService || (p.stockByStore[activeStoreId] || 0) > 0;
         
                 return matchesSearch && matchesCategory && matchesBrand && hasStock;
@@ -437,7 +437,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     const addToCart = (product: Product, overridePrice?: number, overrideName?: string, isImmediateNewProduct?: boolean, quantity: number = 1) => {
         // If this is a new product being immediately sold (입고와 동시에 판매), treat its stock as 0
         const currentStock = isImmediateNewProduct ? 0 : (product.stockByStore[activeStoreId] || 0);
-        const isServiceItem = product.category === '기타' || currentStock > 900;
+        const isServiceItem = product.category === '기타' || product.category === '정비' || currentStock > 900;
         // Service items or Dummy items (99999) always allow add
         const isSpecialItem = product.id === '99999' || isServiceItem;
         const qtyToAdd = Math.max(1, quantity);

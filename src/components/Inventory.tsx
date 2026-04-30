@@ -59,7 +59,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
       if (category !== categoryName) return sum;
       
       const totalStock = p.stock || 0;
-      const isService = categoryName === '기타' && totalStock > 900;
+      const isService = categoryName === '정비' || (categoryName === '기타' && totalStock > 900);
       if (isService) return sum;
 
       const stockByStore = p.stockByStore || {};
@@ -132,15 +132,15 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
             const totalStock = p.stock ?? 0;
             const viewStock = currentStoreId === 'ALL' || !currentStoreId ? totalStock : (p.stockByStore[currentStoreId] || 0);
 
-        // Logic: Service items (category '기타' or high sentinel stock) are never "low stock"
-            const isServiceItem = p.category === '기타' || totalStock > 900;
+        // Logic: Service items (category '기타', '정비' or high sentinel stock) are never "low stock"
+            const isServiceItem = p.category === '기타' || p.category === '정비' || totalStock > 900;
             const isLowStock = !isServiceItem && viewStock <= lowStockThreshold;
         
             // 선택된 카테고리로 필터링
             const matchesCategory = normalizeCategory(p.category) === selectedCategory;
         
-            // 기타 항목은 hideZeroStock 필터 무시 (수량 상관없이 표시)
-            if (hideZeroStock && viewStock === 0 && p.category !== '기타') return false;
+            // 기타/정비 항목은 hideZeroStock 필터 무시 (수량 상관없이 표시)
+            if (hideZeroStock && viewStock === 0 && p.category !== '기타' && p.category !== '정비') return false;
         if (filterLowStock && !isLowStock) return false;
         if (!matchesCategory) return false;
         
@@ -393,7 +393,7 @@ const handleSave = async (e: React.FormEvent) => {
                 const category = normalizeCategory(product.category);
                 const totalStock = product.stock || 0;
                 const viewStock = currentStoreId === 'ALL' || !currentStoreId ? totalStock : (product.stockByStore[currentStoreId] || 0);
-                const isService = category === '기타' || totalStock > 900;
+                const isService = category === '기타' || category === '정비' || totalStock > 900;
                 const isLowStock = !isService && viewStock <= lowStockThreshold;
 
                 return (
