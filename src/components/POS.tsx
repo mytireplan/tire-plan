@@ -656,7 +656,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
               productId: item.id,
               productName: item.name,
               quantity: item.quantity,
-              priceAtSale: item.price
+              priceAtSale: item.price,
+              category: normalizeCategory(item.category)
           };
           if (item.specification) sanitizedItem.specification = item.specification;
           if (item.brand) sanitizedItem.brand = item.brand;

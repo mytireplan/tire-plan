@@ -34,7 +34,8 @@ const COLLECTIONS = {
   SETTINGS: 'settings',
   SHIFTS: 'shifts',
   DAILY_REPORTS: 'dailyReports',
-  MANAGER_ACCOUNTS: 'managerAccounts'
+  MANAGER_ACCOUNTS: 'managerAccounts',
+  INCENTIVE_RULES: 'incentiveRules'
 };
 
 // 현재 로그인한 사용자의 UID 가져오기

@@ -45,6 +45,7 @@ export interface SalesItem {
   productName: string;
   quantity: number;
   priceAtSale: number;
+  category?: string;
   specification?: string;
   brand?: string;
   purchasePrice?: number; // Optional manual cost (admin-entered)
@@ -199,6 +200,7 @@ export interface ManagerTabPermissions {
   pos: boolean;
   reservation: boolean;
   history: boolean;
+  incentive: boolean;
   dailyClose: boolean;
   dailyReport: boolean;
   tax: boolean;
@@ -206,6 +208,16 @@ export interface ManagerTabPermissions {
   stockIn: boolean;
   financials: boolean;
   leave: boolean;
+}
+
+export interface IncentiveRule {
+  id: string;
+  storeId: string;
+  managerLoginId: string;
+  amountPerUnit: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ManagerAccount {

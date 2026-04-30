@@ -6,7 +6,7 @@ import { db, auth } from './firebase';
 import { PaymentMethod } from './types';
 
 // 2. 설계도(Type)인 친구들은 type을 붙여서 가져옵니다.
-import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift, SalesItem, DailyReport, ManagerAccount, ManagerTabPermissions } from './types';
+import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift, SalesItem, DailyReport, ManagerAccount, IncentiveRule } from './types';
 
 // Firebase imports
 import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery, subscribeToCollection } from './utils/firestore'; 
@@ -20,6 +20,7 @@ import SalesHistory from './components/SalesHistory';
 import DailyClose from './components/DailyClose';
 import DailyReportBoard from './components/DailyReportBoard';
 import Settings from './components/Settings';
+import Incentive from './components/Incentive';
 import CustomerList from './components/CustomerList';
 import StockIn from './components/StockIn';
 import Financials from './components/Financials';
@@ -511,7 +512,7 @@ const INITIAL_TRANSFER_HISTORY: StockTransferRecord[] = [
 // Demo seeding guard: only seed mock data when explicitly enabled.
 const SHOULD_SEED_DEMO = import.meta.env.VITE_SEED_DEMO === 'true';
 
-type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin' | 'admin' | 'dailyClose' | 'dailyReport';
+type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'incentive' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin' | 'admin' | 'dailyClose' | 'dailyReport';
 
 type ViewState = 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
 
@@ -695,6 +696,7 @@ const App: React.FC = () => {
     }, []);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>(INITIAL_EXPENSES);
   const [fixedCosts, setFixedCosts] = useState<FixedCostConfig[]>(INITIAL_FIXED_COSTS);
+  const [incentiveRules, setIncentiveRules] = useState<IncentiveRule[]>([]);
   const [historyFilter, setHistoryFilter] = useState<SalesFilter>({ type: 'ALL', value: '', label: '전체 판매 내역' });
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
   const [reservations, setReservations] = useState<Reservation[]>(INITIAL_RESERVATIONS);
@@ -1156,6 +1158,11 @@ const App: React.FC = () => {
           });
           unsubscribeList.push(unsubDailyReports);
 
+          const unsubIncentiveRules = subscribeToCollection<IncentiveRule>(COLLECTIONS.INCENTIVE_RULES, (data) => {
+              setIncentiveRules(data);
+          });
+          unsubscribeList.push(unsubIncentiveRules);
+
           console.log('🔌 Firestore real-time listeners registered');
       } catch (error) {
           console.error('❌ Error registering Firestore listeners:', error);
@@ -1590,6 +1597,32 @@ const App: React.FC = () => {
 
   const handleRemoveManager = async (id: string) => {
       await deleteFromFirestore(COLLECTIONS.MANAGER_ACCOUNTS, id);
+  };
+
+  const handleUpsertIncentiveRule = async (payload: { storeId: string; managerLoginId: string; amountPerUnit: number }) => {
+      const existing = incentiveRules.find(
+          (rule) => rule.storeId === payload.storeId && rule.managerLoginId === payload.managerLoginId
+      );
+
+      const now = new Date().toISOString();
+      const nextRule: IncentiveRule = existing
+          ? {
+              ...existing,
+              amountPerUnit: payload.amountPerUnit,
+              isActive: true,
+              updatedAt: now
+          }
+          : {
+              id: `INC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              storeId: payload.storeId,
+              managerLoginId: payload.managerLoginId,
+              amountPerUnit: payload.amountPerUnit,
+              isActive: true,
+              createdAt: now,
+              updatedAt: now
+          };
+
+      await saveToFirestore<IncentiveRule>(COLLECTIONS.INCENTIVE_RULES, nextRule);
   };
 
   // --- Super Admin Actions ---
@@ -2801,9 +2834,9 @@ const App: React.FC = () => {
     // 점장 세션: 점장 탭 권한 적용
     const mgrPerms = (managerSession && activeManagerAccount) ? activeManagerAccount.tabPermissions : null;
     // 일반 직원: 사장이 설정한 staffPermissions 적용
-    const showTab = (key: keyof ManagerTabPermissions & keyof StaffPermissions) => {
-      if (mgrPerms) return mgrPerms[key];
-      if (isStaff) return staffPermissions[key as keyof StaffPermissions] !== false;
+    const showTab = (key: keyof StaffPermissions) => {
+      if (mgrPerms) return mgrPerms[key] !== false;
+      if (isStaff) return staffPermissions[key] !== false;
       return true;
     };
 
@@ -2812,6 +2845,7 @@ const App: React.FC = () => {
       { id: 'pos', label: '판매 (POS)', icon: ShoppingCart, show: showTab('pos'), type: 'CORE' },
       { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: showTab('reservation'), type: 'CORE' },
       { id: 'history', label: '판매 내역', icon: List, show: showTab('history'), type: 'CORE' },
+      { id: 'incentive', label: '인센티브', icon: ShieldCheck, show: isAdmin && (mgrPerms ? mgrPerms.incentive !== false : true), type: 'CORE' },
       { id: 'dailyClose', label: '일별 마감', icon: ClipboardList, show: isAdmin && (mgrPerms ? mgrPerms['dailyClose'] : true), type: 'ADMIN' },
       { id: 'dailyReport', label: '보고서 게시판', icon: BookOpen, show: showTab('dailyReport'), type: 'CORE' },
       { id: 'tax', label: '세금계산서', icon: FileText, show: showTab('tax'), type: 'CORE' },
@@ -3240,6 +3274,18 @@ const App: React.FC = () => {
                 shifts={shifts} staffList={staffList}
                 onSaveReport={handleSaveDailyReport}
                 onAddExpense={handleAddExpense}
+                />
+            )}
+            {activeTab === 'incentive' && (
+                <Incentive
+                    sales={visibleSales}
+                    products={visibleProducts}
+                    managerAccounts={managerAccounts}
+                    incentiveRules={incentiveRules}
+                    currentStoreId={currentStoreId}
+                    managerSession={managerSession}
+                    activeManagerAccount={activeManagerAccount}
+                    onUpsertRule={handleUpsertIncentiveRule}
                 />
             )}
             {(activeTab === 'dailyClose' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN')) && (
