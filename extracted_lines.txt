@@ -1,0 +1,199 @@
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                      <div>
+                          <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                              <ClipboardCheck size={20} className="text-emerald-600" />
+                              {closeModalY}. {parseInt(closeModalM)}. {parseInt(closeModalD)} ÎßàÍ∞ê?òÍ∏∞
+                          </h3>
+                          <p className="text-xs text-gray-400 mt-0.5">?êÎß§Í±¥Î≥Ñ ??™© ?êÍ? ?ÖÎ†• ???Ä?•Ìïò?∏Ïöî.</p>
+                      </div>
+                      <button onClick={() => setIsCloseModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                          <X size={20} className="text-gray-500" />
+                      </button>
+                  </div>
+
+                  {/* Sales list */}
+                  <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
+                          {closeModalDaySales.length === 0 ? (
+                              <div className="text-center py-16 text-gray-400">
+                                  <ShoppingBag size={36} className="mx-auto mb-2 opacity-20" />
+                                  <p className="text-sm">???†Ïùò ?êÎß§ ?¥Ïó≠???ÜÏäµ?àÎã§.</p>
+                              </div>
+                          ) : closeModalDaySales.map(sale => {
+                              const isSaved = closeSavedIds.has(sale.id);
+                              const saleTime = new Date(sale.date).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                              const saleCost = sale.items.reduce((sum, item, idx) => {
+                                  const product = products.find(p => p.id === item.productId);
+                                  return sum + getCloseCost(sale.id, idx, product?.factoryPrice || 0, item.purchasePrice || 0) * item.quantity;
+                              }, 0);
+                              const saleProfit = sale.totalAmount - saleCost;
+
+                              return (
+                                  <div key={sale.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                                      {/* Sale header */}
+                                      <div className="bg-gray-50 px-4 py-2.5 flex items-center gap-3 flex-wrap">
+                                          <span className="text-sm font-bold text-gray-700">{saleTime}</span>
+                                          <span className="text-sm text-gray-500">{sale.staffName}</span>
+                                          {sale.vehicleNumber && (
+                                              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded font-medium">
+                                                  {sale.vehicleNumber}
+                                              </span>
+                                          )}
+                                          <span className="font-bold text-blue-600 text-sm ml-auto">{formatCurrency(sale.totalAmount)}</span>
+                                          {isSaved && (
+                                              <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                                                  <CheckCircle size={10} /> ?Ä?•Îê®
+                                              </span>
+                                          )}
+                                      </div>
+
+                                      {/* Items */}
+                                      <div className="divide-y divide-gray-50">
+                                          {sale.items.map((item, idx) => {
+                                              const product = products.find(p => p.id === item.productId);
+                                              const category = product?.category || 'Í∏∞Ì?';
+                                              const itemClass = getCloseItemClass(item.productId, category);
+                                              const factoryPrice = product?.factoryPrice || 0;
+                                              const edit = closeEdits[sale.id]?.[idx] || {
+                                                  mode: (factoryPrice > 0 ? 'discount' : 'direct') as 'discount' | 'direct',
+                                                  discountRate: '',
+                                                  directCost: item.purchasePrice ? item.purchasePrice.toLocaleString() : '',
+                                              };
+                                              const effectiveCost = getCloseCost(sale.id, idx, factoryPrice, item.purchasePrice || 0);
+                                              const totalRevenue = item.priceAtSale * item.quantity;
+                                              const totalCost = effectiveCost * item.quantity;
+                                              const clsColor = itemClass === 'tire' ? 'bg-orange-100 text-orange-600' : itemClass === 'repair' ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-500';
+                                              const clsLabel = itemClass === 'tire' ? '?Ä?¥Ïñ¥' : itemClass === 'repair' ? '?ïÎπÑ' : 'Í≥µÏûÑ';
+
+                                              return (
+                                                  <div key={idx} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                                                      <div className="flex-1 min-w-0">
+                                                          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${clsColor}`}>{clsLabel}</span>
+                                                              <span className="text-sm font-semibold text-gray-800">{item.productName}</span>
+                                                              {item.specification && <span className="text-xs text-blue-500">{item.specification}</span>}
+                                                              <span className="text-xs text-gray-400">√ó {item.quantity}</span>
+                                                          </div>
+                                                          <div className="flex gap-3 text-xs flex-wrap text-gray-500">
+                                                              <span>?êÎß§ <strong className="text-gray-700">{formatCurrency(totalRevenue)}</strong></span>
+                                                              {factoryPrice > 0 && <span className="text-gray-400">Í≥µÏû•?ÑÍ? <strong>{formatCurrency(factoryPrice)}</strong></span>}
+                                                              {effectiveCost > 0 && (
+                                                                  <span className={totalRevenue - totalCost >= 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold'}>
+                                                                      ?òÏùµ {formatCurrency(totalRevenue - totalCost)}
+                                                                  </span>
+                                                              )}
+                                                          </div>
+                                                      </div>
+                                                      {/* Cost input */}
+                                                      <div className="flex items-center gap-2 shrink-0">
+                                                          <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs">
+                                                              {(['discount', 'direct'] as const).map(mode => (
+                                                                  <button
+                                                                      key={mode}
+                                                                      onClick={() => setCloseEdits(prev => ({
+                                                                          ...prev,
+                                                                          [sale.id]: { ...(prev[sale.id] || {}), [idx]: { ...(prev[sale.id]?.[idx] || { discountRate: '', directCost: '' }), mode } }
+                                                                      }))}
+                                                                      className={`px-2.5 py-1 rounded-md font-medium whitespace-nowrap transition-colors ${edit.mode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+                                                                  >
+                                                                      {mode === 'discount' ? '?†Ïù∏?? : 'ÏßÅÏ†ë?ÖÎ†•'}
+                                                                  </button>
+                                                              ))}
+                                                          </div>
+                                                          {edit.mode === 'discount' ? (
+                                                              <div className="flex items-center gap-1">
+                                                                  <input
+                                                                      type="text" inputMode="decimal"
+                                                                      className="w-14 p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
+                                                                      value={edit.discountRate} placeholder="0"
+                                                                      onChange={e => {
+                                                                          const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                          setCloseEdits(prev => ({ ...prev, [sale.id]: { ...(prev[sale.id] || {}), [idx]: { ...edit, discountRate: raw } } }));
+                                                                          setCloseSavedIds(prev => { const s = new Set(prev); s.delete(sale.id); return s; });
+                                                                      }}
+                                                                  />
+                                                                  <span className="text-sm text-gray-500">%</span>
+                                                                  {edit.discountRate && factoryPrice > 0 && (
+                                                                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                                                                          ??{formatCurrency(Math.round(factoryPrice * (1 - parseFloat(edit.discountRate) / 100)))}
+                                                                      </span>
+                                                                  )}
+                                                              </div>
+                                                          ) : (
+                                                              <div className="flex items-center gap-1">
+                                                                  <input
+                                                                      type="text" inputMode="numeric"
+                                                                      className="w-28 p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
+                                                                      value={edit.directCost} placeholder="0"
+                                                                      onChange={e => {
+                                                                          const raw = e.target.value.replace(/[^0-9]/g, '');
+                                                                          const formatted = raw !== '' ? Number(raw).toLocaleString() : '';
+                                                                          setCloseEdits(prev => ({ ...prev, [sale.id]: { ...(prev[sale.id] || {}), [idx]: { ...edit, directCost: formatted } } }));
+                                                                          setCloseSavedIds(prev => { const s = new Set(prev); s.delete(sale.id); return s; });
+                                                                      }}
+                                                                  />
+                                                                  <span className="text-xs text-gray-400">/Í∞?/span>
+                                                              </div>
+                                                          )}
+                                                      </div>
+                                                  </div>
+                                              );
+                                          })}
+                                      </div>
+
+                                      {/* Sale save row */}
+                                      <div className="px-4 py-3 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3">
+                                          <div className="flex gap-3 text-xs text-gray-500">
+                                              {saleCost > 0 && (
+                                                  <>
+                                                      <span>?êÍ? <strong className="text-gray-700">{formatCurrency(saleCost)}</strong></span>
+                                                      <span className={`font-bold ${saleProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                          ?òÏùµ {formatCurrency(saleProfit)}
+                                                      </span>
+                                                  </>
+                                              )}
+                                          </div>
+                                          <button
+                                              onClick={() => handleCloseSaveSale(sale)}
+                                              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors ${isSaved ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                                          >
+                                              {isSaved ? <><CheckCircle size={14} /> ?Ä?•Îê®</> : <><Save size={14} /> ?êÍ? ?Ä??/>}
+                                          </button>
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                              {closeModalDaySales.length > 0 && (
+                                  <button
+                                      onClick={() => {
+                                          onSaveReport(buildDailyCloseReport(closeModalDateStr, closeModalDaySales));
+                                          setCloseReported(true);
+                                      }}
+                                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-colors ${closeReported ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'}`}
+                                  >
+                                      {closeReported ? <><CheckCircle size={14} /> Î≥¥Í≥†???¨Î¶º</> : <><Upload size={14} /> Î≥¥Í≥†???¨Î¶¨Í∏?/>}
+                                  </button>
+                              )}
+                          </div>
+                          <button
+                              onClick={() => setIsCloseModalOpen(false)}
+                              className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+                          >
+                              ?´Í∏∞
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+    </div>
+  );
+};
+
+export default SalesHistory;
