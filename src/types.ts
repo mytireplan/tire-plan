@@ -188,7 +188,6 @@ export interface StaffPermissions {
   reservation: boolean;
   history: boolean;
   dailyReport: boolean;
-  tax: boolean;
   inventory: boolean;
   stockIn: boolean;
   financials: boolean;
@@ -203,7 +202,6 @@ export interface ManagerTabPermissions {
   incentive: boolean;
   dailyClose: boolean;
   dailyReport: boolean;
-  tax: boolean;
   inventory: boolean;
   stockIn: boolean;
   financials: boolean;

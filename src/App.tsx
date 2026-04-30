@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck, ClipboardList, BookOpen } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck, ClipboardList, BookOpen } from 'lucide-react';
 import { orderBy, where, limit, collection, query, getDocs, doc, deleteDoc, writeBatch, type QueryConstraint } from 'firebase/firestore';
 import { db, auth } from './firebase';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
@@ -15,7 +15,6 @@ import { hashPassword } from './utils/auth';
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
 import Inventory from './components/Inventory';
-import TaxInvoice from './components/TaxInvoice';
 import SalesHistory from './components/SalesHistory';
 import DailyClose from './components/DailyClose';
 import DailyReportBoard from './components/DailyReportBoard';
@@ -512,7 +511,7 @@ const INITIAL_TRANSFER_HISTORY: StockTransferRecord[] = [
 // Demo seeding guard: only seed mock data when explicitly enabled.
 const SHOULD_SEED_DEMO = import.meta.env.VITE_SEED_DEMO === 'true';
 
-type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'incentive' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin' | 'admin' | 'dailyClose' | 'dailyReport';
+type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'history' | 'incentive' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin' | 'admin' | 'dailyClose' | 'dailyReport';
 
 type ViewState = 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
 
@@ -633,7 +632,6 @@ const App: React.FC = () => {
         reservation: true,
         history: true,
         dailyReport: true,
-        tax: true,
         inventory: true,
         stockIn: true,
         financials: true,
@@ -2848,7 +2846,7 @@ const App: React.FC = () => {
       { id: 'incentive', label: '인센티브', icon: ShieldCheck, show: isAdmin && (mgrPerms ? mgrPerms.incentive !== false : true), type: 'CORE' },
       { id: 'dailyClose', label: '일별 마감', icon: ClipboardList, show: isAdmin && (mgrPerms ? mgrPerms['dailyClose'] : true), type: 'ADMIN' },
       { id: 'dailyReport', label: '보고서 게시판', icon: BookOpen, show: showTab('dailyReport'), type: 'CORE' },
-      { id: 'tax', label: '세금계산서', icon: FileText, show: showTab('tax'), type: 'CORE' },
+
       { id: 'customers', label: '고객 관리', icon: Users, show: isAdmin && !managerSession, type: 'ADMIN' },
       { id: 'DIVIDER_1', label: '', icon: X, show: true, type: 'DIVIDER' },
       { id: 'inventory', label: '재고 관리', icon: Package, show: showTab('inventory'), type: 'CORE' },
@@ -2996,7 +2994,7 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        <aside className={`hidden md:flex ${isSidebarOpen ? 'xl:w-64 md:w-56' : 'w-20'} bg-slate-900 text-white transition-all duration-300 ease-in-out flex-col shadow-xl z-20`}>
+        <aside className={`hidden md:flex ${isSidebarOpen ? 'xl:w-64 md:w-56' : 'w-20'} bg-slate-900 text-white transition-all duration-300 ease-in-out flex-col shadow-xl z-20 h-screen sticky top-0`}>
             <div className="p-5 flex items-center justify-center md:justify-between border-b border-slate-800 h-16">
             {isSidebarOpen && (
                 <div className="hidden md:flex items-center gap-2">
@@ -3009,7 +3007,7 @@ const App: React.FC = () => {
                 {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             </div>
-            <nav className="flex-1 py-4 overflow-y-auto">
+            <nav className="flex-1 py-4 overflow-y-auto min-h-0">
             <ul className="space-y-2 px-3">
                 {navItems.map((item, idx) => {
                     if (item.type === 'DIVIDER') {
@@ -3258,9 +3256,7 @@ const App: React.FC = () => {
                 currentUser={effectiveUser} currentStoreId={currentStoreId} onStockTransfer={handleStockTransfer}
                 />
             )}
-            {(activeTab === 'tax') && 
-                <TaxInvoice sales={visibleSales.filter(s => currentStoreId === 'ALL' || s.storeId === currentStoreId)} onUpdateSale={handleUpdateSale} />
-            }
+
             {(activeTab === 'history') && (
                 <SalesHistory 
                 sales={visibleSales} stores={visibleStores} products={visibleProducts} filter={historyFilter} 

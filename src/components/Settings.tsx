@@ -107,20 +107,20 @@ const Settings: React.FC<SettingsProps> = ({
   // 점장 계정 관리 상태
   const DEFAULT_TAB_PERMS: ManagerTabPermissions = {
       dashboard: true, pos: true, reservation: true, history: true, incentive: true,
-      dailyClose: true, dailyReport: true, tax: true,
+      dailyClose: true, dailyReport: true,
       inventory: true, stockIn: true, financials: true, leave: true,
   };
   const TAB_LABELS: Record<keyof ManagerTabPermissions, string> = {
       dashboard: '대시보드', pos: '판매(POS)', reservation: '예약 관리',
       history: '판매 내역', incentive: '인센티브', dailyClose: '일별 마감', dailyReport: '보고서 게시판',
-      tax: '세금계산서', inventory: '재고 관리', stockIn: '입고 관리',
+      inventory: '재고 관리', stockIn: '입고 관리',
       financials: '재무/결산', leave: '근무표',
   };
   // 일반 직원 탭 설정 — dailyClose는 원래 직원에게 안 보임 (admin 전용)
   const STAFF_TAB_LABELS: Record<keyof import('../types').StaffPermissions, string> = {
       dashboard: '대시보드', pos: '판매(POS)', reservation: '예약 관리',
       history: '판매 내역', dailyReport: '보고서 게시판',
-      tax: '세금계산서', inventory: '재고 관리', stockIn: '입고 관리',
+      inventory: '재고 관리', stockIn: '입고 관리',
       financials: '지출', leave: '근무표',
   };
   const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
