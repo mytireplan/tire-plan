@@ -876,7 +876,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
                     {filteredProducts.map(product => {
                         const stock = getStock(product);
-                        const isService = product.category === '기타' || stock > 900;
+                        const isService = product.category === '기타' || product.category === '정비' || stock > 900;
                         const isLowStock = !isService && stock < 10;
                         const qtyInCart = cartQtyMap[product.id] || 0;
                         const isSelected = qtyInCart > 0;
