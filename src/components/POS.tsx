@@ -51,7 +51,14 @@ interface CartItemRowProps {
     onUpdateSpecification: (cartItemId: string, specification: string) => void;
 }
 
-const normalizeCategory = (category: string) => category === '부품/수리' ? '기타' : category;
+const normalizeCategory = (category?: string) => {
+    const normalized = (category || '').trim();
+    return normalized === '부품/수리' ? '기타' : normalized;
+};
+const isServiceCategory = (category?: string) => {
+    const normalized = normalizeCategory(category);
+    return normalized === '기타' || normalized === '정비';
+};
 const normalizeProductCategory = (product: Product): Product => ({ ...product, category: normalizeCategory(product.category) });
 
 const CartItemRow: React.FC<CartItemRowProps> = ({ 
@@ -67,7 +74,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
     // Check if discounted
     const isDiscounted = item.originalPrice !== undefined && item.price < item.originalPrice;
     const isTempProduct = item.id === '99999';
-    const isService = item.category === '기타' || item.category === '정비' || (item.stock || 0) > 900;
+    const isService = isServiceCategory(item.category) || (item.stock || 0) > 900;
 
     // Local state for formatted price input
     const [localPrice, setLocalPrice] = useState('');
@@ -408,7 +415,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 const matchesBrand = selectedBrand === 'All' || p.brand === selectedBrand;
 
                 // 검색 시 재고 0인 제품 숨김 (서비스 상품 제외)
-                const isService = p.category === '기타' || p.category === '정비' || (p.stockByStore[activeStoreId] || 0) > 900;
+                const isService = isServiceCategory(p.category) || (p.stockByStore[activeStoreId] || 0) > 900;
                 const hasStock = !lowerSearch || isService || (p.stockByStore[activeStoreId] || 0) > 0;
         
                 return matchesSearch && matchesCategory && matchesBrand && hasStock;
@@ -437,7 +444,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     const addToCart = (product: Product, overridePrice?: number, overrideName?: string, isImmediateNewProduct?: boolean, quantity: number = 1) => {
         // If this is a new product being immediately sold (입고와 동시에 판매), treat its stock as 0
         const currentStock = isImmediateNewProduct ? 0 : (product.stockByStore[activeStoreId] || 0);
-        const isServiceItem = product.category === '기타' || product.category === '정비' || currentStock > 900;
+        const isServiceItem = isServiceCategory(product.category) || currentStock > 900;
         // Service items or Dummy items (99999) always allow add
         const isSpecialItem = product.id === '99999' || isServiceItem;
         const qtyToAdd = Math.max(1, quantity);
@@ -534,7 +541,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         const newQty = item.quantity + delta;
         if (newQty <= 0) return null; 
                 const product = fireProducts.find(p => p.id === item.id);
-                const isServiceItem = product ? (product.category === '기타' || (product.stock || 0) >= 900) : false;
+                const isServiceItem = product ? (isServiceCategory(product.category) || (product.stock || 0) >= 900) : false;
                 if (!item.isManual && !isServiceItem && item.id !== '99999') {
                         if (product && newQty > getStock(product)) return item;
         }
@@ -876,7 +883,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
                     {filteredProducts.map(product => {
                         const stock = getStock(product);
-                        const isService = product.category === '기타' || product.category === '정비' || stock > 900;
+                        const isService = isServiceCategory(product.category) || stock > 900;
                         const isLowStock = !isService && stock < 10;
                         const qtyInCart = cartQtyMap[product.id] || 0;
                         const isSelected = qtyInCart > 0;
