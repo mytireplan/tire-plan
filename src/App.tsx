@@ -3009,7 +3009,7 @@ const App: React.FC = () => {
                 {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             </div>
-            <nav className="flex-1 py-8">
+            <nav className="flex-1 py-4 overflow-y-auto">
             <ul className="space-y-2 px-3">
                 {navItems.map((item, idx) => {
                     if (item.type === 'DIVIDER') {
