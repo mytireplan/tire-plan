@@ -626,17 +626,46 @@ const App: React.FC = () => {
     }, [activeTab, currentStoreId]);
 
   
-  const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(() => {
-    try {
-      const saved = localStorage.getItem(`staffPermissions-${currentUser?.id || 'default'}`);
-      if (saved) return JSON.parse(saved) as StaffPermissions;
-    } catch { /* ignore */ }
-    return {
-      dashboard: true, pos: true, reservation: true, history: true,
-      dailyReport: true, tax: true, inventory: true, stockIn: true,
-      financials: true, leave: true,
+    const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
+        dashboard: true,
+        pos: true,
+        reservation: true,
+        history: true,
+        dailyReport: true,
+        tax: true,
+        inventory: true,
+        stockIn: true,
+        financials: true,
+        leave: true,
     };
-  });
+
+    const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
+
+    useEffect(() => {
+        if (!currentUser?.id) {
+            setStaffPermissions(DEFAULT_STAFF_PERMISSIONS);
+            return;
+        }
+        try {
+            const saved = localStorage.getItem(`staffPermissions-${currentUser.id}`);
+            if (saved) {
+                setStaffPermissions(JSON.parse(saved) as StaffPermissions);
+            } else {
+                setStaffPermissions(DEFAULT_STAFF_PERMISSIONS);
+            }
+        } catch {
+            setStaffPermissions(DEFAULT_STAFF_PERMISSIONS);
+        }
+    }, [currentUser?.id]);
+
+    useEffect(() => {
+        if (!currentUser?.id) return;
+        try {
+            localStorage.setItem(`staffPermissions-${currentUser.id}`, JSON.stringify(staffPermissions));
+        } catch {
+            // ignore localStorage errors
+        }
+    }, [staffPermissions, currentUser?.id]);
 
         const [stores, setStores] = useState<StoreAccount[]>(INITIAL_STORE_ACCOUNTS);
         const [tireBrands, setTireBrands] = useState<string[]>(INITIAL_TIRE_BRANDS);
@@ -1544,9 +1573,6 @@ const App: React.FC = () => {
 
   const handleUpdateStaffPermissions = (next: StaffPermissions) => {
       setStaffPermissions(next);
-      try {
-          localStorage.setItem(`staffPermissions-${currentUser?.id || 'default'}`, JSON.stringify(next));
-      } catch { /* ignore */ }
   };
 
   // 점장 계정 CRUD

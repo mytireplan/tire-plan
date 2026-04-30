@@ -129,6 +129,11 @@ const Settings: React.FC<SettingsProps> = ({
       name: string; loginId: string; password: string; storeId: string; tabPermissions: ManagerTabPermissions;
   }>({ name: '', loginId: '', password: '', storeId: '', tabPermissions: { ...DEFAULT_TAB_PERMS } });
   const [managerFormError, setManagerFormError] = useState('');
+  const [draftStaffPermissions, setDraftStaffPermissions] = useState<StaffPermissions>(staffPermissions);
+
+  useEffect(() => {
+      setDraftStaffPermissions(staffPermissions);
+  }, [staffPermissions]);
 
   useEffect(() => {
       if (!toast) return;
@@ -548,13 +553,33 @@ const Settings: React.FC<SettingsProps> = ({
                     <label key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100">
                         <span className="text-sm text-gray-700">{STAFF_TAB_LABELS[key]}</span>
                         <div
-                            onClick={() => onUpdatePermissions({ ...staffPermissions, [key]: !staffPermissions[key] })}
-                            className={`relative w-10 h-5 rounded-full cursor-pointer transition-colors flex-shrink-0 ${staffPermissions[key] ? 'bg-blue-500' : 'bg-gray-300'}`}
+                            onClick={() => setDraftStaffPermissions(prev => ({ ...prev, [key]: !prev[key] }))}
+                            className={`relative w-10 h-5 rounded-full cursor-pointer transition-colors flex-shrink-0 ${draftStaffPermissions[key] ? 'bg-blue-500' : 'bg-gray-300'}`}
                         >
-                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${staffPermissions[key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${draftStaffPermissions[key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
                         </div>
                     </label>
                 ))}
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                    type="button"
+                    onClick={() => setDraftStaffPermissions(staffPermissions)}
+                    className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                    취소
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        onUpdatePermissions(draftStaffPermissions);
+                        setToast({ type: 'success', message: '일반 직원 탭 설정이 저장되었습니다.' });
+                    }}
+                    className="px-3 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-flex items-center gap-1.5"
+                >
+                    <Check size={14} />
+                    설정 저장
+                </button>
             </div>
         </div>
         )}
