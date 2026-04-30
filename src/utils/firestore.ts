@@ -32,7 +32,9 @@ const COLLECTIONS = {
   RESERVATIONS: 'reservations',
   TRANSFERS: 'stockTransfers',
   SETTINGS: 'settings',
-  SHIFTS: 'shifts'
+  SHIFTS: 'shifts',
+  DAILY_REPORTS: 'dailyReports',
+  MANAGER_ACCOUNTS: 'managerAccounts'
 };
 
 // 현재 로그인한 사용자의 UID 가져오기

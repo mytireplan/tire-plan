@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff } from '../types';
+import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff, DailyReport, DailyReportExpenseEntry, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStockInEntry, ExpenseRecord } from '../types';
 import { PaymentMethod } from '../types';
-import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar, Zap } from 'lucide-react';
+import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar, Zap, ClipboardCheck, CheckCircle, Upload } from 'lucide-react';
 import { formatCurrency, formatNumber, isDateInRange, formatToKoreaTime } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -9,6 +9,8 @@ interface SalesHistoryProps {
   sales: Sale[];
   stores: Store[];
   products: Product[];
+    dailyReports: DailyReport[];
+    expenses: ExpenseRecord[];
   filter: SalesFilter;
   onBack: () => void;
   currentUser: User;
@@ -25,11 +27,13 @@ interface SalesHistoryProps {
   tireModels: Record<string, string[]>;
   shifts: Shift[];
   staffList: Staff[];
+  onSaveReport: (report: DailyReport) => void;
+    onAddExpense: (expense: ExpenseRecord) => void;
 }
 
 type ViewMode = 'daily' | 'weekly' | 'monthly' | 'staff';
 
-const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onDeleteSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, shifts, staffList }) => {
+const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, dailyReports, expenses, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onDeleteSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, shifts, staffList, onSaveReport, onAddExpense }) => {
   
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -113,6 +117,79 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
     paymentMethod: PaymentMethod;
     paymentDetails?: { method1: PaymentMethod; amount1: number; method2?: PaymentMethod; amount2?: number };
   }>({ paymentMethod: PaymentMethod.CARD });
+
+  // --- 마감하기 State ---
+  type CloseItemEdit = { mode: 'discount' | 'direct'; discountRate: string; directCost: string };
+    type CloseExpenseDraft = { id: string; category: string; description: string; amount: string };
+  const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
+  const [closeEdits, setCloseEdits] = useState<Record<string, Record<number, CloseItemEdit>>>({});
+  const [closeSavedIds, setCloseSavedIds] = useState<Set<string>>(new Set());
+  const [closeReported, setCloseReported] = useState(false);
+    const [closeExpenseDrafts, setCloseExpenseDrafts] = useState<CloseExpenseDraft[]>([]);
+    const [closeMetaSaved, setCloseMetaSaved] = useState(false);
+    const [closeLinkedExpenses, setCloseLinkedExpenses] = useState<DailyReportExpenseEntry[]>([]);
+
+    const createCloseExpenseDraft = (): CloseExpenseDraft => ({
+            id: `close-exp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            category: '기타',
+            description: '',
+            amount: '',
+    });
+
+  const openCloseModal = () => {
+      const y = currentDate.getFullYear();
+      const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const d = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+      const daySales = filteredSales.filter(s => !s.isCanceled && s.date.startsWith(dateStr));
+      // Pre-fill edits
+      const initialEdits: Record<string, Record<number, CloseItemEdit>> = {};
+      daySales.forEach(sale => {
+          const itemEdits: Record<number, CloseItemEdit> = {};
+          sale.items.forEach((item, idx) => {
+              const product = products.find(p => p.id === item.productId);
+              const fp = product?.factoryPrice || 0;
+              const saved = item.purchasePrice || 0;
+              const mode: 'discount' | 'direct' = fp > 0 ? 'discount' : 'direct';
+              let discountRate = '';
+              if (fp > 0 && saved > 0) {
+                  const rate = Math.round((1 - saved / fp) * 100);
+                  if (rate >= 0 && rate < 100) discountRate = String(rate);
+              }
+              itemEdits[idx] = { mode, discountRate, directCost: saved > 0 ? saved.toLocaleString() : '' };
+          });
+          initialEdits[sale.id] = itemEdits;
+      });
+      setCloseEdits(initialEdits);
+      setCloseSavedIds(new Set());
+      setCloseReported(false);
+      setCloseMetaSaved(false);
+      setCloseExpenseDrafts([]);
+      setCloseLinkedExpenses([]);
+      setIsCloseModalOpen(true);
+  };
+
+  const getCloseCost = (saleId: string, itemIdx: number, factoryPrice: number, savedCost: number): number => {
+      const edit = closeEdits[saleId]?.[itemIdx];
+      if (!edit) return savedCost;
+      if (edit.mode === 'discount') {
+          const rate = parseFloat(edit.discountRate);
+          if (isNaN(rate) || !factoryPrice) return savedCost;
+          return Math.round(factoryPrice * (1 - rate / 100));
+      }
+      const val = parseInt(edit.directCost.replace(/,/g, ''), 10);
+      return isNaN(val) ? 0 : val;
+  };
+
+  const handleCloseSaveSale = (sale: typeof filteredSales[0]) => {
+      const updatedItems = sale.items.map((item, idx) => {
+          const product = products.find(p => p.id === item.productId);
+          const fp = product?.factoryPrice || 0;
+          return { ...item, purchasePrice: getCloseCost(sale.id, idx, fp, item.purchasePrice || 0) };
+      });
+      onUpdateSale({ ...sale, items: updatedItems });
+      setCloseSavedIds(prev => new Set(prev).add(sale.id));
+  };
 
   // --- Immediate Stock In State ---
   const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
@@ -1289,6 +1366,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                 >
                     <Plus size={16}/> 판매추가
                 </button>
+                {viewMode === 'daily' && (
+                    <button
+                        onClick={openCloseModal}
+                        className="w-full sm:w-auto bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-bold shadow-sm hover:bg-emerald-700 flex items-center justify-center gap-2 whitespace-nowrap"
+                    >
+                        <ClipboardCheck size={16}/> 마감하기
+                    </button>
+                )}
             </div>
         </div>
       </div>
@@ -2816,6 +2901,639 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
           </div>
         </div>
       )}
+
+      {/* 마감하기 Modal */}
+      {isCloseModalOpen && (() => {
+          const y = currentDate.getFullYear();
+          const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+          const d = String(currentDate.getDate()).padStart(2, '0');
+          const dateStr = `${y}-${m}-${d}`;
+          const daySales = filteredSales.filter(s => !s.isCanceled && s.date.startsWith(dateStr))
+              .sort((a, b) => a.date.localeCompare(b.date));
+          const reportStoreId = (currentStoreId && currentStoreId !== 'ALL')
+              ? currentStoreId
+              : (daySales[0]?.storeId || 'unknown');
+          const dayStockIns: DailyReportStockInEntry[] = stockInHistory
+              .filter(record => !record.consumedAtSaleId && record.date.startsWith(dateStr) && (reportStoreId === 'unknown' || record.storeId === reportStoreId))
+              .map(record => ({
+                  id: record.id,
+                  supplier: record.supplier,
+                  productName: record.productName,
+                  specification: record.specification,
+                  category: record.category,
+                  quantity: record.receivedQuantity ?? record.quantity ?? 0,
+              }));
+          const savedDayExpenses: DailyReportExpenseEntry[] = expenses
+              .filter(expense => (expense.date === dateStr || expense.date.startsWith(dateStr)) && (!expense.storeId || reportStoreId === 'unknown' || expense.storeId === reportStoreId))
+              .map(expense => ({
+                  id: expense.id,
+                  category: expense.category,
+                  description: expense.description,
+                  amount: expense.amount,
+                  source: 'saved',
+              }));
+          const mergedSavedDayExpenses: DailyReportExpenseEntry[] = [
+              ...savedDayExpenses,
+              ...closeLinkedExpenses.filter(localExpense => !savedDayExpenses.some(savedExpense => savedExpense.id === localExpense.id)),
+          ];
+          const manualDayExpenses: DailyReportExpenseEntry[] = closeExpenseDrafts
+              .map(expense => ({
+                  id: expense.id,
+                  category: expense.category.trim() || '기타',
+                  description: expense.description.trim(),
+                  amount: Number(expense.amount.replace(/,/g, '')) || 0,
+                  source: 'manual' as const,
+              }))
+              .filter(expense => expense.description && expense.amount > 0);
+
+          const normalizeCategory = (category?: string) => (category || '기타').trim() || '기타';
+          const getPreviousDateStr = (baseDateStr: string) => {
+              const [yy, mm, dd] = baseDateStr.split('-').map(Number);
+              const dt = new Date(yy, mm - 1, dd);
+              dt.setDate(dt.getDate() - 1);
+              return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+          };
+          const getCurrentStockByStore = (product: Product) => {
+              if (reportStoreId && reportStoreId !== 'unknown') {
+                  return Number(product.stockByStore?.[reportStoreId] || 0);
+              }
+              return Number(product.stock || 0);
+          };
+          const categoryPriority = (category: string) => {
+              if (category === '타이어') return 0;
+              if (category === '중고타이어') return 1;
+              if (category === '기타') return 99;
+              return 10;
+          };
+          const soldByCategory = new Map<string, number>();
+          daySales.forEach(sale => {
+              sale.items.forEach(item => {
+                  const product = products.find(p => p.id === item.productId);
+                  const category = normalizeCategory(product?.category);
+                  soldByCategory.set(category, (soldByCategory.get(category) || 0) + item.quantity);
+              });
+          });
+          const stockInByCategory = new Map<string, number>();
+          dayStockIns.forEach(record => {
+              const category = normalizeCategory(record.category);
+              stockInByCategory.set(category, (stockInByCategory.get(category) || 0) + (record.quantity || 0));
+          });
+          const currentStockByCategory = new Map<string, number>();
+          products.forEach(product => {
+              const qty = getCurrentStockByStore(product);
+              if (qty === 0) return;
+              const category = normalizeCategory(product.category);
+              currentStockByCategory.set(category, (currentStockByCategory.get(category) || 0) + qty);
+          });
+          const previousDateStr = getPreviousDateStr(dateStr);
+          const previousReport = dailyReports.find(report =>
+              report.storeId === reportStoreId && report.dateStr === previousDateStr
+          );
+          const previousStockByCategory = new Map<string, number>();
+          previousReport?.inventoryFlowEntries?.forEach(entry => {
+              previousStockByCategory.set(normalizeCategory(entry.category), Number(entry.currentStock || 0));
+          });
+          const allInventoryCategories = new Set<string>([
+              ...Array.from(currentStockByCategory.keys()),
+              ...Array.from(stockInByCategory.keys()),
+              ...Array.from(soldByCategory.keys()),
+              ...Array.from(previousStockByCategory.keys()),
+          ]);
+          const inventoryFlowEntries: DailyReportInventoryFlowEntry[] = Array.from(allInventoryCategories)
+              .map(category => {
+                  const stockInQty = stockInByCategory.get(category) || 0;
+                  const soldQty = soldByCategory.get(category) || 0;
+                  const hasPreviousBaseline = previousStockByCategory.has(category);
+                  const fallbackCurrentStock = currentStockByCategory.get(category) || 0;
+                  const previousStock = hasPreviousBaseline
+                      ? (previousStockByCategory.get(category) || 0)
+                      : (fallbackCurrentStock - stockInQty + soldQty);
+                  const currentStock = hasPreviousBaseline
+                      ? (previousStock + stockInQty - soldQty)
+                      : fallbackCurrentStock;
+                  return {
+                      category,
+                      previousStock,
+                      stockInQty,
+                      soldQty,
+                      currentStock,
+                  };
+              })
+              .sort((a, b) => {
+                  const pa = categoryPriority(a.category);
+                  const pb = categoryPriority(b.category);
+                  if (pa !== pb) return pa - pb;
+                  return a.category.localeCompare(b.category, 'ko');
+              });
+          const inventoryFlowTotals = inventoryFlowEntries.reduce((acc, entry) => ({
+              previousStock: acc.previousStock + entry.previousStock,
+              stockInQty: acc.stockInQty + entry.stockInQty,
+              soldQty: acc.soldQty + entry.soldQty,
+              currentStock: acc.currentStock + entry.currentStock,
+          }), { previousStock: 0, stockInQty: 0, soldQty: 0, currentStock: 0 });
+
+          const handleSaveCloseMeta = () => {
+              const validDrafts = closeExpenseDrafts
+                  .map(expense => ({
+                      ...expense,
+                      category: expense.category.trim() || '기타',
+                      description: expense.description.trim(),
+                      amountValue: Number(expense.amount.replace(/,/g, '')) || 0,
+                  }))
+                  .filter(expense => expense.description && expense.amountValue > 0);
+
+              if (validDrafts.length > 0) {
+                  const now = Date.now();
+                  const createdEntries: DailyReportExpenseEntry[] = validDrafts.map((expense, index) => {
+                      const id = `EXP-CLOSE-${now}-${index}-${Math.random().toString(36).slice(2, 6)}`;
+                      const newExpense: ExpenseRecord = {
+                          id,
+                          date: dateStr,
+                          category: expense.category,
+                          description: expense.description,
+                          amount: expense.amountValue,
+                          storeId: reportStoreId !== 'unknown' ? reportStoreId : undefined,
+                      };
+                      onAddExpense(newExpense);
+                      return {
+                          id,
+                          category: expense.category,
+                          description: expense.description,
+                          amount: expense.amountValue,
+                          source: 'saved' as const,
+                      };
+                  });
+
+                  setCloseLinkedExpenses(prev => [...prev, ...createdEntries]);
+                  setCloseExpenseDrafts([]);
+              }
+
+              setCloseMetaSaved(true);
+              setCloseReported(false);
+          };
+          const TIRE_CATEGORIES = ['타이어', '중고타이어'];
+          const REPAIR_CATEGORIES = ['브레이크패드', '오일필터', '엔진오일', '에어크리너'];
+          const getItemClass = (productId: string, category: string) => {
+              if (productId === '99999' || productId?.startsWith('RENTAL-')) return 'labor';
+              if (TIRE_CATEGORIES.includes(category)) return 'tire';
+              if (REPAIR_CATEGORIES.includes(category)) return 'repair';
+              return 'labor';
+          };
+          return (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsCloseModalOpen(false)}>
+                  <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                          <div>
+                              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                  <ClipboardCheck size={20} className="text-emerald-600" />
+                                  {y}. {parseInt(m)}. {parseInt(d)} 마감하기
+                              </h3>
+                              <p className="text-xs text-gray-400 mt-0.5">판매건별 항목 원가 입력 후 저장하세요.</p>
+                          </div>
+                          <button onClick={() => setIsCloseModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                              <X size={20} className="text-gray-500" />
+                          </button>
+                      </div>
+
+                      {/* Sales list */}
+                      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
+                          {daySales.length === 0 ? (
+                              <div className="text-center py-16 text-gray-400">
+                                  <ShoppingBag size={36} className="mx-auto mb-2 opacity-20" />
+                                  <p className="text-sm">이 날의 판매 내역이 없습니다.</p>
+                              </div>
+                          ) : daySales.map(sale => {
+                              const isSaved = closeSavedIds.has(sale.id);
+                              const saleTime = new Date(sale.date).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                              const saleCost = sale.items.reduce((sum, item, idx) => {
+                                  const product = products.find(p => p.id === item.productId);
+                                  return sum + getCloseCost(sale.id, idx, product?.factoryPrice || 0, item.purchasePrice || 0) * item.quantity;
+                              }, 0);
+                              const saleProfit = sale.totalAmount - saleCost;
+
+                              return (
+                                  <div key={sale.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                                      {/* Sale header */}
+                                      <div className="bg-gray-50 px-4 py-2.5 flex items-center gap-3 flex-wrap">
+                                          <span className="text-sm font-bold text-gray-700">{saleTime}</span>
+                                          <span className="text-sm text-gray-500">{sale.staffName}</span>
+                                          {sale.vehicleNumber && (
+                                              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded font-medium">
+                                                  {sale.vehicleNumber}
+                                              </span>
+                                          )}
+                                          <span className="font-bold text-blue-600 text-sm ml-auto">{formatCurrency(sale.totalAmount)}</span>
+                                          {isSaved && (
+                                              <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                                                  <CheckCircle size={10} /> 저장됨
+                                              </span>
+                                          )}
+                                      </div>
+
+                                      {/* Items */}
+                                      <div className="divide-y divide-gray-50">
+                                          {sale.items.map((item, idx) => {
+                                              const product = products.find(p => p.id === item.productId);
+                                              const category = product?.category || '기타';
+                                              const itemClass = getItemClass(item.productId, category);
+                                              const factoryPrice = product?.factoryPrice || 0;
+                                              const edit = closeEdits[sale.id]?.[idx] || {
+                                                  mode: (factoryPrice > 0 ? 'discount' : 'direct') as 'discount' | 'direct',
+                                                  discountRate: '',
+                                                  directCost: item.purchasePrice ? item.purchasePrice.toLocaleString() : '',
+                                              };
+                                              const effectiveCost = getCloseCost(sale.id, idx, factoryPrice, item.purchasePrice || 0);
+                                              const totalRevenue = item.priceAtSale * item.quantity;
+                                              const totalCost = effectiveCost * item.quantity;
+                                              const clsColor = itemClass === 'tire' ? 'bg-orange-100 text-orange-600' : itemClass === 'repair' ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-500';
+                                              const clsLabel = itemClass === 'tire' ? '타이어' : itemClass === 'repair' ? '정비' : '공임';
+
+                                              return (
+                                                  <div key={idx} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                                                      <div className="flex-1 min-w-0">
+                                                          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${clsColor}`}>{clsLabel}</span>
+                                                              <span className="text-sm font-semibold text-gray-800">{item.productName}</span>
+                                                              {item.specification && <span className="text-xs text-blue-500">{item.specification}</span>}
+                                                              <span className="text-xs text-gray-400">× {item.quantity}</span>
+                                                          </div>
+                                                          <div className="flex gap-3 text-xs flex-wrap text-gray-500">
+                                                              <span>판매 <strong className="text-gray-700">{formatCurrency(totalRevenue)}</strong></span>
+                                                              {factoryPrice > 0 && <span className="text-gray-400">공장도가 <strong>{formatCurrency(factoryPrice)}</strong></span>}
+                                                              {effectiveCost > 0 && (
+                                                                  <span className={totalRevenue - totalCost >= 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold'}>
+                                                                      수익 {formatCurrency(totalRevenue - totalCost)}
+                                                                  </span>
+                                                              )}
+                                                          </div>
+                                                      </div>
+                                                      {/* Cost input */}
+                                                      <div className="flex items-center gap-2 shrink-0">
+                                                          <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs">
+                                                              {(['discount', 'direct'] as const).map(mode => (
+                                                                  <button
+                                                                      key={mode}
+                                                                      onClick={() => setCloseEdits(prev => ({
+                                                                          ...prev,
+                                                                          [sale.id]: { ...(prev[sale.id] || {}), [idx]: { ...(prev[sale.id]?.[idx] || { discountRate: '', directCost: '' }), mode } }
+                                                                      }))}
+                                                                      className={`px-2.5 py-1 rounded-md font-medium whitespace-nowrap transition-colors ${edit.mode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+                                                                  >
+                                                                      {mode === 'discount' ? '할인율' : '직접입력'}
+                                                                  </button>
+                                                              ))}
+                                                          </div>
+                                                          {edit.mode === 'discount' ? (
+                                                              <div className="flex items-center gap-1">
+                                                                  <input
+                                                                      type="text" inputMode="decimal"
+                                                                      className="w-14 p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
+                                                                      value={edit.discountRate} placeholder="0"
+                                                                      onChange={e => {
+                                                                          const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                          setCloseEdits(prev => ({ ...prev, [sale.id]: { ...(prev[sale.id] || {}), [idx]: { ...edit, discountRate: raw } } }));
+                                                                          setCloseSavedIds(prev => { const s = new Set(prev); s.delete(sale.id); return s; });
+                                                                      }}
+                                                                  />
+                                                                  <span className="text-sm text-gray-500">%</span>
+                                                                  {edit.discountRate && factoryPrice > 0 && (
+                                                                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                                                                          → {formatCurrency(Math.round(factoryPrice * (1 - parseFloat(edit.discountRate) / 100)))}
+                                                                      </span>
+                                                                  )}
+                                                              </div>
+                                                          ) : (
+                                                              <div className="flex items-center gap-1">
+                                                                  <input
+                                                                      type="text" inputMode="numeric"
+                                                                      className="w-28 p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
+                                                                      value={edit.directCost} placeholder="0"
+                                                                      onChange={e => {
+                                                                          const raw = e.target.value.replace(/[^0-9]/g, '');
+                                                                          const formatted = raw !== '' ? Number(raw).toLocaleString() : '';
+                                                                          setCloseEdits(prev => ({ ...prev, [sale.id]: { ...(prev[sale.id] || {}), [idx]: { ...edit, directCost: formatted } } }));
+                                                                          setCloseSavedIds(prev => { const s = new Set(prev); s.delete(sale.id); return s; });
+                                                                      }}
+                                                                  />
+                                                                  <span className="text-xs text-gray-400">/개</span>
+                                                              </div>
+                                                          )}
+                                                      </div>
+                                                  </div>
+                                              );
+                                          })}
+                                      </div>
+
+                                      {/* Sale save row */}
+                                      <div className="px-4 py-3 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3">
+                                          <div className="flex gap-3 text-xs text-gray-500">
+                                              {saleCost > 0 && (
+                                                  <>
+                                                      <span>원가 <strong className="text-gray-700">{formatCurrency(saleCost)}</strong></span>
+                                                      <span className={`font-bold ${saleProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                          수익 {formatCurrency(saleProfit)}
+                                                      </span>
+                                                  </>
+                                              )}
+                                          </div>
+                                          <button
+                                              onClick={() => handleCloseSaveSale(sale)}
+                                              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors ${isSaved ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                                          >
+                                              {isSaved ? <><CheckCircle size={14} /> 저장됨</> : <><Save size={14} /> 원가 저장</>}
+                                          </button>
+                                      </div>
+                                  </div>
+                              );
+                          })}
+
+                          {/* ── 입고 / 지출 섹션 ── */}
+                          <div className="pt-2 space-y-4">
+                              <div className="flex items-center gap-3">
+                                  <div className="flex-1 h-px bg-gray-200" />
+                                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">입고 · 지출 내역</span>
+                                  <div className="flex-1 h-px bg-gray-200" />
+                              </div>
+
+                              <div className="border border-emerald-100 rounded-xl overflow-hidden bg-emerald-50/20">
+                                  <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between gap-3">
+                                      <div>
+                                          <h4 className="text-sm font-bold text-emerald-700">재고 흐름 (전일 마감 기준)</h4>
+                                          <p className="text-xs text-emerald-600/80 mt-0.5">전일 재고 + 당일 입고 - 당일 판매 = 당일 재고</p>
+                                      </div>
+                                      <span className="text-xs font-bold text-emerald-700 bg-white border border-emerald-200 px-2.5 py-1 rounded-full">
+                                          {inventoryFlowEntries.length}분류
+                                      </span>
+                                  </div>
+                                  {inventoryFlowEntries.length === 0 ? (
+                                      <div className="px-4 py-5 text-sm text-gray-400 text-center bg-white">재고 흐름을 계산할 항목이 없습니다.</div>
+                                  ) : (
+                                      <div className="bg-white">
+                                          <div className="grid grid-cols-[1fr_80px_80px_80px_80px] px-4 py-2 text-[11px] font-semibold text-gray-500 bg-emerald-50/60 border-b border-emerald-100">
+                                              <span>분류</span>
+                                              <span className="text-right">전일</span>
+                                              <span className="text-right">입고</span>
+                                              <span className="text-right">판매</span>
+                                              <span className="text-right">당일</span>
+                                          </div>
+                                          {inventoryFlowEntries.map((entry, index) => (
+                                              <div key={entry.category} className={`grid grid-cols-[1fr_80px_80px_80px_80px] px-4 py-2.5 text-sm border-b border-gray-50 ${index % 2 === 1 ? 'bg-gray-50/40' : ''}`}>
+                                                  <span className="font-medium text-gray-800 truncate">{entry.category}</span>
+                                                  <span className="text-right text-gray-600">{formatNumber(entry.previousStock)}</span>
+                                                  <span className="text-right text-blue-600 font-semibold">+{formatNumber(entry.stockInQty)}</span>
+                                                  <span className="text-right text-rose-600 font-semibold">-{formatNumber(entry.soldQty)}</span>
+                                                  <span className="text-right text-emerald-700 font-bold">{formatNumber(entry.currentStock)}</span>
+                                              </div>
+                                          ))}
+                                          <div className="grid grid-cols-[1fr_80px_80px_80px_80px] px-4 py-2.5 text-sm bg-emerald-50/70 font-bold text-emerald-800">
+                                              <span>합계</span>
+                                              <span className="text-right">{formatNumber(inventoryFlowTotals.previousStock)}</span>
+                                              <span className="text-right">+{formatNumber(inventoryFlowTotals.stockInQty)}</span>
+                                              <span className="text-right">-{formatNumber(inventoryFlowTotals.soldQty)}</span>
+                                              <span className="text-right">{formatNumber(inventoryFlowTotals.currentStock)}</span>
+                                          </div>
+                                      </div>
+                                  )}
+                              </div>
+
+                              {/* 당일 입고내역 */}
+                              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3">
+                                      <div>
+                                          <h4 className="text-sm font-bold text-gray-700">당일 입고내역 확인</h4>
+                                          <p className="text-xs text-gray-400 mt-0.5">마감 보고서에 함께 저장됩니다.</p>
+                                      </div>
+                                      <span className="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full">
+                                          {dayStockIns.length}건
+                                      </span>
+                                  </div>
+                                  <div className="divide-y divide-gray-50">
+                                      {dayStockIns.length === 0 ? (
+                                          <div className="px-4 py-5 text-sm text-gray-400 text-center">당일 입고내역이 없습니다.</div>
+                                      ) : dayStockIns.map(record => (
+                                          <div key={record.id} className="px-4 py-3 flex items-start justify-between gap-3 text-sm">
+                                              <div className="min-w-0">
+                                                  <div className="font-medium text-gray-800 break-all">{record.productName}</div>
+                                                  <div className="text-xs text-gray-400 mt-0.5 flex gap-2 flex-wrap">
+                                                      {record.specification && <span>{record.specification}</span>}
+                                                      <span>{record.category}</span>
+                                                      <span>{record.supplier}</span>
+                                                  </div>
+                                              </div>
+                                              <div className="shrink-0 text-sm font-bold text-blue-600">{formatNumber(record.quantity)}개</div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+
+                              {/* 당일 지출내역 */}
+                              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3">
+                                      <div>
+                                          <h4 className="text-sm font-bold text-gray-700">당일 지출내역</h4>
+                                          <p className="text-xs text-gray-400 mt-0.5">지출 카테고리 내역과 연동되며, 여기서 추가된 지출도 함께 저장됩니다.</p>
+                                      </div>
+                                      <button
+                                          type="button"
+                                          onClick={() => {
+                                              setCloseExpenseDrafts(prev => [...prev, createCloseExpenseDraft()]);
+                                              setCloseMetaSaved(false);
+                                              setCloseReported(false);
+                                          }}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-blue-600 border border-blue-200 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors shrink-0"
+                                      >
+                                          <Plus size={13} /> 지출 추가
+                                      </button>
+                                  </div>
+
+                                  <div className="px-4 py-3 space-y-2 bg-white">
+                                      {mergedSavedDayExpenses.length === 0 && closeExpenseDrafts.length === 0 ? (
+                                          <div className="text-sm text-gray-400 py-2 text-center">등록된 당일 지출이 없습니다.</div>
+                                      ) : null}
+
+                                      {mergedSavedDayExpenses.map(expense => (
+                                          <div key={expense.id} className="flex items-center justify-between gap-3 text-sm rounded-lg border border-gray-100 px-3 py-2 bg-gray-50/70">
+                                              <div className="min-w-0">
+                                                  <div className="font-medium text-gray-800 break-all">{expense.description}</div>
+                                                  <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
+                                                      <span>{expense.category}</span>
+                                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">저장됨</span>
+                                                  </div>
+                                              </div>
+                                              <div className="shrink-0 font-bold text-rose-600">{formatCurrency(expense.amount)}</div>
+                                          </div>
+                                      ))}
+
+                                      {closeExpenseDrafts.map(expense => (
+                                          <div key={expense.id} className="grid grid-cols-1 sm:grid-cols-[120px_1fr_140px_40px] gap-2 items-center rounded-lg border border-blue-100 bg-blue-50/40 px-2 py-2">
+                                              <input
+                                                  type="text"
+                                                  value={expense.category}
+                                                  onChange={e => {
+                                                      setCloseExpenseDrafts(prev => prev.map(item => item.id === expense.id ? { ...item, category: e.target.value } : item));
+                                                      setCloseMetaSaved(false);
+                                                      setCloseReported(false);
+                                                  }}
+                                                  className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                                                  placeholder="지출 분류"
+                                              />
+                                              <input
+                                                  type="text"
+                                                  value={expense.description}
+                                                  onChange={e => {
+                                                      setCloseExpenseDrafts(prev => prev.map(item => item.id === expense.id ? { ...item, description: e.target.value } : item));
+                                                      setCloseMetaSaved(false);
+                                                      setCloseReported(false);
+                                                  }}
+                                                  className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                                                  placeholder="지출 내용"
+                                              />
+                                              <input
+                                                  type="text"
+                                                  inputMode="numeric"
+                                                  value={expense.amount}
+                                                  onChange={e => {
+                                                      const raw = e.target.value.replace(/[^0-9]/g, '');
+                                                      const formatted = raw ? Number(raw).toLocaleString() : '';
+                                                      setCloseExpenseDrafts(prev => prev.map(item => item.id === expense.id ? { ...item, amount: formatted } : item));
+                                                      setCloseMetaSaved(false);
+                                                      setCloseReported(false);
+                                                  }}
+                                                  className="w-full p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
+                                                  placeholder="0"
+                                              />
+                                              <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                      setCloseExpenseDrafts(prev => prev.filter(item => item.id !== expense.id));
+                                                      setCloseMetaSaved(false);
+                                                      setCloseReported(false);
+                                                  }}
+                                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                  title="지출 삭제"
+                                              >
+                                                  <Trash2 size={15} />
+                                              </button>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>{/* end 입고·지출 섹션 */}
+                      </div>{/* end scroll area */}
+
+                      {/* Footer */}
+                      <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                              {!closeMetaSaved ? (
+                                  <button
+                                      onClick={handleSaveCloseMeta}
+                                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                  >
+                                      <Save size={15} /> 저장
+                                  </button>
+                              ) : (() => {
+                                  const buildCloseReport = (): DailyReport => {
+                                      const storeId = reportStoreId;
+                                      const store = stores.find(s => s.id === storeId);
+                                      const TIRE_CATS = ['타이어', '중고타이어'];
+                                      const REPAIR_CATS = ['브레이크패드', '오일필터', '엔진오일', '에어크리너'];
+                                      const getClass = (pid: string, cat: string) => {
+                                          if (pid === '99999' || pid?.startsWith('RENTAL-')) return 'labor' as const;
+                                          if (TIRE_CATS.includes(cat)) return 'tire' as const;
+                                          if (REPAIR_CATS.includes(cat)) return 'repair' as const;
+                                          return 'labor' as const;
+                                      };
+                                      const itemMap = new Map<string, DailyReportItem>();
+                                      const staffMap = new Map<string, DailyReportStaff>();
+                                      let totalRevenue = 0, totalCost = 0;
+                                      let tireQty = 0, repairQty = 0, laborQty = 0;
+                                      daySales.forEach(sale => {
+                                          totalRevenue += sale.totalAmount;
+                                          const sName = sale.staffName || '미지정';
+                                          if (!staffMap.has(sName)) staffMap.set(sName, { staffName: sName, salesCount: 0, revenue: 0, cost: 0, profit: 0, tireQty: 0, repairQty: 0, laborQty: 0 });
+                                          const se = staffMap.get(sName)!;
+                                          se.salesCount += 1;
+                                          se.revenue += sale.totalAmount;
+                                          sale.items.forEach((item, idx) => {
+                                              const product = products.find(p => p.id === item.productId);
+                                              const cat = product?.category || '기타';
+                                              const ic = getClass(item.productId, cat);
+                                              const fp = product?.factoryPrice || 0;
+                                              const cost = getCloseCost(sale.id, idx, fp, item.purchasePrice || 0);
+                                              const rev = item.priceAtSale * item.quantity;
+                                              const ct = cost * item.quantity;
+                                              const pf = rev - ct;
+                                              totalCost += ct;
+                                              se.cost += ct;
+                                              if (ic === 'tire') { tireQty += item.quantity; se.tireQty += item.quantity; }
+                                              else if (ic === 'repair') { repairQty += item.quantity; se.repairQty += item.quantity; }
+                                              else { laborQty += item.quantity; se.laborQty += item.quantity; }
+                                              const key = item.productId + '-' + (item.specification || '');
+                                              if (itemMap.has(key)) {
+                                                  const r = itemMap.get(key)!;
+                                                  r.qty += item.quantity; r.revenue += rev; r.cost += ct; r.profit += pf;
+                                              } else {
+                                                  itemMap.set(key, { productName: item.productName, specification: item.specification || '', category: cat, itemClass: ic, qty: item.quantity, revenue: rev, cost: ct, profit: pf });
+                                              }
+                                          });
+                                          se.profit = se.revenue - se.cost;
+                                      });
+                                      const ORDER = ['tire', 'repair', 'labor'] as const;
+                                      const items = Array.from(itemMap.values()).sort((a, b) => ORDER.indexOf(a.itemClass) - ORDER.indexOf(b.itemClass));
+                                      const staffStats = Array.from(staffMap.values()).sort((a, b) => b.revenue - a.revenue);
+                                      const profit = totalRevenue - totalCost;
+                                      const margin = totalRevenue > 0 && totalCost > 0 ? (profit / totalRevenue) * 100 : 0;
+                                      const expenseEntries = [...mergedSavedDayExpenses, ...manualDayExpenses];
+                                      const expenseTotal = expenseEntries.reduce((sum, expense) => sum + expense.amount, 0);
+                                      return {
+                                          id: storeId + '-' + dateStr,
+                                          storeId,
+                                          storeName: store?.name || '전체 지점',
+                                          ownerId: currentUser.id,
+                                          dateStr,
+                                          createdAt: new Date().toISOString(),
+                                          createdBy: currentUser.name,
+                                          revenue: totalRevenue, cost: totalCost, profit, margin,
+                                          tireQty, repairQty, laborQty,
+                                          salesCount: daySales.length,
+                                          items, staffStats,
+                                          stockInRecords: dayStockIns,
+                                          expenseEntries,
+                                          expenseTotal,
+                                          inventoryFlowEntries,
+                                      };
+                                  };
+                                  return (
+                                      <button
+                                          onClick={() => {
+                                              onSaveReport(buildCloseReport());
+                                              setCloseReported(true);
+                                          }}
+                                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors ${
+                                              closeReported
+                                                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                                                  : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                          }`}
+                                      >
+                                          {closeReported
+                                              ? <><CheckCircle size={15} /> 보고서 올림</>
+                                              : <><Upload size={15} /> 보고서 올리기</>}
+                                      </button>
+                                  );
+                              })()}
+                          </div>
+                          <button
+                              onClick={() => setIsCloseModalOpen(false)}
+                              className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+                          >
+                              닫기
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          );
+      })()}
     </div>
   );
 };

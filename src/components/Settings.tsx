@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import type { Store, Staff, StaffPermissions, Subscription, BillingKey, PaymentHistory, SubscriptionPlan } from '../types';
+import type { Store, Staff, StaffPermissions, ManagerAccount, ManagerTabPermissions, Subscription, BillingKey, PaymentHistory, SubscriptionPlan } from '../types';
 import { Settings as SettingsIcon, Plus, Trash2, Users, MapPin, ShieldCheck, AlertCircle, Edit2, X, AlertTriangle, Eye, EyeOff, Check, CreditCard } from 'lucide-react';
 import SubscriptionManagement from './SubscriptionManagement';
 
@@ -35,6 +35,12 @@ interface SettingsProps {
   onSelectSubscriptionPlan?: (plan: SubscriptionPlan, billingCycle: 'MONTHLY' | 'YEARLY', billingKeyId?: string) => Promise<void>;
   onCancelSubscription?: () => Promise<void>;
   ownerId?: string;
+  // 점장 계정 관리
+  isOwnerSession: boolean;
+  managerAccounts: ManagerAccount[];
+  onAddManager: (account: Omit<ManagerAccount, 'id' | 'ownerId'>) => Promise<void>;
+  onUpdateManager: (id: string, updates: Partial<ManagerAccount>) => Promise<void>;
+  onRemoveManager: (id: string) => Promise<void>;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -50,12 +56,13 @@ const Settings: React.FC<SettingsProps> = ({
         paymentHistory = [],
         onSelectSubscriptionPlan,
         onCancelSubscription,
-        ownerId = ''
+        ownerId = '',
+        isOwnerSession,
+        managerAccounts,
+        onAddManager,
+        onUpdateManager,
+        onRemoveManager,
 }) => {
-    // Permissions props reserved for future UI; referenced to satisfy lint
-    void staffPermissions;
-    void onUpdatePermissions;
-    
     // Tab Navigation State
     const [activeSettingsTab, setActiveSettingsTab] = useState<'system' | 'subscription'>('system');
   // Store Editing State
@@ -96,6 +103,32 @@ const Settings: React.FC<SettingsProps> = ({
 
   // Staff Management State
   const [newStaffName, setNewStaffName] = useState('');
+
+  // 점장 계정 관리 상태
+  const DEFAULT_TAB_PERMS: ManagerTabPermissions = {
+      dashboard: true, pos: true, reservation: true, history: true,
+      dailyClose: true, dailyReport: true, tax: true,
+      inventory: true, stockIn: true, financials: true, leave: true,
+  };
+  const TAB_LABELS: Record<keyof ManagerTabPermissions, string> = {
+      dashboard: '대시보드', pos: '판매(POS)', reservation: '예약 관리',
+      history: '판매 내역', dailyClose: '일별 마감', dailyReport: '보고서 게시판',
+      tax: '세금계산서', inventory: '재고 관리', stockIn: '입고 관리',
+      financials: '재무/결산', leave: '근무표',
+  };
+  // 일반 직원 탭 설정 — dailyClose는 원래 직원에게 안 보임 (admin 전용)
+  const STAFF_TAB_LABELS: Record<keyof import('../types').StaffPermissions, string> = {
+      dashboard: '대시보드', pos: '판매(POS)', reservation: '예약 관리',
+      history: '판매 내역', dailyReport: '보고서 게시판',
+      tax: '세금계산서', inventory: '재고 관리', stockIn: '입고 관리',
+      financials: '지출', leave: '근무표',
+  };
+  const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
+  const [editingManager, setEditingManager] = useState<ManagerAccount | null>(null);
+  const [managerForm, setManagerForm] = useState<{
+      name: string; loginId: string; password: string; storeId: string; tabPermissions: ManagerTabPermissions;
+  }>({ name: '', loginId: '', password: '', storeId: '', tabPermissions: { ...DEFAULT_TAB_PERMS } });
+  const [managerFormError, setManagerFormError] = useState('');
 
   useEffect(() => {
       if (!toast) return;
@@ -432,6 +465,99 @@ const Settings: React.FC<SettingsProps> = ({
 
             </div>
         </div>
+
+        {/* 점장 계정 관리 (사장 세션에서만 표시) */}
+        {isOwnerSession && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                    <ShieldCheck className="text-violet-600" size={20} />
+                    점장 계정 관리
+                </h3>
+                <button
+                    onClick={() => {
+                        setEditingManager(null);
+                        setManagerForm({ name: '', loginId: '', password: '', storeId: currentStoreId, tabPermissions: { ...DEFAULT_TAB_PERMS } });
+                        setManagerFormError('');
+                        setIsManagerModalOpen(true);
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 bg-violet-600 text-white rounded-lg text-sm font-bold hover:bg-violet-700"
+                >
+                    <Plus size={16} /> 계정 추가
+                </button>
+            </div>
+            {managerAccounts.length === 0 ? (
+                <div className="text-center text-gray-400 py-8 text-sm border rounded-lg bg-gray-50">
+                    등록된 점장 계정이 없습니다.
+                </div>
+            ) : (
+                <div className="border rounded-lg overflow-hidden">
+                    {managerAccounts.map(manager => (
+                        <div key={manager.id} className="flex items-center justify-between p-3 border-b last:border-0 hover:bg-gray-50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-xs font-bold">
+                                    {manager.name[0]}
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-gray-800">{manager.name}</div>
+                                    <div className="text-xs text-gray-500">아이디: {manager.loginId}</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => {
+                                    setEditingManager(manager);
+                                    setManagerForm({
+                                        name: manager.name,
+                                        loginId: manager.loginId,
+                                        password: manager.password,
+                                        storeId: manager.storeId,
+                                        tabPermissions: { ...DEFAULT_TAB_PERMS, ...manager.tabPermissions },
+                                    });
+                                    setManagerFormError('');
+                                    setIsManagerModalOpen(true);
+                                }} className="text-blue-400 hover:text-blue-600 p-1.5 hover:bg-blue-50 rounded transition-colors">
+                                    <Edit2 size={16} />
+                                </button>
+                                <button onClick={() => {
+                                    if (confirm(`${manager.name} 계정을 삭제하시겠습니까?`)) {
+                                        onRemoveManager(manager.id);
+                                    }
+                                }} className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition-colors">
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+        )}
+
+        {/* 일반 직원 탭 설정 (사장 세션에서만 표시) */}
+        {isOwnerSession && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="mb-4">
+                <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                    <Users className="text-blue-600" size={20} />
+                    일반 직원 탭 설정
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">일반 직원 모드(잠금 후 기본 화면)에서 표시할 메뉴를 설정합니다.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+                {(Object.keys(STAFF_TAB_LABELS) as (keyof import('../types').StaffPermissions)[]).map(key => (
+                    <label key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100">
+                        <span className="text-sm text-gray-700">{STAFF_TAB_LABELS[key]}</span>
+                        <div
+                            onClick={() => onUpdatePermissions({ ...staffPermissions, [key]: !staffPermissions[key] })}
+                            className={`relative w-10 h-5 rounded-full cursor-pointer transition-colors flex-shrink-0 ${staffPermissions[key] ? 'bg-blue-500' : 'bg-gray-300'}`}
+                        >
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${staffPermissions[key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        </div>
+                    </label>
+                ))}
+            </div>
+        </div>
+        )}
 
         {/* 3. Admin Security */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -884,6 +1010,110 @@ const Settings: React.FC<SettingsProps> = ({
               onAddBillingKey={() => {}}
             />
         </div>
+        )}
+
+        {/* 점장 계정 추가/수정 모달 */}
+        {isManagerModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-lg text-gray-900">
+                            {editingManager ? '점장 계정 수정' : '점장 계정 추가'}
+                        </h3>
+                        <button onClick={() => setIsManagerModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-3 mb-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">이름</label>
+                            <input type="text" value={managerForm.name}
+                                onChange={e => setManagerForm(p => ({ ...p, name: e.target.value }))}
+                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none"
+                                placeholder="예: 김점장" autoFocus />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">아이디</label>
+                            <input type="text" value={managerForm.loginId}
+                                onChange={e => setManagerForm(p => ({ ...p, loginId: e.target.value }))}
+                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none"
+                                placeholder="로그인 시 사용할 아이디" autoComplete="off" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">
+                                비밀번호{editingManager && <span className="text-gray-400 font-normal ml-1">(변경 시에만 입력)</span>}
+                            </label>
+                            <input type="password" value={managerForm.password}
+                                onChange={e => setManagerForm(p => ({ ...p, password: e.target.value }))}
+                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none"
+                                placeholder={editingManager ? '변경 시에만 입력' : '비밀번호'} autoComplete="new-password" />
+                        </div>
+                    </div>
+
+                    {/* 탭 권한 토글 */}
+                    <div className="border-t pt-4 mb-4">
+                        <h4 className="text-sm font-bold text-gray-700 mb-3">메뉴 접근 권한</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            {(Object.keys(TAB_LABELS) as (keyof ManagerTabPermissions)[]).map(key => (
+                                <label key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100">
+                                    <span className="text-sm text-gray-700">{TAB_LABELS[key]}</span>
+                                    <div
+                                        onClick={() => setManagerForm(p => ({
+                                            ...p,
+                                            tabPermissions: { ...p.tabPermissions, [key]: !p.tabPermissions[key] }
+                                        }))}
+                                        className={`relative w-10 h-5 rounded-full cursor-pointer transition-colors flex-shrink-0 ${managerForm.tabPermissions[key] ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${managerForm.tabPermissions[key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    {managerFormError && <p className="text-sm text-red-600 mb-3">{managerFormError}</p>}
+
+                    <div className="flex gap-2">
+                        <button type="button" onClick={() => setIsManagerModalOpen(false)}
+                            className="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-lg font-bold hover:bg-gray-50">취소</button>
+                        <button type="button"
+                            onClick={async () => {
+                                if (!managerForm.name.trim()) { setManagerFormError('이름을 입력하세요.'); return; }
+                                if (!managerForm.loginId.trim()) { setManagerFormError('아이디를 입력하세요.'); return; }
+                                if (!editingManager && !managerForm.password.trim()) { setManagerFormError('비밀번호를 입력하세요.'); return; }
+                                setManagerFormError('');
+                                try {
+                                    if (editingManager) {
+                                        const updates: Partial<ManagerAccount> = {
+                                            name: managerForm.name.trim(),
+                                            loginId: managerForm.loginId.trim(),
+                                            tabPermissions: managerForm.tabPermissions,
+                                        };
+                                        if (managerForm.password.trim()) updates.password = managerForm.password.trim();
+                                        await onUpdateManager(editingManager.id, updates);
+                                    } else {
+                                        await onAddManager({
+                                            name: managerForm.name.trim(),
+                                            loginId: managerForm.loginId.trim(),
+                                            password: managerForm.password.trim(),
+                                            storeId: managerForm.storeId || currentStoreId,
+                                            isActive: true,
+                                            tabPermissions: managerForm.tabPermissions,
+                                        });
+                                    }
+                                    setIsManagerModalOpen(false);
+                                    setToast({ type: 'success', message: editingManager ? '점장 계정이 수정되었습니다.' : '점장 계정이 추가되었습니다.' });
+                                } catch {
+                                    setManagerFormError('저장 중 오류가 발생했습니다.');
+                                }
+                            }}
+                            className="flex-1 py-2.5 bg-violet-600 text-white rounded-lg font-bold hover:bg-violet-700">
+                            {editingManager ? '저장' : '추가'}
+                        </button>
+                    </div>
+                </div>
+            </div>
         )}
     </div>
   );

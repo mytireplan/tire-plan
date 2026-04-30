@@ -382,11 +382,42 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
         setIsNoticeModalOpen(false);
     };
 
+  // --- Weekly Schedule (Read-Only, Staff View) ---
+  const weekScheduleData = useMemo(() => {
+      // Week starting Monday containing boardDate
+      const d = new Date(boardDate);
+      const day = d.getDay(); // 0=Sun, 1=Mon...
+      const diffToMon = day === 0 ? -6 : 1 - day;
+      const monDate = new Date(d);
+      monDate.setDate(d.getDate() + diffToMon);
+
+      const weekDays = Array.from({ length: 7 }, (_, i) => {
+          const dt = new Date(monDate);
+          dt.setDate(monDate.getDate() + i);
+          const str = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+          const label = ['월','화','수','목','금','토','일'][i];
+          return { dt, str, label };
+      });
+
+      const weekStart = weekDays[0].str;
+      const weekEnd = weekDays[6].str;
+
+      const weekShifts = shifts.filter(s => {
+          const sd = s.start ? s.start.slice(0, 10) : '';
+          return s.storeId === currentStoreId && sd >= weekStart && sd <= weekEnd;
+      });
+
+      const staffNames: string[] = Array.from(new Set(weekShifts.map((s: any) => s.staffName as string))).sort();
+
+      return { weekDays, weekShifts, staffNames };
+  }, [boardDate, shifts, currentStoreId]);
+
 
   // --- View Rendering ---
 
   // Staff View: Only Show Status Board with Date Navigation
   if (currentUser.role === 'STAFF') {
+      const { weekDays, weekShifts, staffNames } = weekScheduleData;
       return (
           <div className="space-y-6 animate-fade-in pb-10">
              {/* Staff Header with Date Navigation */}
@@ -436,6 +467,75 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
                          오늘
                      </button>
                 </div>
+            </div>
+
+            {/* Weekly Schedule - Read Only */}
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <Calendar className="text-indigo-600" size={20} />
+                        주간 근무표
+                        <span className="text-xs font-normal text-gray-400">(읽기 전용)</span>
+                    </h3>
+                    <span className="text-sm text-gray-500">
+                        {weekDays[0].str} ~ {weekDays[6].str}
+                    </span>
+                </div>
+                {staffNames.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                        <Calendar size={32} className="opacity-20 mb-2" />
+                        <p className="text-sm">이번 주 등록된 근무 일정이 없습니다.</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse min-w-[500px]">
+                            <thead>
+                                <tr>
+                                    <th className="text-left text-xs font-bold text-gray-500 bg-gray-50 px-3 py-2 rounded-l-lg border-b border-gray-200 w-24">직원</th>
+                                    {weekDays.map(wd => {
+                                        const isToday = wd.str === formatDateYMD(new Date());
+                                        return (
+                                            <th key={wd.str} className={`text-center text-xs font-bold px-2 py-2 border-b border-gray-200 ${isToday ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-50 text-gray-500'} ${wd.label === '토' ? 'text-blue-500' : wd.label === '일' ? 'text-red-500' : ''}`}>
+                                                <div>{wd.label}</div>
+                                                <div className="font-normal text-[10px]">{wd.str.slice(5)}</div>
+                                            </th>
+                                        );
+                                    })}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {staffNames.map(name => (
+                                    <tr key={name} className="hover:bg-gray-50">
+                                        <td className="px-3 py-2 font-medium text-gray-700 text-xs border-b border-gray-100 truncate max-w-[96px]">{name}</td>
+                                        {weekDays.map(wd => {
+                                            const shift = weekShifts.find((s: any) => s.staffName === name && s.start?.slice(0,10) === wd.str);
+                                            const isToday = wd.str === formatDateYMD(new Date());
+                                            let badge: React.ReactNode = null;
+                                            if (shift) {
+                                                const t = shift.shiftType || 'REGULAR';
+                                                const cfg: Record<string, { label: string; cls: string }> = {
+                                                    REGULAR: { label: '근무', cls: 'bg-emerald-100 text-emerald-700' },
+                                                    NIGHT:   { label: '야간', cls: 'bg-blue-100 text-blue-700' },
+                                                    DUTY:    { label: '당직', cls: 'bg-amber-100 text-amber-700' },
+                                                    HALF:    { label: '반차', cls: 'bg-yellow-100 text-yellow-700' },
+                                                    OFF:     { label: '휴무', cls: 'bg-rose-100 text-rose-700' },
+                                                    VACATION:{ label: '연차', cls: 'bg-purple-100 text-purple-700' },
+                                                };
+                                                const c = cfg[t] || cfg.REGULAR;
+                                                badge = <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${c.cls}`}>{c.label}</span>;
+                                            }
+                                            return (
+                                                <td key={wd.str} className={`text-center px-1 py-2 border-b border-gray-100 ${isToday ? 'bg-indigo-50/40' : ''}`}>
+                                                    {badge}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">

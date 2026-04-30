@@ -186,6 +186,22 @@ service cloud.firestore {
     }
 
     // ========================================
+    // DailyReports 컬렉션 (마감 보고서 게시판)
+    // ========================================
+    match /dailyReports/{reportId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // ========================================
+    // ManagerAccounts 컬렉션 (점장 계정)
+    // ========================================
+    match /managerAccounts/{accountId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // ========================================
     // 기본 규칙 (모든 기타 문서 차단)
     // ========================================
     match /{document=**} {

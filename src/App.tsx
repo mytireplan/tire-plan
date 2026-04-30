@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, FileText, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck, ClipboardList, BookOpen } from 'lucide-react';
 import { orderBy, where, limit, collection, query, getDocs, doc, deleteDoc, writeBatch, type QueryConstraint } from 'firebase/firestore';
 import { db, auth } from './firebase';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
 
 // 2. 설계도(Type)인 친구들은 type을 붙여서 가져옵니다.
-import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift, SalesItem } from './types';
+import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift, SalesItem, DailyReport, ManagerAccount, ManagerTabPermissions } from './types';
 
 // Firebase imports
 import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery, subscribeToCollection } from './utils/firestore'; 
@@ -17,6 +17,8 @@ import POS from './components/POS';
 import Inventory from './components/Inventory';
 import TaxInvoice from './components/TaxInvoice';
 import SalesHistory from './components/SalesHistory';
+import DailyClose from './components/DailyClose';
+import DailyReportBoard from './components/DailyReportBoard';
 import Settings from './components/Settings';
 import CustomerList from './components/CustomerList';
 import StockIn from './components/StockIn';
@@ -509,7 +511,7 @@ const INITIAL_TRANSFER_HISTORY: StockTransferRecord[] = [
 // Demo seeding guard: only seed mock data when explicitly enabled.
 const SHOULD_SEED_DEMO = import.meta.env.VITE_SEED_DEMO === 'true';
 
-type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin' | 'admin';
+type Tab = 'dashboard' | 'pos' | 'reservation' | 'inventory' | 'stockIn' | 'tax' | 'history' | 'settings' | 'customers' | 'financials' | 'leave' | 'superadmin' | 'admin' | 'dailyClose' | 'dailyReport';
 
 type ViewState = 'LOGIN' | 'STORE_SELECT' | 'APP' | 'SUPER_ADMIN';
 
@@ -528,7 +530,11 @@ const App: React.FC = () => {
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [pinInput, setPinInput] = useState('');
     const [pinError, setPinError] = useState('');
+    const [pinMode, setPinMode] = useState<'manager' | 'owner'>('manager');
+    const [pinLoginId, setPinLoginId] = useState('');
     const [managerSession, setManagerSession] = useState(false);
+    const [managerAccounts, setManagerAccounts] = useState<ManagerAccount[]>([]);
+    const [activeManagerAccount, setActiveManagerAccount] = useState<ManagerAccount | null>(null);
     const adminTimerRef = useRef<number | null>(null);
     const processingStockInIdsRef = useRef<Set<string>>(new Set()); // Track in-progress stock-in records
 
@@ -620,10 +626,16 @@ const App: React.FC = () => {
     }, [activeTab, currentStoreId]);
 
   
-  const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>({
-    viewInventory: true,
-    viewSalesHistory: true,
-    viewTaxInvoice: true,
+  const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(() => {
+    try {
+      const saved = localStorage.getItem(`staffPermissions-${currentUser?.id || 'default'}`);
+      if (saved) return JSON.parse(saved) as StaffPermissions;
+    } catch { /* ignore */ }
+    return {
+      dashboard: true, pos: true, reservation: true, history: true,
+      dailyReport: true, tax: true, inventory: true, stockIn: true,
+      financials: true, leave: true,
+    };
   });
 
         const [stores, setStores] = useState<StoreAccount[]>(INITIAL_STORE_ACCOUNTS);
@@ -640,6 +652,7 @@ const App: React.FC = () => {
     const lastStockInFingerprintRef = useRef<{ key: string; time: number } | null>(null);
   const [transferHistory, setTransferHistory] = useState<StockTransferRecord[]>([]);
     const [shifts, setShifts] = useState<Shift[]>([]);
+    const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
     const [shiftRange, setShiftRange] = useState<{ start: string; end: string }>(() => {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -757,6 +770,7 @@ const App: React.FC = () => {
           adminTimerRef.current = window.setTimeout(() => {
               setSessionRole('STAFF');
               setManagerSession(false);
+              setActiveManagerAccount(null);
               setActiveTab('pos');
           }, 5 * 60 * 1000);
       };
@@ -991,6 +1005,12 @@ const App: React.FC = () => {
                 } else {
                     // 프로덕션에서는 Firestore 저장된 값을 그대로 사용 (재계산 하지 않음)
                     // handleSaleComplete에서 이미 재고 조정이 발생했으므로, 중복 감소를 방지하기 위해 저장된 값 사용
+                    // Sync ownerPin from Firestore into localStorage so it persists across reloads
+                    ownersWithDefaults.forEach(owner => {
+                        if (owner.ownerPin) {
+                            localStorage.setItem(`ownerPin-${owner.id}`, owner.ownerPin);
+                        }
+                    });
                     setUsers(ownersWithDefaults);
                     setStores(firestoreStores.data);
                     setProducts(normalizeProducts(normalizedFetchedProducts));
@@ -1102,6 +1122,11 @@ const App: React.FC = () => {
           });
           unsubscribeList.push(unsubTransfers);
 
+          const unsubDailyReports = subscribeToCollection<DailyReport>(COLLECTIONS.DAILY_REPORTS, (data) => {
+              setDailyReports(data.sort((a, b) => b.dateStr.localeCompare(a.dateStr)));
+          });
+          unsubscribeList.push(unsubDailyReports);
+
           console.log('🔌 Firestore real-time listeners registered');
       } catch (error) {
           console.error('❌ Error registering Firestore listeners:', error);
@@ -1116,6 +1141,14 @@ const App: React.FC = () => {
 
   // 데이터 변경 시 Firestore 자동 저장
     // Removed bulk auto-save effects to avoid duplicate writes with real-time subscriptions.
+
+  // 점장 계정 실시간 구독 (currentUser 기준)
+  useEffect(() => {
+      if (!currentUser) { setManagerAccounts([]); return; }
+      const constraints: QueryConstraint[] = [where('ownerId', '==', currentUser.id)];
+      const unsub = subscribeToQuery<ManagerAccount>(COLLECTIONS.MANAGER_ACCOUNTS, constraints, setManagerAccounts);
+      return () => unsub?.();
+  }, [currentUser]);
 
   // 달력 날짜 클릭 시 판매내역으로 이동하는 이벤트 리스너
   useEffect(() => {
@@ -1148,8 +1181,14 @@ const App: React.FC = () => {
 
   const ownerPin = useMemo(() => {
       if (!currentUser) return '';
+      // 1) Firestore-loaded user (most authoritative)
       const ownerUser = users.find(u => u.id === currentUser.id);
-      return ownerUser?.ownerPin || ownerUser?.password || '';
+      const firestorePin = ownerUser?.ownerPin || ownerUser?.password || '';
+      if (firestorePin && firestorePin !== '1234') return firestorePin;
+      // 2) localStorage backup (persists across HMR / momentary state resets)
+      const localPin = localStorage.getItem(`ownerPin-${currentUser.id}`);
+      if (localPin) return localPin;
+      return firestorePin;
   }, [currentUser, users]);
 
   // Manager PIN: decode per-store hash with safe fallback
@@ -1346,6 +1385,8 @@ const App: React.FC = () => {
 
   const handleUpdateOwnerPin = (newPin: string) => {
       if(!currentUser) return;
+      // Persist to localStorage immediately so it survives state resets
+      localStorage.setItem(`ownerPin-${currentUser.id}`, newPin);
       setUsers(prev => {
           const next = prev.map(u => u.id === currentUser.id ? { ...u, ownerPin: newPin } : u);
           const owner = next.find(u => u.id === currentUser.id);
@@ -1367,32 +1408,40 @@ const App: React.FC = () => {
 
   const handlePinSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      const trimmed = pinInput.trim();
-      if (!trimmed) {
-          setPinError('PIN을 입력하세요.');
+      if (pinMode === 'owner') {
+          const trimmed = pinInput.trim();
+          if (!trimmed) { setPinError('PIN을 입력하세요.'); return; }
+          const isOwner = ownerPin && trimmed === ownerPin;
+          if (isOwner) {
+              setSessionRole('STORE_ADMIN');
+              setManagerSession(false);
+              setActiveManagerAccount(null);
+              setIsAdminModalOpen(false);
+              setPinInput(''); setPinLoginId(''); setPinError('');
+              setActiveTab('dashboard');
+              return;
+          }
+          setPinError('사장 PIN이 일치하지 않습니다.');
           return;
       }
-    const isOwner = ownerPin && trimmed === ownerPin;
-    const isManager = storePin && trimmed === storePin;
-      if (isOwner) {
-          setSessionRole('STORE_ADMIN');
-          setManagerSession(false);
-          setIsAdminModalOpen(false);
-          setPinInput('');
-          setPinError('');
-          setActiveTab('dashboard');
-          return;
-      }
-      if (isManager) {
+      // 점장 로그인
+      const loginId = pinLoginId.trim();
+      const password = pinInput.trim();
+      if (!loginId) { setPinError('아이디를 입력하세요.'); return; }
+      if (!password) { setPinError('비밀번호를 입력하세요.'); return; }
+      const manager = managerAccounts.find(
+          m => m.loginId === loginId && m.password === password && m.isActive !== false
+      );
+      if (manager) {
           setSessionRole('STORE_ADMIN');
           setManagerSession(true);
+          setActiveManagerAccount(manager);
           setIsAdminModalOpen(false);
-          setPinInput('');
-          setPinError('');
+          setPinLoginId(''); setPinInput(''); setPinError('');
           setActiveTab('dashboard');
           return;
       }
-      setPinError('관리자 권한이 없습니다.');
+      setPinError('아이디 또는 비밀번호가 일치하지 않습니다.');
   };
 
   const handleSelectStore = (storeId: string, role: UserRole) => {
@@ -1477,6 +1526,7 @@ const App: React.FC = () => {
       }
       setSessionRole('STAFF');
       setManagerSession(false);
+      setActiveManagerAccount(null);
       setActiveTab('pos');
   };
 
@@ -1490,6 +1540,30 @@ const App: React.FC = () => {
               .then(() => console.log('✅ Manager PIN updated for store:', storeId))
               .catch((err) => console.error('❌ Failed to update manager PIN:', err));
       }
+  };
+
+  const handleUpdateStaffPermissions = (next: StaffPermissions) => {
+      setStaffPermissions(next);
+      try {
+          localStorage.setItem(`staffPermissions-${currentUser?.id || 'default'}`, JSON.stringify(next));
+      } catch { /* ignore */ }
+  };
+
+  // 점장 계정 CRUD
+  const handleAddManager = async (account: Omit<ManagerAccount, 'id' | 'ownerId'>) => {
+      if (!currentUser) return;
+      const newAccount: ManagerAccount = { ...account, id: `manager-${Date.now()}`, ownerId: currentUser.id };
+      await saveToFirestore(COLLECTIONS.MANAGER_ACCOUNTS, newAccount, false);
+  };
+
+  const handleUpdateManager = async (id: string, updates: Partial<ManagerAccount>) => {
+      const existing = managerAccounts.find(m => m.id === id);
+      if (!existing) return;
+      await saveToFirestore(COLLECTIONS.MANAGER_ACCOUNTS, { ...existing, ...updates }, false);
+  };
+
+  const handleRemoveManager = async (id: string) => {
+      await deleteFromFirestore(COLLECTIONS.MANAGER_ACCOUNTS, id);
   };
 
   // --- Super Admin Actions ---
@@ -1987,6 +2061,26 @@ const App: React.FC = () => {
             }
         }
   };
+
+  const handleSaveDailyReport = useCallback((report: DailyReport) => {
+      setDailyReports(prev => {
+          const idx = prev.findIndex(r => r.id === report.id);
+          if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = report;
+              return next;
+          }
+          return [report, ...prev];
+      });
+      saveToFirestore<DailyReport>(COLLECTIONS.DAILY_REPORTS, report)
+          .catch(err => console.error('❌ Failed to save daily report:', err));
+  }, []);
+
+  const handleDeleteDailyReport = useCallback((reportId: string) => {
+      setDailyReports(prev => prev.filter(r => r.id !== reportId));
+      deleteFromFirestore(COLLECTIONS.DAILY_REPORTS, reportId)
+          .catch(err => console.error('❌ Failed to delete daily report:', err));
+  }, []);
 
   const handleUpdateSale = (updatedSale: Sale) => {
       const stripUndefined = <T,>(input: T): T => JSON.parse(JSON.stringify(input));
@@ -2675,25 +2769,37 @@ const App: React.FC = () => {
     if (effectiveUser?.role === 'SUPER_ADMIN') {
         return [{ id: 'superadmin', label: '매장 관리', icon: LayoutDashboard, show: true, type: 'CORE' }];
     }
-    const isAdmin = effectiveUser?.role === 'STORE_ADMIN'; 
+    const isAdmin = effectiveUser?.role === 'STORE_ADMIN';
+    const isStaff = effectiveUser?.role === 'STAFF';
+
+    // 점장 세션: 점장 탭 권한 적용
+    const mgrPerms = (managerSession && activeManagerAccount) ? activeManagerAccount.tabPermissions : null;
+    // 일반 직원: 사장이 설정한 staffPermissions 적용
+    const showTab = (key: keyof ManagerTabPermissions & keyof StaffPermissions) => {
+      if (mgrPerms) return mgrPerms[key];
+      if (isStaff) return staffPermissions[key as keyof StaffPermissions] !== false;
+      return true;
+    };
+
     const items = [
-      { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, show: true, type: 'CORE' },
-      { id: 'pos', label: '판매 (POS)', icon: ShoppingCart, show: true, type: 'CORE' },
-      { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: true, type: 'CORE' },
-      { id: 'history', label: '판매 내역', icon: List, show: true, type: 'CORE' }, 
-      { id: 'tax', label: '세금계산서', icon: FileText, show: true, type: 'CORE' }, 
-    { id: 'customers', label: '고객 관리', icon: Users, show: isAdmin && !managerSession, type: 'ADMIN' }, // Admin Only (숨김: 점장 세션)
-      { id: 'DIVIDER_1', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
-      { id: 'inventory', label: '재고 관리', icon: Package, show: true, type: 'CORE' }, 
-      { id: 'stockIn', label: '입고 관리', icon: Truck, show: true, type: 'CORE' }, 
-      { id: 'financials', label: isAdmin ? '재무/결산' : '지출', icon: PieChart, show: true, type: 'CORE' }, // Dynamic Label
-      { id: 'DIVIDER_2', label: '', icon: X, show: true, type: 'DIVIDER' }, // Divider
-    { id: 'leave', label: '근무표', icon: Calendar, show: true, type: 'CORE' },
-      // Settings: Show only if isAdmin
-            { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin && !managerSession, type: 'ADMIN' } 
+      { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, show: showTab('dashboard'), type: 'CORE' },
+      { id: 'pos', label: '판매 (POS)', icon: ShoppingCart, show: showTab('pos'), type: 'CORE' },
+      { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: showTab('reservation'), type: 'CORE' },
+      { id: 'history', label: '판매 내역', icon: List, show: showTab('history'), type: 'CORE' },
+      { id: 'dailyClose', label: '일별 마감', icon: ClipboardList, show: isAdmin && (mgrPerms ? mgrPerms['dailyClose'] : true), type: 'ADMIN' },
+      { id: 'dailyReport', label: '보고서 게시판', icon: BookOpen, show: showTab('dailyReport'), type: 'CORE' },
+      { id: 'tax', label: '세금계산서', icon: FileText, show: showTab('tax'), type: 'CORE' },
+      { id: 'customers', label: '고객 관리', icon: Users, show: isAdmin && !managerSession, type: 'ADMIN' },
+      { id: 'DIVIDER_1', label: '', icon: X, show: true, type: 'DIVIDER' },
+      { id: 'inventory', label: '재고 관리', icon: Package, show: showTab('inventory'), type: 'CORE' },
+      { id: 'stockIn', label: '입고 관리', icon: Truck, show: showTab('stockIn'), type: 'CORE' },
+      { id: 'financials', label: isAdmin ? '재무/결산' : '지출', icon: PieChart, show: showTab('financials'), type: 'CORE' },
+      { id: 'DIVIDER_2', label: '', icon: X, show: true, type: 'DIVIDER' },
+      { id: 'leave', label: '근무표', icon: Calendar, show: showTab('leave'), type: 'CORE' },
+      { id: 'settings', label: '설정', icon: SettingsIcon, show: isAdmin && !managerSession, type: 'ADMIN' }
     ];
     return items.filter(item => item.show);
-  }, [effectiveUser, staffPermissions]);
+  }, [effectiveUser, staffPermissions, managerSession, activeManagerAccount]);
 
   const currentUserPassword = users.find(u => u.id === currentUser?.id)?.password || '';
 
@@ -2984,7 +3090,7 @@ const App: React.FC = () => {
                         </button>
                     ) : (
                         <button
-                            onClick={() => { setSessionRole('STAFF'); setManagerSession(false); setActiveTab('pos'); }}
+                            onClick={() => { setSessionRole('STAFF'); setManagerSession(false); setActiveManagerAccount(null); setActiveTab('pos'); }}
                             className="border border-slate-300 text-slate-700 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-100"
                         >
                             관리자 종료
@@ -3098,11 +3204,39 @@ const App: React.FC = () => {
             {(activeTab === 'history') && (
                 <SalesHistory 
                 sales={visibleSales} stores={visibleStores} products={visibleProducts} filter={historyFilter} 
-                onBack={() => setActiveTab('dashboard')} currentUser={effectiveUser} currentStoreId={currentStoreId}
-                stockInHistory={visibleStockHistory} onSwapProduct={() => {/* swap logic */}}
+                onBack={() => setActiveTab('dashboard')}
+                currentUser={managerSession ? { ...effectiveUser, role: 'STAFF' as UserRole } : effectiveUser}
+                currentStoreId={currentStoreId}
+                dailyReports={dailyReports}
+                stockInHistory={visibleStockHistory} expenses={visibleExpenses} onSwapProduct={() => {/* swap logic */}}
                 onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onDeleteSale={handleDeleteSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
                 categories={categories} tireBrands={tireBrands} tireModels={TIRE_MODELS}
                 shifts={shifts} staffList={staffList}
+                onSaveReport={handleSaveDailyReport}
+                onAddExpense={handleAddExpense}
+                />
+            )}
+            {(activeTab === 'dailyClose' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN')) && (
+                <DailyClose
+                    sales={visibleSales}
+                    stores={visibleStores}
+                    products={visibleProducts}
+                    dailyReports={dailyReports}
+                    stockInHistory={visibleStockHistory}
+                    currentUser={effectiveUser}
+                    currentStoreId={currentStoreId}
+                    onUpdateSale={handleUpdateSale}
+                    onSaveReport={handleSaveDailyReport}
+                />
+            )}
+            {(activeTab === 'dailyReport') && (
+                <DailyReportBoard
+                    reports={dailyReports.filter(r =>
+                        effectiveUser.role === 'SUPER_ADMIN' || r.storeId === currentStoreId
+                    )}
+                    stores={visibleStores}
+                    currentUser={effectiveUser}
+                    onDeleteReport={handleDeleteDailyReport}
                 />
             )}
             {(activeTab === 'financials') && (
@@ -3127,13 +3261,18 @@ const App: React.FC = () => {
                 stores={visibleStores} onAddStore={handleAddStore} onUpdateStore={handleUpdateStore} onRemoveStore={handleRemoveStore}
                 onUpdateStorePassword={handleUpdateStorePassword}
                 onToggleStorePasswordRequired={handleToggleStorePasswordRequired}
-                staffPermissions={staffPermissions} onUpdatePermissions={setStaffPermissions}
+                staffPermissions={staffPermissions} onUpdatePermissions={handleUpdateStaffPermissions}
                 currentAdminPassword={currentUserPassword} onUpdatePassword={handleUpdatePassword}
                 currentOwnerPin={ownerPin} onUpdateOwnerPin={handleUpdateOwnerPin}
                 currentManagerPin={storePin} onUpdateManagerPin={handleUpdateManagerPin}
                 staffList={visibleStaff} onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff}
                 currentStoreId={currentStoreId}
                 ownerId={currentUser?.id || ''}
+                isOwnerSession={!managerSession}
+                managerAccounts={managerAccounts}
+                onAddManager={handleAddManager}
+                onUpdateManager={handleUpdateManager}
+                onRemoveManager={handleRemoveManager}
                 currentSubscription={null}
                 billingKeys={[]}
                 paymentHistory={[]}
@@ -3146,21 +3285,49 @@ const App: React.FC = () => {
         {isAdminModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                 <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 p-6">
-                    <h3 className="text-lg font-bold text-slate-900 mb-2">관리자 PIN 입력</h3>
-                    <p className="text-sm text-slate-600 mb-4">사장님 PIN이면 전체 지점, 점장 PIN이면 현재 지점 권한으로 전환됩니다.</p>
-                    <form onSubmit={handlePinSubmit} className="space-y-4">
+                    <h3 className="text-lg font-bold text-slate-900 mb-4">관리자 로그인</h3>
+                    {/* 모드 선택 탭 */}
+                    <div className="flex rounded-lg border border-slate-200 overflow-hidden mb-4">
+                        <button type="button"
+                            onClick={() => { setPinMode('manager'); setPinInput(''); setPinLoginId(''); setPinError(''); }}
+                            className={`flex-1 py-2 text-sm font-bold transition-colors ${pinMode === 'manager' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                        >
+                            점장 로그인
+                        </button>
+                        <button type="button"
+                            onClick={() => { setPinMode('owner'); setPinInput(''); setPinLoginId(''); setPinError(''); }}
+                            className={`flex-1 py-2 text-sm font-bold transition-colors ${pinMode === 'owner' ? 'bg-blue-700 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                        >
+                            사장 PIN
+                        </button>
+                    </div>
+                    <form key={pinMode} onSubmit={handlePinSubmit} className="space-y-3">
+                        {pinMode === 'manager' && (
+                            <input
+                                autoFocus
+                                type="text"
+                                value={pinLoginId}
+                                onChange={(e) => { setPinLoginId(e.target.value); setPinError(''); }}
+                                className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400"
+                                placeholder="아이디"
+                                autoComplete="username"
+                            />
+                        )}
                         <input
-                            autoFocus
+                            autoFocus={pinMode === 'owner'}
                             type="password"
                             value={pinInput}
                             onChange={(e) => { setPinInput(e.target.value); setPinError(''); }}
-                            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                            placeholder="숫자 PIN 입력"
+                            className={`w-full p-3 border rounded-lg focus:ring-2 ${pinMode === 'manager' ? 'border-slate-300 focus:ring-emerald-100 focus:border-emerald-400' : 'border-slate-300 focus:ring-blue-100 focus:border-blue-400'}`}
+                            placeholder={pinMode === 'manager' ? '비밀번호' : '사장 PIN 입력'}
+                            autoComplete="current-password"
                         />
                         {pinError && <p className="text-sm text-red-600">{pinError}</p>}
-                        <div className="flex gap-2">
-                            <button type="button" onClick={() => { setIsAdminModalOpen(false); setPinInput(''); setPinError(''); }} className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-bold hover:bg-slate-50">닫기</button>
-                            <button type="submit" className="flex-1 py-2.5 rounded-lg bg-slate-900 text-white font-bold hover:bg-slate-800">확인</button>
+                        <div className="flex gap-2 pt-1">
+                            <button type="button" onClick={() => { setIsAdminModalOpen(false); setPinInput(''); setPinLoginId(''); setPinError(''); }} className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-bold hover:bg-slate-50">닫기</button>
+                            <button type="submit" className={`flex-1 py-2.5 rounded-lg text-white font-bold ${pinMode === 'manager' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-700 hover:bg-blue-800'}`}>
+                                {pinMode === 'manager' ? '로그인' : '확인'}
+                            </button>
                         </div>
                     </form>
                 </div>

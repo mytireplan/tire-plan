@@ -182,9 +182,41 @@ export interface SalesFilter {
 }
 
 export interface StaffPermissions {
-  viewInventory: boolean;
-  viewSalesHistory: boolean;
-  viewTaxInvoice: boolean;
+  dashboard: boolean;
+  pos: boolean;
+  reservation: boolean;
+  history: boolean;
+  dailyReport: boolean;
+  tax: boolean;
+  inventory: boolean;
+  stockIn: boolean;
+  financials: boolean;
+  leave: boolean;
+}
+
+export interface ManagerTabPermissions {
+  dashboard: boolean;
+  pos: boolean;
+  reservation: boolean;
+  history: boolean;
+  dailyClose: boolean;
+  dailyReport: boolean;
+  tax: boolean;
+  inventory: boolean;
+  stockIn: boolean;
+  financials: boolean;
+  leave: boolean;
+}
+
+export interface ManagerAccount {
+  id: string;
+  loginId: string;       // 아이디 (예: "김점장", "이매니저")
+  password: string;      // 비밀번호
+  name: string;          // 표시명
+  storeId: string;
+  ownerId: string;
+  isActive: boolean;
+  tabPermissions: ManagerTabPermissions;
 }
 
 // New Types for Financials
@@ -380,5 +412,77 @@ export interface PlanMenuAccess {
   maxSalesPerMonth: number; // -1 for unlimited
   maxProducts: number; // -1 for unlimited
   dataRetentionDays: number; // -1 for unlimited
+}
+
+// Daily Report Types
+export interface DailyReportItem {
+  productName: string;
+  specification: string;
+  category: string;
+  itemClass: 'tire' | 'repair' | 'labor';
+  qty: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+}
+
+export interface DailyReportStaff {
+  staffName: string;
+  salesCount: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+  tireQty: number;
+  repairQty: number;
+  laborQty: number;
+}
+
+export interface DailyReportStockInEntry {
+  id: string;
+  supplier: string;
+  productName: string;
+  specification: string;
+  category: string;
+  quantity: number;
+}
+
+export interface DailyReportExpenseEntry {
+  id: string;
+  category: string;
+  description: string;
+  amount: number;
+  source?: 'saved' | 'manual';
+}
+
+export interface DailyReportInventoryFlowEntry {
+  category: string;
+  previousStock: number;
+  stockInQty: number;
+  soldQty: number;
+  currentStock: number;
+}
+
+export interface DailyReport {
+  id: string;           // `${storeId}-${dateStr}`
+  storeId: string;
+  storeName: string;
+  ownerId?: string;
+  dateStr: string;      // "2026-04-28"
+  createdAt: string;    // ISO
+  createdBy: string;
+  revenue: number;
+  cost: number;
+  profit: number;
+  margin: number;       // profit/revenue %
+  tireQty: number;
+  repairQty: number;
+  laborQty: number;
+  salesCount: number;
+  items: DailyReportItem[];
+  staffStats: DailyReportStaff[];
+  stockInRecords?: DailyReportStockInEntry[];
+  expenseEntries?: DailyReportExpenseEntry[];
+  expenseTotal?: number;
+  inventoryFlowEntries?: DailyReportInventoryFlowEntry[];
 }
 
