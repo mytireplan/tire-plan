@@ -373,7 +373,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
     return getLatestCost(item.productName || '', item.specification);
   };
 
-  const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
+    const REPAIR_CATEGORY_SET = new Set(['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너']);
+
+    const normalizeCategory = (category?: string) => {
+        const trimmed = (category || '').trim();
+        if (!trimmed) return '기타';
+        if (REPAIR_CATEGORY_SET.has(trimmed)) return '정비';
+        return trimmed;
+    };
 
   const isTireItem = (item: SalesItem | null | undefined) => {
     if (!item) return false;
@@ -548,7 +555,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
         .filter(item => item) // Filter out undefined/null items
         .map(item => {
             const product = products.find(p => p.id === item.productId);
-            let category = normalizeCategory(product?.category);
+            const itemCategory = normalizeCategory(item.category);
+            const productCategory = normalizeCategory(product?.category);
+            let category = itemCategory !== '기타' ? itemCategory : productCategory;
             if (category === '기타' && item.specification && /\d{3}\/\d{2}/.test(item.specification)) {
                 category = '타이어';
             }
@@ -563,6 +572,16 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
 
     return itemsWithCat[0] || sale.items[0];
   };
+
+    const getItemDisplayPrefix = (item: (SalesItem & { category?: string }) | null) => {
+        if (!item) return '';
+        const category = normalizeCategory(item.category);
+        const brand = (item.brand || '').trim();
+
+        // For repair items, avoid showing the generic brand "기타" and use category label.
+        if (category === '정비' && (!brand || brand === '기타')) return '정비';
+        return brand || category;
+    };
 
   // Swap / Select / Add Product Handlers
   const openSwapModal = (saleId: string, itemId: string, isEditMode = false, itemIndex = -1) => {
@@ -1456,7 +1475,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                                 <>
                                                     <span className={`text-sm font-bold ${sale.isCanceled ? 'text-red-400 line-through' : 'text-blue-600'}`}>{displayItem.specification}</span>
                                                     <span className={`text-sm ${sale.isCanceled ? 'text-red-400 line-through' : 'text-gray-800'} truncate`}>
-                                                        {displayItem.brand} {displayItem.productName}
+                                                        {getItemDisplayPrefix(displayItem)} {displayItem.productName}
                                                         {sale.items && sale.items.length > 1 && <span className="text-gray-400 text-xs ml-1">외 {sale.items.length - 1}건</span>}
                                                     </span>
                                                 </>
@@ -1542,7 +1561,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                                                 {displayItem.specification}
                                                             </span>
                                                             <span className={`font-medium truncate ${sale.isCanceled ? 'text-red-400 line-through' : 'text-gray-800'}`}>
-                                                                {displayItem.brand} {displayItem.productName}
+                                                                {getItemDisplayPrefix(displayItem)} {displayItem.productName}
                                                                 {sale.items && sale.items.length > 1 && <span className="text-gray-400 text-xs ml-1">외 {sale.items.length - 1}건</span>}
                                                             </span>
                                                         </>
