@@ -22,7 +22,7 @@ interface DailyCloseProps {
 }
 
 const TIRE_CATEGORIES = ['타이어', '중고타이어'];
-const REPAIR_CATEGORIES = ['브레이크패드', '오일필터', '엔진오일', '에어크리너'];
+const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너'];
 
 const DailyClose: React.FC<DailyCloseProps> = ({
     sales, stores, products, dailyReports, stockInHistory, currentUser, currentStoreId, onUpdateSale, onSaveReport

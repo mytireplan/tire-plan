@@ -79,7 +79,6 @@ function generateDailyReportImage(report: DailyReport): void {
     sf(12);
     ctx.fillStyle = '#6ee7b7';
     ctx.textAlign = 'right';
-    ctx.fillText('작성: ' + report.createdBy, W - PAD, 58);
     ctx.textAlign = 'left';
 
     let y = HEADER_H + GAP;
@@ -472,8 +471,6 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
                                             )}
                                         </div>
                                         <div className="hidden md:block">
-                                            <div className="text-[11px] text-gray-400">작성자</div>
-                                            <div className="text-sm text-gray-600 font-medium">{report.createdBy}</div>
                                         </div>
                                     </div>
                                     {report.expenseTotal ? (
@@ -691,7 +688,7 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
                                     )}
 
                                     <div className="text-xs text-gray-400 text-right">
-                                        {report.storeName} · 작성: {report.createdBy} · {new Date(report.createdAt).toLocaleString('ko-KR')}
+                                        {report.storeName} · {new Date(report.createdAt).toLocaleString('ko-KR')}
                                     </div>
                                 </div>
                             )}
