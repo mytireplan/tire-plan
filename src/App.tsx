@@ -1597,9 +1597,9 @@ const App: React.FC = () => {
       await deleteFromFirestore(COLLECTIONS.MANAGER_ACCOUNTS, id);
   };
 
-  const handleUpsertIncentiveRule = async (payload: { storeId: string; managerLoginId: string; amountPerUnit: number }) => {
+  const handleUpsertIncentiveRule = async (payload: { storeId: string; productName: string; category: string; amountPerUnit: number }) => {
       const existing = incentiveRules.find(
-          (rule) => rule.storeId === payload.storeId && rule.managerLoginId === payload.managerLoginId
+          (rule) => rule.storeId === payload.storeId && rule.productName === payload.productName
       );
 
       const now = new Date().toISOString();
@@ -1613,7 +1613,8 @@ const App: React.FC = () => {
           : {
               id: `INC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               storeId: payload.storeId,
-              managerLoginId: payload.managerLoginId,
+              productName: payload.productName,
+              category: payload.category,
               amountPerUnit: payload.amountPerUnit,
               isActive: true,
               createdAt: now,
@@ -3274,13 +3275,9 @@ const App: React.FC = () => {
             )}
             {activeTab === 'incentive' && (
                 <Incentive
-                    sales={visibleSales}
-                    products={visibleProducts}
-                    managerAccounts={managerAccounts}
+                    dailyReports={dailyReports}
                     incentiveRules={incentiveRules}
                     currentStoreId={currentStoreId}
-                    managerSession={managerSession}
-                    activeManagerAccount={activeManagerAccount}
                     onUpsertRule={handleUpsertIncentiveRule}
                 />
             )}

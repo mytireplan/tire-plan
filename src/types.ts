@@ -211,11 +211,14 @@ export interface ManagerTabPermissions {
 export interface IncentiveRule {
   id: string;
   storeId: string;
-  managerLoginId: string;
-  amountPerUnit: number;
+  ownerId?: string;
+  productName: string;     // 품목명 (예: '엔진오일', 'YEC 168') — rate key
+  category?: string;       // 품목 카테고리 (참고용)
+  amountPerUnit: number;   // 개당 인센티브 금액
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  managerLoginId?: string; // legacy — 하위 호환용
 }
 
 export interface ManagerAccount {
@@ -425,6 +428,17 @@ export interface PlanMenuAccess {
 }
 
 // Daily Report Types
+export interface DailyReportStaffItem {
+  staffName: string;
+  productName: string;
+  category: string;
+  itemClass: 'tire' | 'repair' | 'labor';
+  qty: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+}
+
 export interface DailyReportItem {
   productName: string;
   specification: string;
@@ -490,6 +504,7 @@ export interface DailyReport {
   salesCount: number;
   items: DailyReportItem[];
   staffStats: DailyReportStaff[];
+  staffItems?: DailyReportStaffItem[];   // per-staff per-product breakdown
   stockInRecords?: DailyReportStockInEntry[];
   expenseEntries?: DailyReportExpenseEntry[];
   expenseTotal?: number;

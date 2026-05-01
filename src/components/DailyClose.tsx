@@ -1,5 +1,5 @@
 ﻿import React, { useState, useMemo, useCallback } from 'react';
-import type { Sale, Store, Product, User, StockInRecord, DailyReport, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStockInEntry } from '../types';
+import type { Sale, Store, Product, User, StockInRecord, DailyReport, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStockInEntry, DailyReportStaffItem } from '../types';
 import { Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Save, CheckCircle, Upload } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
@@ -198,6 +198,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
 
         const itemMap = new Map<string, DailyReportItem>();
         const staffMap = new Map<string, DailyReportStaff>();
+        const staffItemMap = new Map<string, DailyReportStaffItem>();
         let totalRevenue = 0, totalCost = 0;
         let tireQty = 0, repairQty = 0, laborQty = 0;
 
@@ -230,6 +231,27 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 if (itemClass === 'tire') { tireQty += item.quantity; staffEntry.tireQty += item.quantity; }
                 else if (itemClass === 'repair') { repairQty += item.quantity; staffEntry.repairQty += item.quantity; }
                 else { laborQty += item.quantity; staffEntry.laborQty += item.quantity; }
+
+                // Per-staff per-product breakdown (for incentive calculation)
+                const staffItemKey = `${staffName}::${item.productName}`;
+                if (staffItemMap.has(staffItemKey)) {
+                    const row = staffItemMap.get(staffItemKey)!;
+                    row.qty += item.quantity;
+                    row.revenue += revenue;
+                    row.cost += itemCostTotal;
+                    row.profit += profit;
+                } else {
+                    staffItemMap.set(staffItemKey, {
+                        staffName,
+                        productName: item.productName,
+                        category,
+                        itemClass,
+                        qty: item.quantity,
+                        revenue,
+                        cost: itemCostTotal,
+                        profit,
+                    });
+                }
 
                 const key = item.productId + '-' + (item.specification || '');
                 if (itemMap.has(key)) {
@@ -365,6 +387,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
             salesCount: daySales.length,
             items,
             staffStats,
+            staffItems: Array.from(staffItemMap.values()),
             stockInRecords: dayStockIns,
             inventoryFlowEntries,
         };

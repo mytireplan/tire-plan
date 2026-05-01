@@ -1,32 +1,20 @@
 import React, { useMemo, useState } from 'react';
-import type { IncentiveRule, ManagerAccount, Product, Sale } from '../types';
+import type { DailyReport, IncentiveRule } from '../types';
 import { formatCurrency, formatNumber } from '../utils/format';
+import { Save } from 'lucide-react';
 
 interface IncentiveProps {
-  sales: Sale[];
-  products: Product[];
-  managerAccounts: ManagerAccount[];
+  dailyReports: DailyReport[];
   incentiveRules: IncentiveRule[];
   currentStoreId: string;
-  managerSession: boolean;
-  activeManagerAccount: ManagerAccount | null;
-  onUpsertRule: (payload: { storeId: string; managerLoginId: string; amountPerUnit: number }) => void;
+  onUpsertRule: (payload: { storeId: string; productName: string; category: string; amountPerUnit: number }) => void;
 }
 
-const normalizeCategory = (category?: string) => {
-  const normalized = (category || '').trim();
-  return normalized === '부품/수리' ? '기타' : normalized;
-};
-
 const Incentive: React.FC<IncentiveProps> = ({
-  sales,
-  products,
-  managerAccounts,
+  dailyReports,
   incentiveRules,
   currentStoreId,
-  managerSession,
-  activeManagerAccount,
-  onUpsertRule
+  onUpsertRule,
 }) => {
   const [month, setMonth] = useState(() => {
     const now = new Date();
@@ -35,84 +23,82 @@ const Incentive: React.FC<IncentiveProps> = ({
 
   const [draftRates, setDraftRates] = useState<Record<string, string>>({});
 
-  const productCategoryMap = useMemo(() => {
-    const map = new Map<string, string>();
-    products.forEach((p) => map.set(p.id, normalizeCategory(p.category)));
-    return map;
-  }, [products]);
+  // 선택 월 + 지점 필터 보고서
+  const monthReports = useMemo(() => {
+    return dailyReports.filter((r) => {
+      if (r.dateStr.slice(0, 7) !== month) return false;
+      if (currentStoreId !== 'ALL' && r.storeId !== currentStoreId) return false;
+      return true;
+    });
+  }, [dailyReports, month, currentStoreId]);
 
-  const baseManagers = useMemo(() => {
-    if (managerSession && activeManagerAccount) {
-      return [activeManagerAccount];
-    }
-    return managerAccounts;
-  }, [managerSession, activeManagerAccount, managerAccounts]);
-
-  const visibleManagers = useMemo(() => {
-    if (currentStoreId === 'ALL') return baseManagers;
-    return baseManagers.filter((m) => m.storeId === currentStoreId);
-  }, [baseManagers, currentStoreId]);
-
+  // ruleMap: "storeId::productName" -> IncentiveRule
   const ruleMap = useMemo(() => {
     const map = new Map<string, IncentiveRule>();
     incentiveRules.forEach((r) => {
-      const key = `${r.storeId}::${r.managerLoginId}`;
-      map.set(key, r);
+      if (r.productName) {
+        map.set(`${r.storeId}::${r.productName}`, r);
+      }
     });
     return map;
   }, [incentiveRules]);
 
-  const filteredSales = useMemo(() => {
-    return sales.filter((sale) => {
-      if (sale.isCanceled) return false;
-      const saleMonth = (sale.date || '').slice(0, 7);
-      if (saleMonth !== month) return false;
-      if (currentStoreId === 'ALL') return true;
-      return sale.storeId === currentStoreId;
+  const storeIdForRules = currentStoreId !== 'ALL' ? currentStoreId : (monthReports[0]?.storeId || '');
+
+  const getRate = (storeId: string, productName: string): number => {
+    return ruleMap.get(`${storeId}::${productName}`)?.amountPerUnit || 0;
+  };
+
+  // staffItems에서 정비 항목만 수집 → 직원별/품목별 집계
+  const { productNames, staffMap } = useMemo(() => {
+    const productSet = new Set<string>();
+    const staffMap = new Map<string, { storeId: string; items: Map<string, number> }>();
+
+    monthReports.forEach((report) => {
+      (report.staffItems || []).forEach((si) => {
+        if (si.itemClass !== 'repair') return;
+        productSet.add(si.productName);
+        if (!staffMap.has(si.staffName)) {
+          staffMap.set(si.staffName, { storeId: report.storeId, items: new Map() });
+        }
+        const entry = staffMap.get(si.staffName)!;
+        entry.items.set(si.productName, (entry.items.get(si.productName) || 0) + si.qty);
+      });
     });
-  }, [sales, month, currentStoreId]);
 
-  const rows = useMemo(() => {
-    return visibleManagers.map((manager) => {
-      const key = `${manager.storeId}::${manager.loginId}`;
-      const rule = ruleMap.get(key);
-      const rate = rule?.amountPerUnit ?? 0;
+    const productNames = Array.from(productSet).sort();
+    return { productNames, staffMap };
+  }, [monthReports]);
 
-      const managerSales = filteredSales.filter(
-        (sale) => (sale.staffName || '').trim() === (manager.loginId || '').trim() && sale.storeId === manager.storeId
-      );
+  // 직원별 행 계산
+  const staffRows = useMemo(() => {
+    return Array.from(staffMap.entries()).map(([staffName, { storeId, items }]) => {
+      const details = productNames.map((name) => {
+        const qty = items.get(name) || 0;
+        const rate = getRate(storeId, name);
+        return { productName: name, qty, rate, amount: qty * rate };
+      });
+      const totalQty = details.reduce((s, d) => s + d.qty, 0);
+      const totalAmount = details.reduce((s, d) => s + d.amount, 0);
+      return { staffName, storeId, details, totalQty, totalAmount };
+    }).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [staffMap, productNames, ruleMap]);
 
-      const repairQty = managerSales.reduce((sum, sale) => {
-        const saleQty = (sale.items || []).reduce((itemSum, item) => {
-          const itemCategory = normalizeCategory(item.category || productCategoryMap.get(item.productId) || '');
-          if (itemCategory !== '정비') return itemSum;
-          return itemSum + (Number(item.quantity) || 0);
-        }, 0);
-        return sum + saleQty;
-      }, 0);
+  const totalQty = staffRows.reduce((s, r) => s + r.totalQty, 0);
+  const totalIncentive = staffRows.reduce((s, r) => s + r.totalAmount, 0);
 
-      const incentiveAmount = repairQty * rate;
-
-      return {
-        manager,
-        repairQty,
-        rate,
-        incentiveAmount
-      };
-    });
-  }, [visibleManagers, ruleMap, filteredSales, productCategoryMap]);
-
-  const totalQty = rows.reduce((sum, row) => sum + row.repairQty, 0);
-  const totalIncentive = rows.reduce((sum, row) => sum + row.incentiveAmount, 0);
+  const noReports = monthReports.length === 0;
+  const hasStaffItems = monthReports.some((r) => r.staffItems && r.staffItems.length > 0);
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
+      {/* 헤더 */}
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-gray-800">인센티브</h2>
             <p className="text-xs text-gray-500 mt-1">
-              담당직원명과 점장 아이디가 일치하는 판매 건에서 정비 카테고리 수량 기준으로 계산됩니다.
+              일마감 보고서 기반으로 직원별 정비 품목 수량을 집계해 인센티브를 계산합니다.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -138,66 +124,140 @@ const Incentive: React.FC<IncentiveProps> = ({
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="hidden md:grid md:grid-cols-12 bg-gray-50 px-5 py-3 text-xs font-bold text-gray-500 border-b border-gray-100">
-          <div className="col-span-2">점장</div>
-          <div className="col-span-2">점장 아이디</div>
-          <div className="col-span-2">지점</div>
-          <div className="col-span-2">정비 수량</div>
-          <div className="col-span-2">개당 인센티브</div>
-          <div className="col-span-2 text-right">합계</div>
+      {/* 상태 안내 */}
+      {noReports && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-sm text-yellow-800">
+          이 달에 저장된 일마감 보고서가 없습니다. 일별 마감 탭에서 마감을 저장하면 인센티브가 자동 집계됩니다.
         </div>
+      )}
+      {!noReports && !hasStaffItems && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm text-blue-800">
+          기존 보고서에는 직원별 품목 데이터가 없습니다. 오늘 이후 마감을 새로 저장하면 자동 집계됩니다.
+        </div>
+      )}
 
-        <div className="divide-y divide-gray-100">
-          {rows.length === 0 ? (
-            <div className="p-10 text-center text-gray-400">표시할 인센티브 데이터가 없습니다.</div>
-          ) : (
-            rows.map((row) => {
-              const rowKey = `${row.manager.storeId}::${row.manager.loginId}`;
-              const inputValue = draftRates[rowKey] ?? String(row.rate);
-
+      {/* 품목별 단가 설정 */}
+      {productNames.length > 0 && (
+        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-sm font-bold text-gray-700 mb-4">품목별 인센티브 단가 설정 (원/개)</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {productNames.map((name) => {
+              const key = `${storeIdForRules}::${name}`;
+              const currentRate = ruleMap.get(key)?.amountPerUnit || 0;
+              const inputVal = draftRates[key] ?? String(currentRate);
               return (
-                <div key={rowKey} className="p-4 md:px-5 md:py-4">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                    <div className="md:col-span-2 text-sm font-bold text-gray-800">{row.manager.name}</div>
-                    <div className="md:col-span-2 text-sm text-gray-600">{row.manager.loginId}</div>
-                    <div className="md:col-span-2 text-sm text-gray-600">{row.manager.storeId}</div>
-                    <div className="md:col-span-2 text-sm font-semibold text-blue-700">{formatNumber(row.repairQty)}개</div>
-                    <div className="md:col-span-2 flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        step="100"
-                        value={inputValue}
-                        onChange={(e) => {
-                          setDraftRates((prev) => ({ ...prev, [rowKey]: e.target.value }));
-                        }}
-                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm"
-                      />
-                      <button
-                        onClick={() => {
-                          const next = Math.max(0, Number((draftRates[rowKey] ?? String(row.rate)).trim() || '0'));
-                          onUpsertRule({
-                            storeId: row.manager.storeId,
-                            managerLoginId: row.manager.loginId,
-                            amountPerUnit: next
-                          });
-                          setDraftRates((prev) => ({ ...prev, [rowKey]: String(next) }));
-                        }}
-                        className="px-2.5 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
-                      >
-                        저장
-                      </button>
-                    </div>
-                    <div className="md:col-span-2 text-right text-base font-bold text-emerald-700">
-                      {formatCurrency(row.incentiveAmount)}
-                    </div>
-                  </div>
+                <div key={name} className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50/50">
+                  <span className="text-sm font-semibold text-gray-700 flex-1 truncate" title={name}>{name}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={inputVal}
+                    onChange={(e) => setDraftRates((prev) => ({ ...prev, [key]: e.target.value }))}
+                    className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right bg-white"
+                    placeholder="0"
+                  />
+                  <span className="text-xs text-gray-400 whitespace-nowrap">원</span>
+                  <button
+                    onClick={() => {
+                      const next = Math.max(0, Number((draftRates[key] ?? String(currentRate)).trim() || '0'));
+                      const existingRule = ruleMap.get(key);
+                      onUpsertRule({
+                        storeId: storeIdForRules,
+                        productName: name,
+                        category: existingRule?.category || '정비',
+                        amountPerUnit: next,
+                      });
+                      setDraftRates((prev) => ({ ...prev, [key]: String(next) }));
+                    }}
+                    className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex-shrink-0"
+                    title="저장"
+                  >
+                    <Save size={14} />
+                  </button>
                 </div>
               );
-            })
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 직원 × 품목 테이블 */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-bold text-gray-700">직원별 정비 실적</h3>
+          {staffRows.length > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">수량 옆 괄호는 해당 품목 인센티브 금액입니다.</p>
           )}
         </div>
+
+        {staffRows.length === 0 ? (
+          <div className="p-10 text-center text-gray-400 text-sm">
+            표시할 실적 데이터가 없습니다.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-3 text-left font-bold text-gray-500 whitespace-nowrap">직원명</th>
+                  {productNames.map((name) => (
+                    <th key={name} className="px-3 py-3 text-right font-bold text-gray-500 whitespace-nowrap text-xs">
+                      {name}
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 text-right font-bold text-gray-500 whitespace-nowrap">합계 수량</th>
+                  <th className="px-4 py-3 text-right font-bold text-gray-700 whitespace-nowrap">인센티브</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {staffRows.map((row, i) => (
+                  <tr key={row.staffName} className={i % 2 === 1 ? 'bg-gray-50/40' : ''}>
+                    <td className="px-4 py-3 font-bold text-gray-800 whitespace-nowrap">{row.staffName}</td>
+                    {row.details.map((d) => (
+                      <td key={d.productName} className="px-3 py-3 text-right whitespace-nowrap">
+                        {d.qty > 0 ? (
+                          <span className="text-gray-700">
+                            {formatNumber(d.qty)}개
+                            {d.amount > 0 && (
+                              <span className="text-xs text-emerald-600 ml-1">({formatCurrency(d.amount)})</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">-</span>
+                        )}
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 text-right font-semibold text-blue-700 whitespace-nowrap">
+                      {formatNumber(row.totalQty)}개
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">
+                      {formatCurrency(row.totalAmount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t-2 border-gray-200">
+                <tr className="bg-gray-50 font-bold">
+                  <td className="px-4 py-3 text-gray-700">합계</td>
+                  {productNames.map((name) => {
+                    const catTotal = staffRows.reduce(
+                      (s, r) => s + (r.details.find((d) => d.productName === name)?.qty || 0),
+                      0
+                    );
+                    return (
+                      <td key={name} className="px-3 py-3 text-right text-gray-700 whitespace-nowrap">
+                        {catTotal > 0 ? `${formatNumber(catTotal)}개` : '-'}
+                      </td>
+                    );
+                  })}
+                  <td className="px-4 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(totalQty)}개</td>
+                  <td className="px-4 py-3 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(totalIncentive)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
