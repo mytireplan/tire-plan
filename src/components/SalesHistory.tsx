@@ -374,12 +374,20 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   };
 
     const REPAIR_CATEGORY_SET = new Set(['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너']);
+    const REPAIR_NAME_KEYWORDS = ['엔진오일', '브레이크오일', '브레이크패드', '브레이크 패드', '오일필터', '에어크리너'];
 
     const normalizeCategory = (category?: string) => {
         const trimmed = (category || '').trim();
         if (!trimmed) return '기타';
         if (REPAIR_CATEGORY_SET.has(trimmed)) return '정비';
         return trimmed;
+    };
+
+    const isRepairLikeItem = (item: Pick<SalesItem, 'productName' | 'category'>, productCategory?: string) => {
+        if (normalizeCategory(item.category) === '정비') return true;
+        if (normalizeCategory(productCategory) === '정비') return true;
+        const name = (item.productName || '').replace(/\s+/g, '');
+        return REPAIR_NAME_KEYWORDS.some(keyword => name.includes(keyword.replace(/\s+/g, '')));
     };
 
   const isTireItem = (item: SalesItem | null | undefined) => {
@@ -558,6 +566,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
             const itemCategory = normalizeCategory(item.category);
             const productCategory = normalizeCategory(product?.category);
             let category = itemCategory !== '기타' ? itemCategory : productCategory;
+            if (category === '기타' && isRepairLikeItem(item, product?.category)) {
+                category = '정비';
+            }
             if (category === '기타' && item.specification && /\d{3}\/\d{2}/.test(item.specification)) {
                 category = '타이어';
             }
@@ -577,6 +588,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
         if (!item) return '';
         const category = normalizeCategory(item.category);
         const brand = (item.brand || '').trim();
+        if (isRepairLikeItem(item)) return '정비';
 
         // For repair items, avoid showing the generic brand "기타" and use category label.
         if (category === '정비' && (!brand || brand === '기타')) return '정비';
