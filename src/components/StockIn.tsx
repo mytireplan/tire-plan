@@ -18,6 +18,8 @@ interface StockInProps {
     tireModels: Record<string, string[]>;
 }
 
+const PART_NAMES = ['브레이크패드', '오일필터', '엔진오일', '에어크리너'];
+
 const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, products, onStockIn, currentUser, stockInHistory, currentStoreId, onUpdateStockInRecord, onDeleteStockInRecord, tireModels: _unusedTireModels }) => {
     const isAdminView = currentUser.role === 'STORE_ADMIN' || currentUser.role === 'SUPER_ADMIN';
     const dateToLocalString = (date: Date): string => {
@@ -159,6 +161,14 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
         setFormData(prev => ({ ...prev, factoryPrice: storedPrice }));
     }, [formData.productName, formData.specification, factoryPriceLookup, inputs.factoryPrice]);
 
+    // Reset brand when category changes
+    useEffect(() => {
+        if (formData.category === '부품') {
+            setFormData(prev => ({ ...prev, brand: PART_NAMES[0] }));
+        } else {
+            setFormData(prev => ({ ...prev, brand: tireBrands[0] || '기타' }));
+        }
+    }, [formData.category, tireBrands]);
 
 
     const handleNumberChange = (field: keyof typeof inputs, value: string) => {
@@ -439,8 +449,8 @@ const StockIn: React.FC<StockInProps> = ({ stores, categories, tireBrands, produ
                                     value={formData.brand}
                                     onChange={e => setFormData({...formData, brand: e.target.value})}
                                 >
-                                    {tireBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                                    <option value="기타">기타</option>
+                                    {(formData.category === '부품' ? PART_NAMES : tireBrands).map(b => <option key={b} value={b}>{b}</option>)}
+                                    {formData.category !== '부품' && <option value="기타">기타</option>}
                                 </select>
                             </div>
 

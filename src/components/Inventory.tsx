@@ -5,6 +5,8 @@ import { Search, Plus, Edit2, Save, X, AlertTriangle, MapPin, ArrowRightLeft, Tr
 import { formatCurrency, formatNumber } from '../utils/format';
 import { saveToFirestore, deleteFromFirestore, COLLECTIONS } from '../utils/firestore';
 
+const PART_NAMES = ['브레이크패드', '오일필터', '엔진오일', '에어크리너'];
+
 interface InventoryProps {
   products: Product[];
   stores: Store[];
@@ -24,7 +26,14 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({});
   const [selectedCategory, setSelectedCategory] = useState<string>(categories[0] || '타이어');
-    const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
+  const normalizeCategory = (category?: string): string => {
+    // 부품 카테고리의 경우 원본 유지
+    if (selectedCategory === '부품' && PART_NAMES.includes(category || '')) {
+      return category || '기타';
+    }
+    const normalized = category === '부품/수리' ? '기타' : (category || '기타');
+    return normalized;
+  };
   
   // Low Stock Logic
   const [filterLowStock, setFilterLowStock] = useState(false);
@@ -55,8 +64,13 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
   // Calculate Total Tier Stock for the current view context
   const getCategoryStock = (categoryName: string) => {
     return products.reduce((sum, p) => {
-      const category = normalizeCategory(p.category);
-      if (category !== categoryName) return sum;
+      // 부품 카테고리 단챘처리
+      if (categoryName === '부품') {
+        if (!PART_NAMES.includes(p.category || '')) return sum;
+      } else {
+        const category = normalizeCategory(p.category);
+        if (category !== categoryName) return sum;
+      }
       
       const totalStock = p.stock || 0;
       const isService = categoryName === '정비' || (categoryName === '기타' && totalStock > 900);
@@ -137,7 +151,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
             const isLowStock = !isServiceItem && viewStock <= lowStockThreshold;
         
             // 선택된 카테고리로 필터링
-            const matchesCategory = normalizeCategory(p.category) === selectedCategory;
+            const matchesCategory = selectedCategory === '부품' 
+              ? PART_NAMES.includes(p.category || '') 
+              : normalizeCategory(p.category) === selectedCategory;
         
             // 기타/정비 항목은 hideZeroStock 필터 무시 (수량 상관없이 표시)
             if (hideZeroStock && viewStock === 0 && p.category !== '기타' && p.category !== '정비') return false;

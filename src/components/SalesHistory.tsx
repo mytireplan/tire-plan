@@ -393,10 +393,36 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   const isTireItem = (item: SalesItem | null | undefined) => {
     if (!item) return false;
     const product = products.find(p => p.id === item.productId);
-    const category = normalizeCategory(product?.category);
-    if (category === '타이어') return true;
-    return category === '기타' && (item.specification || '').length > 0 ? /\d{3}\/\d{2}/.test(item.specification || '') : false;
+        const productCategory = normalizeCategory(product?.category);
+        const itemCategory = normalizeCategory(item.category);
+        const normalizedCategoryText = `${productCategory} ${itemCategory}`.replace(/\s+/g, '');
+        const hasTireCategory = normalizedCategoryText.includes('타이어');
+        const hasUsedKeyword = normalizedCategoryText.includes('중고');
+        const specSource = `${item.specification || ''} ${product?.specification || ''} ${item.productName || ''}`;
+        const hasTireSpec = /\d{3}[\/]?\d{2}\s*R?\d{2}/i.test(specSource);
+
+        if (hasTireCategory) return true;
+        if (hasUsedKeyword && hasTireSpec) return true;
+        if (hasTireSpec && !isRepairLikeItem(item, product?.category)) return true;
+        return false;
   };
+
+    const hasTireSpecText = (text: string) => /\d{3}\s*[\/-]?\s*\d{2}\s*[A-Z]?\s*R?\s*\d{2}/i.test(text);
+
+    const getTireQuantityForSale = (sale: Sale) => {
+        const tireItems = (sale.items || []).filter(item => isTireItem(item));
+        const qtySum = tireItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
+        if (qtySum > 0) return qtySum;
+        if (tireItems.length > 0) return tireItems.length;
+
+        // Legacy safety: if category mapping failed but spec text clearly indicates tire, still count it.
+        const fallbackItems = (sale.items || []).filter(item => {
+            const specText = `${item?.specification || ''} ${item?.productName || ''}`;
+            return hasTireSpecText(specText) && !isRepairLikeItem(item, item?.category);
+        });
+        const fallbackQtySum = fallbackItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
+        return fallbackQtySum > 0 ? fallbackQtySum : fallbackItems.length;
+    };
 
   const filteredSales = useMemo(() => {
     return sales.filter(sale => {
@@ -471,12 +497,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
         filteredSales.forEach(sale => {
                 if (sale.isCanceled) return;
                 totalPayment += sale.totalAmount;
-                sale.items.forEach(item => {
-                        if (isTireItem(item)) tireCount += item.quantity;
-                });
+            tireCount += getTireQuantityForSale(sale);
         });
         return { tireCount, totalPayment };
-    }, [filteredSales, products]);
+        }, [filteredSales, products]);
 
     // const totalAmount = aggregates.revenue; (unused)
 
@@ -575,10 +599,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
             return { ...item, category };
         });
 
-    const tires = itemsWithCat.filter(i => i.category === '타이어');
+    const tires = itemsWithCat.filter(i => i.category === '타이어' || i.category === '중고타이어');
     if (tires.length > 0) return tires[0];
 
-    const nonTires = itemsWithCat.filter(i => i.category !== '타이어');
+    const nonTires = itemsWithCat.filter(i => i.category !== '타이어' && i.category !== '중고타이어');
     if (nonTires.length > 0) return nonTires[0];
 
     return itemsWithCat[0] || sale.items[0];
@@ -1584,7 +1608,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                             </td>
                                             <td className="px-4 py-3 text-center text-gray-800 font-bold whitespace-nowrap">
                                                 {(() => {
-                                                    const tireQty = sale.items.reduce((sum, item) => sum + (isTireItem(item) ? (item.quantity || 0) : 0), 0);
+                                                    const tireQty = getTireQuantityForSale(sale);
                                                     return tireQty > 0 ? `${tireQty}개` : '-';
                                                 })()}
                                             </td>
@@ -2289,7 +2313,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                                           className={`cursor-pointer hover:bg-gray-100 rounded px-2 py-1 -mx-1 border border-transparent hover:border-gray-200 transition-colors text-sm font-medium text-right ${selectedSale.isCanceled || !isTireItem(item) ? 'cursor-default' : ''}`}
                                                           title={isTireItem(item) ? "클릭하여 수정" : ""}
                                                        >
-                                                           {isTireItem(item) ? item.quantity : '-'}
+                                                           {(() => {
+                                                               if (isTireItem(item)) return item.quantity;
+                                                               const text = `${item?.specification || ''} ${item?.productName || ''}`;
+                                                               return hasTireSpecText(text) ? (item.quantity || 1) : '-';
+                                                           })()}
                                                        </div>
                                                   )}
                                               </div>

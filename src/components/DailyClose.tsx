@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import type { Sale, Store, Product, User, StockInRecord, DailyReport, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStockInEntry, DailyReportStaffItem } from '../types';
 import { Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Save, CheckCircle, Upload } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
@@ -21,8 +21,8 @@ interface DailyCloseProps {
     onSaveReport: (report: DailyReport) => void;
 }
 
-const TIRE_CATEGORIES = ['타이어', '중고타이어'];
-const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너'];
+const TIRE_CATEGORIES = ['Ÿ�̾�', '�߰�Ÿ�̾�'];
+const REPAIR_CATEGORIES = ['����'];
 
 const DailyClose: React.FC<DailyCloseProps> = ({
     sales, stores, products, dailyReports, stockInHistory, currentUser, currentStoreId, onUpdateSale, onSaveReport
@@ -83,7 +83,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
             s.items.forEach(item => {
                 cost += (item.purchasePrice || 0) * item.quantity;
                 const product = productMap.get(item.productId);
-                const cls = getItemClass(item.productId, product?.category || '기타');
+                const cls = getItemClass(item.productId, product?.category || '��Ÿ');
                 if (cls === 'tire') tireQty += item.quantity;
                 else if (cls === 'repair') repairQty += item.quantity;
                 else laborQty += item.quantity;
@@ -194,7 +194,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
             ? selectedStoreFilter
             : (daySales[0]?.storeId || currentStoreId);
         const store = stores.find(s => s.id === storeId);
-        const storeName = store?.name || '전체 지점';
+        const storeName = store?.name || '��ü ����';
 
         const itemMap = new Map<string, DailyReportItem>();
         const staffMap = new Map<string, DailyReportStaff>();
@@ -204,7 +204,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
 
         daySales.forEach(sale => {
             totalRevenue += sale.totalAmount;
-            const staffName = sale.staffName || '미지정';
+            const staffName = sale.staffName || '������';
             if (!staffMap.has(staffName)) {
                 staffMap.set(staffName, {
                     staffName, salesCount: 0, revenue: 0, cost: 0, profit: 0,
@@ -217,7 +217,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
 
             sale.items.forEach((item, idx) => {
                 const product = productMap.get(item.productId);
-                const category = product?.category || '기타';
+                const category = product?.category || '��Ÿ';
                 const itemClass = getItemClass(item.productId, category);
                 const fp = product?.factoryPrice || 0;
                 const cost = getItemEffectiveCost(sale.id, idx, fp, item.purchasePrice || 0);
@@ -285,7 +285,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
         const profit = totalRevenue - totalCost;
         const margin = totalRevenue > 0 && totalCost > 0 ? (profit / totalRevenue) * 100 : 0;
 
-        const normalizeCategory = (category?: string) => (category || '기타').trim() || '기타';
+        const normalizeCategory = (category?: string) => (category || '��Ÿ').trim() || '��Ÿ';
         const getPreviousDateStr = (baseDateStr: string) => {
             const [yy, mm, dd] = baseDateStr.split('-').map(Number);
             const dt = new Date(yy, mm - 1, dd);
@@ -343,9 +343,9 @@ const DailyClose: React.FC<DailyCloseProps> = ({
             ...Array.from(previousStockByCategory.keys()),
         ]);
         const categoryPriority = (category: string) => {
-            if (category === '타이어') return 0;
-            if (category === '중고타이어') return 1;
-            if (category === '기타') return 99;
+            if (category === 'Ÿ�̾�') return 0;
+            if (category === '�߰�Ÿ�̾�') return 1;
+            if (category === '��Ÿ') return 99;
             return 10;
         };
         const inventoryFlowEntries: DailyReportInventoryFlowEntry[] = Array.from(allInventoryCategories)
@@ -393,7 +393,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
         };
     }, [getDaySales, selectedStoreFilter, currentStoreId, stores, productMap, getItemClass, getItemEffectiveCost, dailyReports, stockInHistory, products, currentUser]);
 
-    const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+    const WEEKDAYS = ['��', '��', 'ȭ', '��', '��', '��', '��'];
 
     return (
         <div className="flex flex-col h-full min-h-0 bg-gray-50">
@@ -404,7 +404,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                             <ChevronLeft size={16} />
                         </button>
                         <span className="font-bold text-gray-800 min-w-[100px] text-center text-sm">
-                            {selectedMonth.replace('-', '년 ')}월
+                            {selectedMonth.replace('-', '�� ')}��
                         </span>
                         <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-white rounded-lg transition-colors">
                             <ChevronRight size={16} />
@@ -416,22 +416,22 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                             onChange={e => setSelectedStoreFilter(e.target.value)}
                             className="text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none"
                         >
-                            <option value="ALL">전체 지점</option>
+                            <option value="ALL">��ü ����</option>
                             {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     )}
                 </div>
-                <p className="text-xs text-gray-400">날짜 클릭 → 판매건 클릭 → 항목별 원가 입력 후 저장</p>
+                <p className="text-xs text-gray-400">��¥ Ŭ�� �� �ǸŰ� Ŭ�� �� �׸� ���� �Է� �� ����</p>
             </div>
 
             <div className="px-4 py-3 grid grid-cols-3 md:grid-cols-6 gap-2 shrink-0">
                 {[
-                    { label: '월 매출', value: formatCurrency(monthlyTotals.revenue), color: 'text-blue-600' },
-                    { label: '월 원가', value: formatCurrency(monthlyTotals.cost), color: 'text-gray-700' },
-                    { label: '월 수익', value: formatCurrency(monthlyTotals.profit), color: monthlyTotals.profit >= 0 ? 'text-emerald-600' : 'text-red-500' },
-                    { label: '타이어', value: `${monthlyTotals.tireQty}개`, color: 'text-orange-600' },
-                    { label: '정비', value: `${monthlyTotals.repairQty}건`, color: 'text-violet-600' },
-                    { label: '공임', value: `${monthlyTotals.laborQty}건`, color: 'text-slate-500' },
+                    { label: '�� ����', value: formatCurrency(monthlyTotals.revenue), color: 'text-blue-600' },
+                    { label: '�� ����', value: formatCurrency(monthlyTotals.cost), color: 'text-gray-700' },
+                    { label: '�� ����', value: formatCurrency(monthlyTotals.profit), color: monthlyTotals.profit >= 0 ? 'text-emerald-600' : 'text-red-500' },
+                    { label: 'Ÿ�̾�', value: `${monthlyTotals.tireQty}��`, color: 'text-orange-600' },
+                    { label: '����', value: `${monthlyTotals.repairQty}��`, color: 'text-violet-600' },
+                    { label: '����', value: `${monthlyTotals.laborQty}��`, color: 'text-slate-500' },
                 ].map(c => (
                     <div key={c.label} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
                         <p className="text-[11px] text-gray-400 mb-0.5">{c.label}</p>
@@ -444,7 +444,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 {dailyStats.length === 0 ? (
                     <div className="text-center py-20 text-gray-300">
                         <Calendar size={40} className="mx-auto mb-3 opacity-30" />
-                        <p className="text-sm">{selectedMonth.replace('-', '년 ')}월 판매 내역이 없습니다.</p>
+                        <p className="text-sm">{selectedMonth.replace('-', '�� ')}�� �Ǹ� ������ �����ϴ�.</p>
                     </div>
                 ) : dailyStats.map(stat => {
                     const isDateExpanded = expandedDate === stat.dateStr;
@@ -461,32 +461,32 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                             >
                                 <div className="w-11 shrink-0 text-center">
                                     <div className="text-base font-bold text-gray-800">{m}/{d}</div>
-                                    <div className={`text-[11px] font-medium ${weekday === '일' ? 'text-red-400' : weekday === '토' ? 'text-blue-400' : 'text-gray-400'}`}>
+                                    <div className={`text-[11px] font-medium ${weekday === '��' ? 'text-red-400' : weekday === '��' ? 'text-blue-400' : 'text-gray-400'}`}>
                                         ({weekday})
                                     </div>
                                 </div>
                                 <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-x-4">
                                     <div>
-                                        <div className="text-[11px] text-gray-400">매출</div>
+                                        <div className="text-[11px] text-gray-400">����</div>
                                         <div className="font-bold text-blue-600 text-sm">{formatCurrency(stat.revenue)}</div>
                                     </div>
                                     <div>
-                                        <div className="text-[11px] text-gray-400">수익</div>
+                                        <div className="text-[11px] text-gray-400">����</div>
                                         <div className={`font-bold text-sm ${hasCost ? (stat.profit >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-gray-300'}`}>
-                                            {hasCost ? formatCurrency(stat.profit) : '미마감'}
+                                            {hasCost ? formatCurrency(stat.profit) : '�̸���'}
                                         </div>
                                     </div>
                                     <div className="hidden md:block">
-                                        <div className="text-[11px] text-gray-400">타이어 / 정비 / 공임</div>
+                                        <div className="text-[11px] text-gray-400">Ÿ�̾� / ���� / ����</div>
                                         <div className="text-sm font-medium">
-                                            {stat.tireQty > 0 && <span className="text-orange-500 mr-1">{stat.tireQty}개</span>}
-                                            {stat.repairQty > 0 && <span className="text-violet-500 mr-1">{stat.repairQty}건</span>}
-                                            {stat.laborQty > 0 && <span className="text-slate-400">{stat.laborQty}공임</span>}
+                                            {stat.tireQty > 0 && <span className="text-orange-500 mr-1">{stat.tireQty}��</span>}
+                                            {stat.repairQty > 0 && <span className="text-violet-500 mr-1">{stat.repairQty}��</span>}
+                                            {stat.laborQty > 0 && <span className="text-slate-400">{stat.laborQty}����</span>}
                                         </div>
                                     </div>
                                     <div className="hidden md:block">
-                                        <div className="text-[11px] text-gray-400">판매건수</div>
-                                        <div className="text-sm font-medium text-gray-600">{stat.salesCount}건</div>
+                                        <div className="text-[11px] text-gray-400">�ǸŰǼ�</div>
+                                        <div className="text-sm font-medium text-gray-600">{stat.salesCount}��</div>
                                     </div>
                                 </div>
                                 <div className="shrink-0">
@@ -531,15 +531,15 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                             <span className="font-bold text-blue-600 text-sm">{formatCurrency(sale.totalAmount)}</span>
                                                             {isSaved && (
                                                                 <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5">
-                                                                    <CheckCircle size={10} /> 저장됨
+                                                                    <CheckCircle size={10} /> �����
                                                                 </span>
                                                             )}
                                                         </div>
                                                         <div className="text-xs text-gray-400 mt-0.5 flex gap-3 flex-wrap">
-                                                            <span>{sale.items.map(i => i.productName).join(' · ')}</span>
+                                                            <span>{sale.items.map(i => i.productName).join(' �� ')}</span>
                                                             {hasSaleCost && (
                                                                 <span className={saleProfit >= 0 ? 'text-emerald-500 font-medium' : 'text-red-400 font-medium'}>
-                                                                    수익 {formatCurrency(saleProfit)}
+                                                                    ���� {formatCurrency(saleProfit)}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -551,10 +551,10 @@ const DailyClose: React.FC<DailyCloseProps> = ({
 
                                                 {isSaleExpanded && (
                                                     <div className="px-5 pb-4 space-y-2 bg-gray-50/60">
-                                                        <p className="text-[11px] font-bold text-gray-400 pt-2 pb-1">항목별 원가 입력</p>
+                                                        <p className="text-[11px] font-bold text-gray-400 pt-2 pb-1">�׸� ���� �Է�</p>
                                                         {sale.items.map((item, idx) => {
                                                             const product = productMap.get(item.productId);
-                                                            const category = product?.category || '기타';
+                                                            const category = product?.category || '��Ÿ';
                                                             const itemClass = getItemClass(item.productId, category);
                                                             const factoryPrice = product?.factoryPrice || 0;
 
@@ -574,7 +574,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                                 : itemClass === 'repair'
                                                                     ? 'bg-violet-100 text-violet-600'
                                                                     : 'bg-slate-100 text-slate-500';
-                                                            const clsLabel = itemClass === 'tire' ? '타이어' : itemClass === 'repair' ? '정비' : '공임';
+                                                            const clsLabel = itemClass === 'tire' ? 'Ÿ�̾�' : itemClass === 'repair' ? '����' : '����';
 
                                                             return (
                                                                 <div key={idx} className="bg-white rounded-xl border border-gray-100 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -583,18 +583,18 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${clsColor}`}>{clsLabel}</span>
                                                                             <span className="text-sm font-semibold text-gray-800">{item.productName}</span>
                                                                             {item.specification && <span className="text-xs text-blue-500">{item.specification}</span>}
-                                                                            <span className="text-xs text-gray-400">× {item.quantity}</span>
+                                                                            <span className="text-xs text-gray-400">�� {item.quantity}</span>
                                                                         </div>
                                                                         <div className="flex gap-3 text-xs flex-wrap text-gray-500">
-                                                                            <span>판매가 <strong className="text-gray-700">{formatCurrency(totalItemRevenue)}</strong></span>
+                                                                            <span>�ǸŰ� <strong className="text-gray-700">{formatCurrency(totalItemRevenue)}</strong></span>
                                                                             {factoryPrice > 0 && (
-                                                                                <span className="text-gray-400">공장도가 <strong>{formatCurrency(factoryPrice)}</strong>/개</span>
+                                                                                <span className="text-gray-400">���嵵�� <strong>{formatCurrency(factoryPrice)}</strong>/��</span>
                                                                             )}
                                                                             {effectiveCost > 0 && (
                                                                                 <>
-                                                                                    <span>원가 <strong>{formatCurrency(totalItemCost)}</strong></span>
+                                                                                    <span>���� <strong>{formatCurrency(totalItemCost)}</strong></span>
                                                                                     <span className={itemProfit >= 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold'}>
-                                                                                        수익 {formatCurrency(itemProfit)}
+                                                                                        ���� {formatCurrency(itemProfit)}
                                                                                     </span>
                                                                                 </>
                                                                             )}
@@ -607,13 +607,13 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                                                 onClick={() => setItemEditMode(sale.id, idx, 'discount')}
                                                                                 className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap ${edit.mode === 'discount' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
                                                                             >
-                                                                                할인율
+                                                                                ������
                                                                             </button>
                                                                             <button
                                                                                 onClick={() => setItemEditMode(sale.id, idx, 'direct')}
                                                                                 className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap ${edit.mode === 'direct' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
                                                                             >
-                                                                                직접입력
+                                                                                �����Է�
                                                                             </button>
                                                                         </div>
 
@@ -630,7 +630,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                                                 <span className="text-sm text-gray-500">%</span>
                                                                                 {edit.discountRate && factoryPrice > 0 && (
                                                                                     <span className="text-xs text-gray-400 whitespace-nowrap">
-                                                                                        → {formatCurrency(Math.round(factoryPrice * (1 - parseFloat(edit.discountRate) / 100)))}
+                                                                                        �� {formatCurrency(Math.round(factoryPrice * (1 - parseFloat(edit.discountRate) / 100)))}
                                                                                     </span>
                                                                                 )}
                                                                             </div>
@@ -644,7 +644,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                                                     placeholder="0"
                                                                                     onChange={e => updateItemEdit(sale.id, idx, 'directCost', e.target.value)}
                                                                                 />
-                                                                                <span className="text-xs text-gray-400">/개</span>
+                                                                                <span className="text-xs text-gray-400">/��</span>
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -655,24 +655,24 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                         <div className="flex items-center justify-between bg-white rounded-xl border border-gray-100 px-4 py-3 mt-2">
                                                             <div className="flex gap-4 text-sm">
                                                                 <div>
-                                                                    <div className="text-[11px] text-gray-400">매출</div>
+                                                                    <div className="text-[11px] text-gray-400">����</div>
                                                                     <div className="font-bold text-blue-600">{formatCurrency(sale.totalAmount)}</div>
                                                                 </div>
                                                                 {saleCost > 0 && (
                                                                     <>
                                                                         <div>
-                                                                            <div className="text-[11px] text-gray-400">원가</div>
+                                                                            <div className="text-[11px] text-gray-400">����</div>
                                                                             <div className="font-bold text-gray-700">{formatCurrency(saleCost)}</div>
                                                                         </div>
                                                                         <div>
-                                                                            <div className="text-[11px] text-gray-400">수익</div>
+                                                                            <div className="text-[11px] text-gray-400">����</div>
                                                                             <div className={`font-bold ${saleProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                                                                                 {formatCurrency(saleProfit)}
                                                                             </div>
                                                                         </div>
                                                                         {sale.totalAmount > 0 && (
                                                                             <div>
-                                                                                <div className="text-[11px] text-gray-400">마진율</div>
+                                                                                <div className="text-[11px] text-gray-400">������</div>
                                                                                 <div className="font-bold text-gray-600">
                                                                                     {((saleProfit / sale.totalAmount) * 100).toFixed(1)}%
                                                                                 </div>
@@ -685,7 +685,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                                 onClick={() => handleSaveSale(sale)}
                                                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-colors ${isSaved ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'}`}
                                                             >
-                                                                {isSaved ? <><CheckCircle size={15} /> 저장됨</> : <><Save size={15} /> 원가 저장</>}
+                                                                {isSaved ? <><CheckCircle size={15} /> �����</> : <><Save size={15} /> ���� ����</>}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -695,7 +695,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                     })}
                                     </div>
                                     <div className="px-4 py-3 bg-emerald-50/70 border-t border-emerald-100 flex items-center justify-between gap-3">
-                                        <p className="text-xs text-emerald-700">원가 저장 후 보고서를 올리면 게시판에 공유됩니다.</p>
+                                        <p className="text-xs text-emerald-700">���� ���� �� �������� �ø��� �Խ��ǿ� �����˴ϴ�.</p>
                                         <button
                                             onClick={() => {
                                                 const r = buildDailyReport(stat.dateStr);
@@ -709,8 +709,8 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                             }`}
                                         >
                                             {reportedDates.has(stat.dateStr)
-                                                ? <><CheckCircle size={15} /> 보고서 올림</>
-                                                : <><Upload size={15} /> 보고서 올리기</>}
+                                                ? <><CheckCircle size={15} /> ������ �ø�</>
+                                                : <><Upload size={15} /> ������ �ø���</>}
                                         </button>
                                     </div>
                                 </div>

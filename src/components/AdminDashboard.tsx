@@ -165,9 +165,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
 
   const isTireItem = (item: any) => {
     const product = products.find(p => p.id === item.productId);
-    const category = normalizeCategory(product?.category);
-    if (category === '타이어') return true;
-    return category === '기타' && item.specification ? /\d{3}\/\d{2}/.test(item.specification) : false;
+    const productCategory = normalizeCategory(product?.category);
+    const itemCategory = normalizeCategory(item?.category);
+    const normalizedCategoryText = `${productCategory} ${itemCategory}`.replace(/\s+/g, '');
+    const hasTireCategory = normalizedCategoryText.includes('타이어');
+    const hasUsedKeyword = normalizedCategoryText.includes('중고');
+    const specSource = `${item?.specification || ''} ${product?.specification || ''} ${item?.productName || ''}`;
+    const hasTireSpec = /\d{3}[\/]?\d{2}\s*R?\d{2}/i.test(specSource);
+
+    if (hasTireCategory) return true;
+    if (hasUsedKeyword && hasTireSpec) return true;
+    return hasTireSpec;
+  };
+
+  const hasTireSpecText = (text: string) => /\d{3}\s*[\/-]?\s*\d{2}\s*[A-Z]?\s*R?\s*\d{2}/i.test(text);
+
+  const getTireQuantityFromItems = (items: any[] | undefined) => {
+    const tireItems = (items || []).filter(item => isTireItem(item));
+    const qtySum = tireItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
+    if (qtySum > 0) return qtySum;
+    if (tireItems.length > 0) return tireItems.length;
+
+    const fallbackItems = (items || []).filter(item => hasTireSpecText(`${item?.specification || ''} ${item?.productName || ''}`));
+    const fallbackQtySum = fallbackItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
+    return fallbackQtySum > 0 ? fallbackQtySum : fallbackItems.length;
   };
 
   const handlePrevMonth = () => {
@@ -218,9 +239,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   const tireSalesData = useMemo(() => {
     // 타이어만 필터링
     const total = filteredSales.reduce((sum, s) => {
-      const tireQty = s.items?.reduce((itemSum, item) => {
-        return itemSum + (isTireItem(item) ? item.quantity : 0);
-      }, 0) || 0;
+      const tireQty = getTireQuantityFromItems(s.items);
       return sum + tireQty;
     }, 0);
     
@@ -286,9 +305,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
       
       // 타이어 판매 개수 (타이어만 필터링)
       const tires = storeSales.reduce((sum, s) => {
-        const tireQty = s.items?.reduce((itemSum, item) => {
-          return itemSum + (isTireItem(item) ? item.quantity : 0);
-        }, 0) || 0;
+        const tireQty = getTireQuantityFromItems(s.items);
         return sum + tireQty;
       }, 0);
       
@@ -313,9 +330,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
       const day = new Date(s.date).getDate();
       const existing = map.get(day) || { revenue: 0, count: 0, tires: 0 };
       // 타이어만 계산
-      const tireQty = s.items?.reduce((sum, item) => {
-        return sum + (isTireItem(item) ? item.quantity : 0);
-      }, 0) || 0;
+      const tireQty = getTireQuantityFromItems(s.items);
       map.set(day, {
         revenue: existing.revenue + s.totalAmount,
         count: existing.count + 1,
