@@ -212,13 +212,18 @@ export interface IncentiveRule {
   id: string;
   storeId: string;
   ownerId?: string;
-  productName: string;     // 품목명 (예: '엔진오일', 'YEC 168') — rate key
+  productName: string;     // 품목명 (예: '엔진오일', 'YEC 168') — rate key; '__TIRE_BONUS__' | '__MARGIN_BONUS__' for complex rules
   category?: string;       // 품목 카테고리 (참고용)
-  amountPerUnit: number;   // 개당 인센티브 금액
+  amountPerUnit: number;   // 개당 인센티브 금액 (unit_price 타입)
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
   managerLoginId?: string; // legacy — 하위 호환용
+  // 복합 규칙 확장 필드
+  ruleType?: 'unit_price' | 'tire_quantity' | 'margin_bonus';
+  tireThreshold?: number;    // 타이어 수량 임계값 (N개 이상)
+  marginThreshold?: number;  // 마진율 임계값 (N%)
+  bonusAmount?: number;      // 조건 달성 시 직원 1인당 지급액
 }
 
 export interface ManagerAccount {

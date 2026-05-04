@@ -1624,6 +1624,46 @@ const App: React.FC = () => {
       await saveToFirestore<IncentiveRule>(COLLECTIONS.INCENTIVE_RULES, nextRule);
   };
 
+  const handleUpsertComplexIncentiveRule = async (payload: {
+      storeId: string;
+      productName: string;
+      ruleType: 'tire_quantity' | 'margin_bonus';
+      tireThreshold?: number;
+      marginThreshold?: number;
+      bonusAmount: number;
+  }) => {
+      const existing = incentiveRules.find(
+          (rule) => rule.storeId === payload.storeId && rule.productName === payload.productName
+      );
+      const now = new Date().toISOString();
+      const nextRule: IncentiveRule = existing
+          ? {
+              ...existing,
+              ruleType: payload.ruleType,
+              tireThreshold: payload.tireThreshold,
+              marginThreshold: payload.marginThreshold,
+              bonusAmount: payload.bonusAmount,
+              amountPerUnit: 0,
+              isActive: true,
+              updatedAt: now
+          }
+          : {
+              id: `INC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              storeId: payload.storeId,
+              productName: payload.productName,
+              category: payload.ruleType,
+              ruleType: payload.ruleType,
+              tireThreshold: payload.tireThreshold,
+              marginThreshold: payload.marginThreshold,
+              bonusAmount: payload.bonusAmount,
+              amountPerUnit: 0,
+              isActive: true,
+              createdAt: now,
+              updatedAt: now
+          };
+      await saveToFirestore<IncentiveRule>(COLLECTIONS.INCENTIVE_RULES, nextRule);
+  };
+
   // --- Super Admin Actions ---
 
     const persistOwner = (owner: OwnerAccount) => {
@@ -3278,7 +3318,9 @@ const App: React.FC = () => {
                     dailyReports={dailyReports}
                     incentiveRules={incentiveRules}
                     currentStoreId={currentStoreId}
+                    currentUser={effectiveUser}
                     onUpsertRule={handleUpsertIncentiveRule}
+                    onUpsertComplexRule={handleUpsertComplexIncentiveRule}
                 />
             )}
             {(activeTab === 'dailyClose' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN')) && (
