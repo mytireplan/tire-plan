@@ -8,9 +8,10 @@ interface IncentiveProps {
   incentiveRules: IncentiveRule[];
   currentStoreId: string;
   currentUser: User;
-  onUpsertRule: (payload: { storeId: string; productName: string; category: string; amountPerUnit: number }) => void;
+  onUpsertRule: (payload: { storeId: string; staffName?: string; productName: string; category: string; amountPerUnit: number }) => void;
   onUpsertComplexRule: (payload: {
     storeId: string;
+    staffName?: string;
     productName: string;
     ruleType: 'tire_quantity' | 'margin_bonus';
     tireThreshold?: number;
@@ -19,6 +20,7 @@ interface IncentiveProps {
   }) => void;
   onUpsertFormulaRule: (payload: {
     storeId: string;
+    staffName?: string;
     metricKey: string;
     comparisonOp: '>' | '<';
     thresholdValue: number;
@@ -99,6 +101,12 @@ const isUsedTireItem = (productName: string, category: string): boolean => {
   return haystack.includes('중고') || haystack.includes('used');
 };
 
+const DEFAULT_RULE_SCOPE = '';
+
+const buildScopedRuleKey = (storeId: string, ruleKey: string, staffName?: string) => {
+  return `${storeId}::${staffName || '__COMMON__'}::${ruleKey}`;
+};
+
 const Incentive: React.FC<IncentiveProps> = ({
   dailyReports,
   incentiveRules,
@@ -119,6 +127,7 @@ const Incentive: React.FC<IncentiveProps> = ({
   const [formulaDrafts, setFormulaDrafts] = useState<
     Record<string, { comparisonOp: '>' | '<'; thresholdValue: string; multiplier: string; addend: string }>
   >({});
+  const [selectedRuleStaffName, setSelectedRuleStaffName] = useState<string>(DEFAULT_RULE_SCOPE);
 
   const [tireBonusDraft, setTireBonusDraft] = useState<{ threshold: string; bonus: string }>({ threshold: '', bonus: '' });
   const [marginBonusDraft, setMarginBonusDraft] = useState<{ threshold: string; bonus: string }>({ threshold: '', bonus: '' });
@@ -133,12 +142,13 @@ const Incentive: React.FC<IncentiveProps> = ({
   }, [dailyReports, month, currentStoreId]);
 
   const storeIdForRules = currentStoreId !== 'ALL' ? currentStoreId : (monthReports[0]?.storeId || '');
+  const staffNames = useMemo(() => Array.from(new Set(monthReports.flatMap((report) => (report.staffStats || []).map((staff) => staff.staffName)))).sort(), [monthReports]);
 
   const ruleMap = useMemo(() => {
     const map = new Map<string, IncentiveRule>();
     incentiveRules.forEach((r) => {
       if (r.productName && r.productName !== '__TIRE_BONUS__' && r.productName !== '__MARGIN_BONUS__' && !r.productName.startsWith('__FORMULA__::')) {
-        map.set(`${r.storeId}::${r.productName}`, r);
+        map.set(buildScopedRuleKey(r.storeId, r.productName, r.staffName), r);
       }
     });
     return map;
@@ -149,29 +159,37 @@ const Incentive: React.FC<IncentiveProps> = ({
     incentiveRules.forEach((r) => {
       if (r.ruleType !== 'formula') return;
       if (!r.metricKey) return;
-      map.set(`${r.storeId}::${r.metricKey}`, r);
+      map.set(buildScopedRuleKey(r.storeId, r.metricKey, r.staffName), r);
     });
     return map;
   }, [incentiveRules]);
 
+  const getComplexRule = (storeId: string, productName: string, staffName?: string): IncentiveRule | undefined => {
+    return incentiveRules.find((r) => r.storeId === storeId && (r.staffName || '') === (staffName || '') && r.productName === productName)
+      || incentiveRules.find((r) => r.storeId === storeId && !r.staffName && r.productName === productName);
+  };
+
   const tireRule = useMemo(
-    () => incentiveRules.find((r) => r.productName === '__TIRE_BONUS__' && (currentStoreId === 'ALL' || r.storeId === currentStoreId)),
-    [incentiveRules, currentStoreId]
+    () => storeIdForRules ? getComplexRule(storeIdForRules, '__TIRE_BONUS__', selectedRuleStaffName) : undefined,
+    [incentiveRules, storeIdForRules, selectedRuleStaffName]
   );
   const marginRule = useMemo(
-    () => incentiveRules.find((r) => r.productName === '__MARGIN_BONUS__' && (currentStoreId === 'ALL' || r.storeId === currentStoreId)),
-    [incentiveRules, currentStoreId]
+    () => storeIdForRules ? getComplexRule(storeIdForRules, '__MARGIN_BONUS__', selectedRuleStaffName) : undefined,
+    [incentiveRules, storeIdForRules, selectedRuleStaffName]
   );
 
-  const getRate = (storeId: string, productName: string): number => {
-    return ruleMap.get(`${storeId}::${productName}`)?.amountPerUnit || 0;
+  const getRate = (storeId: string, productName: string, staffName?: string): number => {
+    return ruleMap.get(buildScopedRuleKey(storeId, productName, staffName))?.amountPerUnit
+      || ruleMap.get(buildScopedRuleKey(storeId, productName, DEFAULT_RULE_SCOPE))?.amountPerUnit
+      || 0;
   };
 
-  const getFormulaRule = (storeId: string, metricKey: FormulaMetricKey): IncentiveRule | undefined => {
-    return formulaRuleMap.get(`${storeId}::${metricKey}`);
+  const getFormulaRule = (storeId: string, metricKey: FormulaMetricKey, staffName?: string): IncentiveRule | undefined => {
+    return formulaRuleMap.get(buildScopedRuleKey(storeId, metricKey, staffName))
+      || formulaRuleMap.get(buildScopedRuleKey(storeId, metricKey, DEFAULT_RULE_SCOPE));
   };
 
-  const { productNames, staffMap } = useMemo(() => {
+  const { staffMap } = useMemo(() => {
     const productSet = new Set<string>();
     const staffMap = new Map<
       string,
@@ -241,27 +259,28 @@ const Incentive: React.FC<IncentiveProps> = ({
       });
     });
 
-    const productNames = Array.from(productSet).sort();
-    return { productNames, staffMap };
+    void productSet;
+    return { staffMap };
   }, [monthReports]);
 
   const staffRows = useMemo(() => {
-    const tireThreshold = tireRule?.tireThreshold ?? 0;
-    const tireBonus = tireRule?.bonusAmount ?? 0;
-    const marginThreshold = marginRule?.marginThreshold ?? 0;
-    const marginBonusAmt = marginRule?.bonusAmount ?? 0;
-
     return Array.from(staffMap.entries()).map(([staffName, data]) => {
       const tireQty = data.tireQty > 0 ? data.tireQty : data.tireQtyFromItems;
       const repairDetails = REPAIR_CAT_ITEMS.map((cat) => {
         const qty = data.repairMetrics[cat.key] || 0;
-        const rate = getRate(data.storeId, `__REPAIR_CAT__::${cat.key}`);
+        const rate = getRate(data.storeId, `__REPAIR_CAT__::${cat.key}`, staffName);
         return { productName: cat.label, qty, rate, amount: qty * rate };
       });
 
       const repairIncentive = repairDetails.reduce((sum, d) => sum + d.amount, 0);
       const totalRepairQty = repairDetails.reduce((sum, d) => sum + d.qty, 0);
       const marginRate = data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0;
+      const rowTireRule = getComplexRule(data.storeId, '__TIRE_BONUS__', staffName);
+      const rowMarginRule = getComplexRule(data.storeId, '__MARGIN_BONUS__', staffName);
+      const tireThreshold = rowTireRule?.tireThreshold ?? 0;
+      const tireBonus = rowTireRule?.bonusAmount ?? 0;
+      const marginThreshold = rowMarginRule?.marginThreshold ?? 0;
+      const marginBonusAmt = rowMarginRule?.bonusAmount ?? 0;
       const tireBonusEarned = tireThreshold > 0 && tireQty >= tireThreshold ? tireBonus : 0;
       const marginBonusEarned = marginThreshold > 0 && marginRate >= marginThreshold ? marginBonusAmt : 0;
 
@@ -278,7 +297,7 @@ const Incentive: React.FC<IncentiveProps> = ({
       };
 
       const formulaDetails = FORMULA_METRICS.map((metric) => {
-        const rule = getFormulaRule(data.storeId, metric.key);
+        const rule = getFormulaRule(data.storeId, metric.key, staffName);
         const value = metricValues[metric.key];
         if (!rule) return { metricKey: metric.key, value, amount: 0 };
 
@@ -312,12 +331,13 @@ const Incentive: React.FC<IncentiveProps> = ({
         totalAmount,
       };
     }).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [staffMap, productNames, ruleMap, formulaRuleMap, tireRule, marginRule]);
+  }, [staffMap, ruleMap, formulaRuleMap, incentiveRules]);
 
   const totalRepairQty = staffRows.reduce((s, r) => s + r.totalRepairQty, 0);
   const totalTireQty = staffRows.reduce((s, r) => s + r.tireQty, 0);
   const totalUsedTireQty = staffRows.reduce((s, r) => s + r.usedTireQty, 0);
   const totalFormulaIncentive = staffRows.reduce((s, r) => s + r.formulaIncentive, 0);
+  const totalComplexBonus = staffRows.reduce((s, r) => s + r.tireBonusEarned + r.marginBonusEarned, 0);
   const totalIncentive = staffRows.reduce((s, r) => s + r.totalAmount, 0);
 
   const noReports = monthReports.length === 0;
@@ -328,7 +348,8 @@ const Incentive: React.FC<IncentiveProps> = ({
   const marginThresholdDisplay = marginBonusDraft.threshold !== '' ? marginBonusDraft.threshold : String(marginRule?.marginThreshold ?? '');
   const marginBonusAmountDisplay = marginBonusDraft.bonus !== '' ? marginBonusDraft.bonus : String(marginRule?.bonusAmount ?? '');
 
-  const showComplexBonusColumns = (tireRule?.bonusAmount ?? 0) > 0 || (marginRule?.bonusAmount ?? 0) > 0;
+  const showComplexBonusColumns = staffRows.some((row) => (row.tireBonusEarned + row.marginBonusEarned) > 0);
+  const selectedRuleStaffLabel = selectedRuleStaffName || '공통 규칙';
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -375,6 +396,28 @@ const Incentive: React.FC<IncentiveProps> = ({
         </div>
       </div>
 
+      <div className="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-gray-700">규칙 적용 대상 직원</h3>
+            <p className="text-xs text-gray-500 mt-1">아래 3개 설정 영역은 선택한 직원 기준으로 저장됩니다. 직원별 규칙이 없으면 공통 규칙이 적용됩니다.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">직원</label>
+            <select
+              value={selectedRuleStaffName}
+              onChange={(e) => setSelectedRuleStaffName(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white min-w-[180px]"
+            >
+              <option value="">공통 규칙</option>
+              {staffNames.map((staffName) => (
+                <option key={staffName} value={staffName}>{staffName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {noReports && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-sm text-yellow-800">
           이 달에 저장된 일마감 보고서가 없습니다. 일별 마감 탭에서 마감을 저장하면 인센티브가 자동 집계됩니다.
@@ -388,7 +431,10 @@ const Incentive: React.FC<IncentiveProps> = ({
 
       {isOwner ? (
         <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-sm font-bold text-gray-700 mb-4">복합 인센티브 규칙 설정</h3>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h3 className="text-sm font-bold text-gray-700">복합 인센티브 규칙 설정</h3>
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">{selectedRuleStaffLabel}</span>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-4 border border-violet-200 rounded-xl bg-violet-50/40 space-y-3">
               <div className="flex items-center gap-2">
@@ -425,7 +471,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                   onClick={() => {
                     const threshold = Math.max(0, Number(tireBonusThresholdDisplay || 0));
                     const bonus = Math.max(0, Number(tireBonusAmountDisplay || 0));
-                    onUpsertComplexRule({ storeId: storeIdForRules, productName: '__TIRE_BONUS__', ruleType: 'tire_quantity', tireThreshold: threshold, bonusAmount: bonus });
+                    onUpsertComplexRule({ storeId: storeIdForRules, staffName: selectedRuleStaffName || undefined, productName: '__TIRE_BONUS__', ruleType: 'tire_quantity', tireThreshold: threshold, bonusAmount: bonus });
                     setTireBonusDraft({ threshold: '', bonus: '' });
                   }}
                   className="p-1.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 flex-shrink-0"
@@ -473,7 +519,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                   onClick={() => {
                     const threshold = Math.max(0, Number(marginThresholdDisplay || 0));
                     const bonus = Math.max(0, Number(marginBonusAmountDisplay || 0));
-                    onUpsertComplexRule({ storeId: storeIdForRules, productName: '__MARGIN_BONUS__', ruleType: 'margin_bonus', marginThreshold: threshold, bonusAmount: bonus });
+                    onUpsertComplexRule({ storeId: storeIdForRules, staffName: selectedRuleStaffName || undefined, productName: '__MARGIN_BONUS__', ruleType: 'margin_bonus', marginThreshold: threshold, bonusAmount: bonus });
                     setMarginBonusDraft({ threshold: '', bonus: '' });
                   }}
                   className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex-shrink-0"
@@ -490,6 +536,7 @@ const Incentive: React.FC<IncentiveProps> = ({
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold text-gray-700">품목별 수식 규칙 설정</h3>
+          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">{selectedRuleStaffLabel}</span>
           {!isOwner && <span className="flex items-center gap-1 text-xs text-gray-400"><Lock size={12} /> 사장만 수정 가능</span>}
         </div>
         <p className="text-xs text-gray-500 mb-3">지급식: 값이 조건을 만족하면 (값 * multiplier) + addend 를 지급합니다.</p>
@@ -508,8 +555,9 @@ const Incentive: React.FC<IncentiveProps> = ({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {FORMULA_METRICS.map((metric) => {
-                const rule = getFormulaRule(storeIdForRules, metric.key);
-                const draft = formulaDrafts[metric.key];
+                const rule = getFormulaRule(storeIdForRules, metric.key, selectedRuleStaffName);
+                const draftKey = buildScopedRuleKey(storeIdForRules, metric.key, selectedRuleStaffName);
+                const draft = formulaDrafts[draftKey];
                 const op = draft?.comparisonOp ?? (rule?.comparisonOp || '>');
                 const thresholdDisplay = draft?.thresholdValue ?? String(rule?.thresholdValue ?? 0);
                 const multiplierDisplay = draft?.multiplier ?? String(rule?.multiplier ?? 0);
@@ -525,7 +573,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                           value={op}
                           onChange={(e) => setFormulaDrafts((prev) => ({
                             ...prev,
-                            [metric.key]: {
+                            [draftKey]: {
                               comparisonOp: e.target.value as '>' | '<',
                               thresholdValue: thresholdDisplay,
                               multiplier: multiplierDisplay,
@@ -550,7 +598,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                           value={thresholdDisplay}
                           onChange={(e) => setFormulaDrafts((prev) => ({
                             ...prev,
-                            [metric.key]: {
+                            [draftKey]: {
                               comparisonOp: op,
                               thresholdValue: e.target.value,
                               multiplier: multiplierDisplay,
@@ -571,7 +619,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                           value={multiplierDisplay}
                           onChange={(e) => setFormulaDrafts((prev) => ({
                             ...prev,
-                            [metric.key]: {
+                            [draftKey]: {
                               comparisonOp: op,
                               thresholdValue: thresholdDisplay,
                               multiplier: e.target.value,
@@ -592,7 +640,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                           value={addendDisplay}
                           onChange={(e) => setFormulaDrafts((prev) => ({
                             ...prev,
-                            [metric.key]: {
+                            [draftKey]: {
                               comparisonOp: op,
                               thresholdValue: thresholdDisplay,
                               multiplier: multiplierDisplay,
@@ -613,6 +661,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                             const addend = Number(addendDisplay || 0);
                             onUpsertFormulaRule({
                               storeId: storeIdForRules,
+                              staffName: selectedRuleStaffName || undefined,
                               metricKey: metric.key,
                               comparisonOp: op,
                               thresholdValue,
@@ -640,12 +689,13 @@ const Incentive: React.FC<IncentiveProps> = ({
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold text-gray-700">정비 품목별 인센티브 단가 (원/개)</h3>
+          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">{selectedRuleStaffLabel}</span>
           {!isOwner && <span className="flex items-center gap-1 text-xs text-gray-400"><Lock size={12} /> 사장만 수정 가능</span>}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {REPAIR_CAT_ITEMS.map((cat) => {
-            const key = `${storeIdForRules}::__REPAIR_CAT__::${cat.key}`;
-            const currentRate = ruleMap.get(key)?.amountPerUnit || 0;
+            const key = buildScopedRuleKey(storeIdForRules, `__REPAIR_CAT__::${cat.key}`, selectedRuleStaffName);
+            const currentRate = getRate(storeIdForRules, `__REPAIR_CAT__::${cat.key}`, selectedRuleStaffName);
             const inputVal = draftRates[key] ?? String(currentRate);
             return (
               <div key={cat.key} className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50/50">
@@ -665,7 +715,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                     <button
                       onClick={() => {
                         const next = Math.max(0, Number((draftRates[key] ?? String(currentRate)).trim() || '0'));
-                        onUpsertRule({ storeId: storeIdForRules, productName: `__REPAIR_CAT__::${cat.key}`, category: '정비', amountPerUnit: next });
+                        onUpsertRule({ storeId: storeIdForRules, staffName: selectedRuleStaffName || undefined, productName: `__REPAIR_CAT__::${cat.key}`, category: '정비', amountPerUnit: next });
                         setDraftRates((prev) => ({ ...prev, [key]: String(next) }));
                       }}
                       className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex-shrink-0"
@@ -727,7 +777,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_suspension)}개</td>
                       <td className="px-3 py-3 text-right text-gray-600 whitespace-nowrap">{row.marginRate.toFixed(1)}%</td>
                       <td className="px-3 py-3 text-right text-amber-700 font-semibold whitespace-nowrap">{formatCurrency(row.formulaIncentive)}</td>
-                      {showComplexBonusColumns && <td className="px-3 py-3 text-right text-gray-400 whitespace-nowrap">-</td>}
+                      {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 font-semibold whitespace-nowrap">{formatCurrency(row.tireBonusEarned + row.marginBonusEarned)}</td>}
                       <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(row.totalAmount)}</td>
                     </tr>
                   ))}
@@ -745,7 +795,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
                   <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">-</td>
                   <td className="px-3 py-3 text-right text-amber-700 whitespace-nowrap">{formatCurrency(totalFormulaIncentive)}</td>
-                  {showComplexBonusColumns && <td className="px-3 py-3 text-right text-gray-400 whitespace-nowrap">-</td>}
+                  {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 whitespace-nowrap">{formatCurrency(totalComplexBonus)}</td>}
                   <td className="px-4 py-3 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(totalIncentive)}</td>
                 </tr>
               </tfoot>

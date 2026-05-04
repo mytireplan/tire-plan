@@ -1597,9 +1597,9 @@ const App: React.FC = () => {
       await deleteFromFirestore(COLLECTIONS.MANAGER_ACCOUNTS, id);
   };
 
-  const handleUpsertIncentiveRule = async (payload: { storeId: string; productName: string; category: string; amountPerUnit: number }) => {
+  const handleUpsertIncentiveRule = async (payload: { storeId: string; staffName?: string; productName: string; category: string; amountPerUnit: number }) => {
       const existing = incentiveRules.find(
-          (rule) => rule.storeId === payload.storeId && rule.productName === payload.productName
+          (rule) => rule.storeId === payload.storeId && (rule.staffName || '') === (payload.staffName || '') && rule.productName === payload.productName
       );
 
       const now = new Date().toISOString();
@@ -1613,6 +1613,7 @@ const App: React.FC = () => {
           : {
               id: `INC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               storeId: payload.storeId,
+              staffName: payload.staffName,
               productName: payload.productName,
               category: payload.category,
               amountPerUnit: payload.amountPerUnit,
@@ -1626,6 +1627,7 @@ const App: React.FC = () => {
 
   const handleUpsertComplexIncentiveRule = async (payload: {
       storeId: string;
+      staffName?: string;
       productName: string;
       ruleType: 'tire_quantity' | 'margin_bonus';
       tireThreshold?: number;
@@ -1633,7 +1635,7 @@ const App: React.FC = () => {
       bonusAmount: number;
   }) => {
       const existing = incentiveRules.find(
-          (rule) => rule.storeId === payload.storeId && rule.productName === payload.productName
+          (rule) => rule.storeId === payload.storeId && (rule.staffName || '') === (payload.staffName || '') && rule.productName === payload.productName
       );
       const now = new Date().toISOString();
       const nextRule: IncentiveRule = existing
@@ -1650,12 +1652,62 @@ const App: React.FC = () => {
           : {
               id: `INC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               storeId: payload.storeId,
+              staffName: payload.staffName,
               productName: payload.productName,
               category: payload.ruleType,
               ruleType: payload.ruleType,
               tireThreshold: payload.tireThreshold,
               marginThreshold: payload.marginThreshold,
               bonusAmount: payload.bonusAmount,
+              amountPerUnit: 0,
+              isActive: true,
+              createdAt: now,
+              updatedAt: now
+          };
+      await saveToFirestore<IncentiveRule>(COLLECTIONS.INCENTIVE_RULES, nextRule);
+  };
+
+  const handleUpsertFormulaIncentiveRule = async (payload: {
+      storeId: string;
+      staffName?: string;
+      metricKey: string;
+      comparisonOp: '>' | '<';
+      thresholdValue: number;
+      multiplier: number;
+      addend: number;
+  }) => {
+      const productName = `__FORMULA__::${payload.metricKey}`;
+      const existing = incentiveRules.find(
+          (rule) => rule.storeId === payload.storeId && (rule.staffName || '') === (payload.staffName || '') && rule.productName === productName
+      );
+      const now = new Date().toISOString();
+      const nextRule: IncentiveRule = existing
+          ? {
+              ...existing,
+              productName,
+              category: 'formula',
+              ruleType: 'formula',
+              metricKey: payload.metricKey,
+              comparisonOp: payload.comparisonOp,
+              thresholdValue: payload.thresholdValue,
+              multiplier: payload.multiplier,
+              addend: payload.addend,
+              amountPerUnit: 0,
+              isActive: true,
+              updatedAt: now
+          }
+          : {
+              id: `INC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              storeId: payload.storeId,
+              staffName: payload.staffName,
+              productName,
+              category: 'formula',
+              ruleType: 'formula',
+              metricKey: payload.metricKey,
+              comparisonOp: payload.comparisonOp,
+              thresholdValue: payload.thresholdValue,
+              multiplier: payload.multiplier,
+              addend: payload.addend,
               amountPerUnit: 0,
               isActive: true,
               createdAt: now,
@@ -3321,6 +3373,7 @@ const App: React.FC = () => {
                     currentUser={effectiveUser}
                     onUpsertRule={handleUpsertIncentiveRule}
                     onUpsertComplexRule={handleUpsertComplexIncentiveRule}
+                    onUpsertFormulaRule={handleUpsertFormulaIncentiveRule}
                 />
             )}
             {(activeTab === 'dailyClose' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN')) && (
