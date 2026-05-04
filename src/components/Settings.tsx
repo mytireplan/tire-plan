@@ -22,8 +22,9 @@ interface SettingsProps {
     onUpdateManagerPin: (storeId: string, pin: string) => void;
 
   staffList: Staff[];
-  onAddStaff: (name: string) => void;
+    onAddStaff: (name: string, isManager?: boolean) => void;
   onRemoveStaff: (id: string) => void;
+    onUpdateStaff: (id: string, updates: Partial<Staff>) => void;
   currentStoreId: string;
     staffPermissions: StaffPermissions;
     onUpdatePermissions: (next: StaffPermissions) => void;
@@ -49,7 +50,7 @@ const Settings: React.FC<SettingsProps> = ({
     currentAdminPassword, onUpdatePassword,
     currentOwnerPin, onUpdateOwnerPin,
     currentManagerPin, onUpdateManagerPin,
-        staffList, onAddStaff, onRemoveStaff, currentStoreId,
+        staffList, onAddStaff, onRemoveStaff, onUpdateStaff, currentStoreId,
         staffPermissions, onUpdatePermissions,
         currentSubscription = null,
         billingKeys = [],
@@ -103,6 +104,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   // Staff Management State
   const [newStaffName, setNewStaffName] = useState('');
+    const [newStaffIsManager, setNewStaffIsManager] = useState(false);
 
   // 점장 계정 관리 상태
   const DEFAULT_TAB_PERMS: ManagerTabPermissions = {
@@ -280,8 +282,9 @@ const Settings: React.FC<SettingsProps> = ({
   const handleAddStaffSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (newStaffName.trim()) {
-          onAddStaff(newStaffName.trim());
+          onAddStaff(newStaffName.trim(), newStaffIsManager);
           setNewStaffName('');
+          setNewStaffIsManager(false);
       }
   };
 
@@ -436,36 +439,60 @@ const Settings: React.FC<SettingsProps> = ({
                                     <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">
                                         {staff.name[0]}
                                     </div>
-                                    <div className="text-sm font-bold text-gray-800">{staff.name}</div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="text-sm font-bold text-gray-800">{staff.name}</div>
+                                        {staff.isManager && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">점장</span>}
+                                    </div>
                                 </div>
-                                <button 
-                                    onClick={() => onRemoveStaff(staff.id)}
-                                    className="text-gray-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded transition-colors"
-                                    title="삭제"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => onUpdateStaff(staff.id, { isManager: !staff.isManager })}
+                                        className={`px-2 py-1 rounded text-xs font-bold transition-colors ${staff.isManager ? 'bg-violet-100 text-violet-700 hover:bg-violet-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                        title="점장 여부 변경"
+                                    >
+                                        {staff.isManager ? '점장 해제' : '점장 지정'}
+                                    </button>
+                                    <button 
+                                        onClick={() => onRemoveStaff(staff.id)}
+                                        className="text-gray-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded transition-colors"
+                                        title="삭제"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
                         ))
                     )}
                 </div>
 
                 {/* Add Staff Form */}
-                <form onSubmit={handleAddStaffSubmit} className="flex gap-2 mb-6">
-                    <input 
-                        type="text" 
-                        placeholder="직원 이름 (예: 홍길동)" 
-                        className="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-green-500"
-                        value={newStaffName}
-                        onChange={(e) => setNewStaffName(e.target.value)}
-                    />
-                    <button 
-                        type="submit"
-                        disabled={!newStaffName.trim()}
-                        className="bg-green-600 text-white px-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Plus size={18} />
-                    </button>
+                <form onSubmit={handleAddStaffSubmit} className="space-y-2 mb-6">
+                    <div className="flex gap-2">
+                        <input 
+                            type="text" 
+                            placeholder="직원 이름 (예: 홍길동)" 
+                            className="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-green-500"
+                            value={newStaffName}
+                            onChange={(e) => setNewStaffName(e.target.value)}
+                        />
+                        <button 
+                            type="submit"
+                            disabled={!newStaffName.trim()}
+                            className="bg-green-600 text-white px-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Plus size={18} />
+                        </button>
+                    </div>
+                    <label className="inline-flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={newStaffIsManager}
+                            onChange={(e) => setNewStaffIsManager(e.target.checked)}
+                            className="w-4 h-4 text-violet-600 rounded"
+                        />
+                        점장(Manager)로 등록
+                    </label>
                 </form>
 
             </div>

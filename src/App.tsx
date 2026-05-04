@@ -1966,7 +1966,7 @@ const App: React.FC = () => {
         }
     };
   
-  const handleAddStaff = (name: string) => {
+    const handleAddStaff = (name: string, isManager?: boolean) => {
       const selectStoreId = currentStoreId && currentStoreId !== 'ALL'
           ? currentStoreId
           : visibleStoreIds[0] || stores[0]?.id || 'ALL';
@@ -1977,6 +1977,7 @@ const App: React.FC = () => {
       const newStaff: Staff = {
           id: `staff_${Date.now()}`,
           name,
+          isManager: !!isManager,
           isActive: true,
           ownerId: resolvedOwnerId,
           storeId: selectStoreId
@@ -1992,6 +1993,15 @@ const App: React.FC = () => {
         .then(() => console.log('✅ Staff deleted in Firestore:', id))
         .catch((err) => console.error('❌ Failed to delete staff in Firestore:', err));
   };
+    const handleUpdateStaff = (id: string, updates: Partial<Staff>) => {
+            setStaffList(prev => prev.map(staff => (staff.id === id ? { ...staff, ...updates } : staff)));
+            const existing = staffList.find(s => s.id === id);
+            if (!existing) return;
+            const next = { ...existing, ...updates };
+            saveToFirestore<Staff>(COLLECTIONS.STAFF, next)
+                .then(() => console.log('✅ Staff updated in Firestore:', id))
+                .catch((err) => console.error('❌ Failed to update staff in Firestore:', err));
+    };
 
     const handleAddReservation = (r: Reservation) => {
             setReservations(prev => [...prev, r]);
@@ -3369,6 +3379,7 @@ const App: React.FC = () => {
                 <Incentive
                     dailyReports={dailyReports}
                     incentiveRules={incentiveRules}
+                    staffList={visibleStaff}
                     currentStoreId={currentStoreId}
                     currentUser={effectiveUser}
                     onUpsertRule={handleUpsertIncentiveRule}
@@ -3425,7 +3436,7 @@ const App: React.FC = () => {
                 currentAdminPassword={currentUserPassword} onUpdatePassword={handleUpdatePassword}
                 currentOwnerPin={ownerPin} onUpdateOwnerPin={handleUpdateOwnerPin}
                 currentManagerPin={storePin} onUpdateManagerPin={handleUpdateManagerPin}
-                staffList={visibleStaff} onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff}
+                staffList={visibleStaff} onAddStaff={handleAddStaff} onRemoveStaff={handleRemoveStaff} onUpdateStaff={handleUpdateStaff}
                 currentStoreId={currentStoreId}
                 ownerId={currentUser?.id || ''}
                 isOwnerSession={!managerSession}

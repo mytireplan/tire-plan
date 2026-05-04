@@ -23,6 +23,7 @@ export interface Staff {
   name: string;
   storeId?: string; // Optional: staff can work across stores
   ownerId?: string; // Owning account to prevent cross-tenant leakage
+  isManager?: boolean; // 점장 여부
   isActive: boolean;
 }
 
