@@ -424,6 +424,7 @@ const Incentive: React.FC<IncentiveProps> = ({
     : String(managerStoreMarginRule?.bonusAmount ?? '');
 
   const showComplexBonusColumns = visibleStaffRows.some((row) => (row.tireBonusEarned + row.marginBonusEarned + row.managerStoreTireBonusEarned + row.managerStoreMarginBonusEarned) > 0);
+  const showMarginRateColumn = !managerStaffName;
   const selectedRuleStaffLabel = selectedRuleStaffName || '공통 규칙';
 
   return (
@@ -778,7 +779,11 @@ const Incentive: React.FC<IncentiveProps> = ({
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="text-sm font-bold text-gray-700">직원별 집계 및 인센티브</h3>
           {visibleStaffRows.length > 0 && (
-            <p className="text-xs text-gray-400 mt-0.5">보고서 기준 집계: 타이어/중고타이어/정비 6개 품목/마진율 + 규칙 수식</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {showMarginRateColumn
+                ? '보고서 기준 집계: 타이어/중고타이어/정비 6개 품목/마진율 + 규칙 수식'
+                : '보고서 기준 집계: 타이어/중고타이어/정비 6개 품목 + 규칙 수식'}
+            </p>
           )}
         </div>
 
@@ -798,7 +803,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">TPMS</th>
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">디스크</th>
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">하체</th>
-                    <th className="px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-xs">마진율</th>
+                    {showMarginRateColumn && <th className="px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-xs">마진율</th>}
                     <th className="px-3 py-3 text-right font-bold text-amber-600 whitespace-nowrap text-xs">수식인센티브</th>
                     {showComplexBonusColumns && <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-xs">복합보너스</th>}
                     <th className="px-4 py-3 text-right font-bold text-gray-700 whitespace-nowrap">총 인센티브</th>
@@ -816,7 +821,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_tpms)}개</td>
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_disk)}개</td>
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_suspension)}개</td>
-                      <td className="px-3 py-3 text-right text-gray-600 whitespace-nowrap">{row.marginRate.toFixed(1)}%</td>
+                      {showMarginRateColumn && <td className="px-3 py-3 text-right text-gray-600 whitespace-nowrap">{row.marginRate.toFixed(1)}%</td>}
                       <td className="px-3 py-3 text-right text-amber-700 font-semibold whitespace-nowrap">{formatCurrency(row.formulaIncentive)}</td>
                       {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 font-semibold whitespace-nowrap">{formatCurrency(row.tireBonusEarned + row.marginBonusEarned + row.managerStoreTireBonusEarned + row.managerStoreMarginBonusEarned)}</td>}
                       <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(row.totalAmount)}</td>
@@ -834,7 +839,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_tpms, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_disk, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
-                  <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">-</td>
+                  {showMarginRateColumn && <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">-</td>}
                   <td className="px-3 py-3 text-right text-amber-700 whitespace-nowrap">{formatCurrency(totalFormulaIncentive)}</td>
                   {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 whitespace-nowrap">{formatCurrency(totalComplexBonus)}</td>}
                   <td className="px-4 py-3 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(totalIncentive)}</td>
