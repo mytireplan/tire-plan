@@ -112,7 +112,8 @@ const Incentive: React.FC<IncentiveProps> = ({
   onUpsertRule,
   onUpsertComplexRule,
 }) => {
-  const isOwner = currentUser.role === 'STORE_ADMIN' || currentUser.role === 'SUPER_ADMIN';
+  // managerStaffName이 있으면 점장 세션 → 설정 편집 불가
+  const isOwner = (currentUser.role === 'STORE_ADMIN' || currentUser.role === 'SUPER_ADMIN') && !managerStaffName;
 
   const [month, setMonth] = useState(() => {
     const now = new Date();
