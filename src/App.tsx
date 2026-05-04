@@ -2897,9 +2897,9 @@ const App: React.FC = () => {
       { id: 'pos', label: '판매 (POS)', icon: ShoppingCart, show: showTab('pos'), type: 'CORE' },
       { id: 'reservation', label: '예약 관리', icon: PhoneCall, show: showTab('reservation'), type: 'CORE' },
       { id: 'history', label: '판매 내역', icon: List, show: showTab('history'), type: 'CORE' },
-      { id: 'incentive', label: '인센티브', icon: ShieldCheck, show: isAdmin && (mgrPerms ? mgrPerms.incentive !== false : true), type: 'CORE' },
+      { id: 'incentive', label: '인센티브', icon: ShieldCheck, show: isAdmin || managerSession, type: 'CORE' },
       { id: 'dailyClose', label: '일별 마감', icon: ClipboardList, show: isAdmin && (mgrPerms ? mgrPerms['dailyClose'] : true), type: 'ADMIN' },
-      { id: 'dailyReport', label: '보고서 게시판', icon: BookOpen, show: showTab('dailyReport'), type: 'CORE' },
+      { id: 'dailyReport', label: '보고서 게시판', icon: BookOpen, show: isAdmin || managerSession, type: 'CORE' },
 
       { id: 'customers', label: '고객 관리', icon: Users, show: isAdmin && !managerSession, type: 'ADMIN' },
       { id: 'DIVIDER_1', label: '', icon: X, show: true, type: 'DIVIDER' },
@@ -3326,13 +3326,14 @@ const App: React.FC = () => {
                 onAddExpense={handleAddExpense}
                 />
             )}
-            {activeTab === 'incentive' && (
+            {activeTab === 'incentive' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN' || managerSession) && (
                 <Incentive
                     dailyReports={dailyReports}
                     incentiveRules={incentiveRules}
                     staffList={visibleStaff}
                     currentStoreId={currentStoreId}
                     currentUser={effectiveUser}
+                    managerStaffName={managerSession && activeManagerAccount ? activeManagerAccount.name : undefined}
                     onUpsertRule={handleUpsertIncentiveRule}
                     onUpsertComplexRule={handleUpsertComplexIncentiveRule}
                 />
@@ -3352,9 +3353,15 @@ const App: React.FC = () => {
             )}
             {(activeTab === 'dailyReport') && (
                 <DailyReportBoard
-                    reports={dailyReports.filter(r =>
-                        effectiveUser.role === 'SUPER_ADMIN' || r.storeId === currentStoreId
-                    )}
+                    reports={dailyReports.filter(r => {
+                        const storeMatch = effectiveUser.role === 'SUPER_ADMIN' || r.storeId === currentStoreId;
+                        if (!storeMatch) return false;
+                        if (managerSession) {
+                            const today = new Date().toISOString().slice(0, 10);
+                            return r.dateStr === today;
+                        }
+                        return true;
+                    })}
                     stores={visibleStores}
                     currentUser={effectiveUser}
                     onDeleteReport={handleDeleteDailyReport}

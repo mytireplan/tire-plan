@@ -19,6 +19,7 @@ interface IncentiveProps {
     marginAmountThreshold?: number;
     bonusAmount: number;
   }) => void;
+  managerStaffName?: string;
 }
 
 type FormulaMetricKey =
@@ -107,6 +108,7 @@ const Incentive: React.FC<IncentiveProps> = ({
   staffList,
   currentStoreId,
   currentUser,
+  managerStaffName,
   onUpsertRule,
   onUpsertComplexRule,
 }) => {
@@ -386,12 +388,17 @@ const Incentive: React.FC<IncentiveProps> = ({
     }).sort((a, b) => b.totalAmount - a.totalAmount);
   }, [monthReports, ruleMap, formulaRuleMap, incentiveRules, managerKeySet]);
 
-  const totalRepairQty = staffRows.reduce((s, r) => s + r.totalRepairQty, 0);
-  const totalTireQty = staffRows.reduce((s, r) => s + r.tireQty, 0);
-  const totalUsedTireQty = staffRows.reduce((s, r) => s + r.usedTireQty, 0);
-  const totalFormulaIncentive = staffRows.reduce((s, r) => s + r.formulaIncentive, 0);
-  const totalComplexBonus = staffRows.reduce((s, r) => s + r.tireBonusEarned + r.marginBonusEarned + r.managerStoreTireBonusEarned + r.managerStoreMarginBonusEarned, 0);
-  const totalIncentive = staffRows.reduce((s, r) => s + r.totalAmount, 0);
+  const visibleStaffRows = useMemo(() => {
+    if (managerStaffName) return staffRows.filter((r) => r.staffName === managerStaffName);
+    return staffRows;
+  }, [staffRows, managerStaffName]);
+
+  const totalRepairQty = visibleStaffRows.reduce((s, r) => s + r.totalRepairQty, 0);
+  const totalTireQty = visibleStaffRows.reduce((s, r) => s + r.tireQty, 0);
+  const totalUsedTireQty = visibleStaffRows.reduce((s, r) => s + r.usedTireQty, 0);
+  const totalFormulaIncentive = visibleStaffRows.reduce((s, r) => s + r.formulaIncentive, 0);
+  const totalComplexBonus = visibleStaffRows.reduce((s, r) => s + r.tireBonusEarned + r.marginBonusEarned + r.managerStoreTireBonusEarned + r.managerStoreMarginBonusEarned, 0);
+  const totalIncentive = visibleStaffRows.reduce((s, r) => s + r.totalAmount, 0);
 
   const noReports = monthReports.length === 0;
   const hasStaffItems = monthReports.some((r) => r.staffItems && r.staffItems.length > 0);
@@ -415,7 +422,7 @@ const Incentive: React.FC<IncentiveProps> = ({
     ? managerStoreMarginBonusDraft.bonus
     : String(managerStoreMarginRule?.bonusAmount ?? '');
 
-  const showComplexBonusColumns = staffRows.some((row) => (row.tireBonusEarned + row.marginBonusEarned + row.managerStoreTireBonusEarned + row.managerStoreMarginBonusEarned) > 0);
+  const showComplexBonusColumns = visibleStaffRows.some((row) => (row.tireBonusEarned + row.marginBonusEarned + row.managerStoreTireBonusEarned + row.managerStoreMarginBonusEarned) > 0);
   const selectedRuleStaffLabel = selectedRuleStaffName || '공통 규칙';
 
   return (
@@ -765,12 +772,12 @@ const Incentive: React.FC<IncentiveProps> = ({
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="text-sm font-bold text-gray-700">직원별 집계 및 인센티브</h3>
-          {staffRows.length > 0 && (
+          {visibleStaffRows.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">보고서 기준 집계: 타이어/중고타이어/정비 6개 품목/마진율 + 규칙 수식</p>
           )}
         </div>
 
-          {staffRows.length === 0 ? (
+          {visibleStaffRows.length === 0 ? (
             <div className="p-10 text-center text-gray-400 text-sm">표시할 실적 데이터가 없습니다.</div>
           ) : (
             <div className="overflow-x-auto">
@@ -793,7 +800,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {staffRows.map((row, i) => (
+                  {visibleStaffRows.map((row, i) => (
                     <tr key={row.staffName} className={i % 2 === 1 ? 'bg-gray-50/40' : ''}>
                       <td className="px-4 py-3 font-bold text-gray-800 whitespace-nowrap">{row.staffName}</td>
                       <td className="px-3 py-3 text-right text-violet-700 font-semibold whitespace-nowrap">{formatNumber(row.tireQty)}개</td>
@@ -816,12 +823,12 @@ const Incentive: React.FC<IncentiveProps> = ({
                   <td className="px-4 py-3 text-gray-700">합계</td>
                   <td className="px-3 py-3 text-right text-violet-700 whitespace-nowrap">{formatNumber(totalTireQty)}개</td>
                   <td className="px-3 py-3 text-right text-fuchsia-700 whitespace-nowrap">{formatNumber(totalUsedTireQty)}개</td>
-                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_brake_pad, 0))}개</td>
-                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_engine_oil, 0))}개</td>
-                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_brake_oil, 0))}개</td>
-                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_tpms, 0))}개</td>
-                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_disk, 0))}개</td>
-                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_brake_pad, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_engine_oil, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_brake_oil, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_tpms, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_disk, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
                   <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">-</td>
                   <td className="px-3 py-3 text-right text-amber-700 whitespace-nowrap">{formatCurrency(totalFormulaIncentive)}</td>
                   {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 whitespace-nowrap">{formatCurrency(totalComplexBonus)}</td>}
