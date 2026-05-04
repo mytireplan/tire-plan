@@ -223,7 +223,8 @@ export interface IncentiveRule {
   // 복합 규칙 확장 필드
   ruleType?: 'unit_price' | 'tire_quantity' | 'margin_bonus' | 'formula';
   tireThreshold?: number;    // 타이어 수량 임계값 (N개 이상)
-  marginThreshold?: number;  // 마진율 임계값 (N%)
+  marginThreshold?: number;  // legacy: 마진율 임계값 (N%)
+  marginAmountThreshold?: number; // 마진 금액 임계값 (N원)
   bonusAmount?: number;      // 조건 달성 시 직원 1인당 지급액
   // 수식 규칙 확장 필드 (metric 값이 조건을 만족하면 value*multiplier + addend 지급)
   metricKey?: string;

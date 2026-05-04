@@ -1631,7 +1631,7 @@ const App: React.FC = () => {
       productName: string;
       ruleType: 'tire_quantity' | 'margin_bonus';
       tireThreshold?: number;
-      marginThreshold?: number;
+      marginAmountThreshold?: number;
       bonusAmount: number;
   }) => {
       const existing = incentiveRules.find(
@@ -1643,7 +1643,7 @@ const App: React.FC = () => {
               ...existing,
               ruleType: payload.ruleType,
               tireThreshold: payload.tireThreshold,
-              marginThreshold: payload.marginThreshold,
+              marginAmountThreshold: payload.marginAmountThreshold,
               bonusAmount: payload.bonusAmount,
               amountPerUnit: 0,
               isActive: true,
@@ -1657,7 +1657,7 @@ const App: React.FC = () => {
               category: payload.ruleType,
               ruleType: payload.ruleType,
               tireThreshold: payload.tireThreshold,
-              marginThreshold: payload.marginThreshold,
+              marginAmountThreshold: payload.marginAmountThreshold,
               bonusAmount: payload.bonusAmount,
               amountPerUnit: 0,
               isActive: true,

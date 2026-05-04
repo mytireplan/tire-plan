@@ -15,7 +15,7 @@ interface IncentiveProps {
     productName: string;
     ruleType: 'tire_quantity' | 'margin_bonus';
     tireThreshold?: number;
-    marginThreshold?: number;
+    marginAmountThreshold?: number;
     bonusAmount: number;
   }) => void;
   onUpsertFormulaRule: (payload: {
@@ -279,10 +279,10 @@ const Incentive: React.FC<IncentiveProps> = ({
       const rowMarginRule = getComplexRule(data.storeId, '__MARGIN_BONUS__', staffName);
       const tireThreshold = rowTireRule?.tireThreshold ?? 0;
       const tireBonus = rowTireRule?.bonusAmount ?? 0;
-      const marginThreshold = rowMarginRule?.marginThreshold ?? 0;
+      const marginAmountThreshold = rowMarginRule?.marginAmountThreshold ?? rowMarginRule?.marginThreshold ?? 0;
       const marginBonusAmt = rowMarginRule?.bonusAmount ?? 0;
       const tireBonusEarned = tireThreshold > 0 && tireQty >= tireThreshold ? tireBonus : 0;
-      const marginBonusEarned = marginThreshold > 0 && marginRate >= marginThreshold ? marginBonusAmt : 0;
+      const marginBonusEarned = marginAmountThreshold > 0 && data.profit >= marginAmountThreshold ? marginBonusAmt : 0;
 
       const metricValues: Record<FormulaMetricKey, number> = {
         tire_qty: tireQty,
@@ -345,7 +345,9 @@ const Incentive: React.FC<IncentiveProps> = ({
 
   const tireBonusThresholdDisplay = tireBonusDraft.threshold !== '' ? tireBonusDraft.threshold : String(tireRule?.tireThreshold ?? '');
   const tireBonusAmountDisplay = tireBonusDraft.bonus !== '' ? tireBonusDraft.bonus : String(tireRule?.bonusAmount ?? '');
-  const marginThresholdDisplay = marginBonusDraft.threshold !== '' ? marginBonusDraft.threshold : String(marginRule?.marginThreshold ?? '');
+  const marginAmountThresholdDisplay = marginBonusDraft.threshold !== ''
+    ? marginBonusDraft.threshold
+    : String(marginRule?.marginAmountThreshold ?? marginRule?.marginThreshold ?? '');
   const marginBonusAmountDisplay = marginBonusDraft.bonus !== '' ? marginBonusDraft.bonus : String(marginRule?.bonusAmount ?? '');
 
   const showComplexBonusColumns = staffRows.some((row) => (row.tireBonusEarned + row.marginBonusEarned) > 0);
@@ -486,21 +488,20 @@ const Incentive: React.FC<IncentiveProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-emerald-700">마진 달성 보너스</span>
               </div>
-              <p className="text-xs text-gray-500">직원의 월 마진율이 N% 이상이면 보너스를 지급합니다.</p>
+              <p className="text-xs text-gray-500">직원의 월 마진 금액이 N원 이상이면 보너스를 지급합니다.</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-gray-500">마진</span>
                   <input
                     type="number"
                     min="0"
-                    max="100"
-                    step="0.5"
-                    placeholder="마진율"
-                    className="w-20 px-2 py-1.5 border border-emerald-300 rounded-lg text-sm text-right bg-white"
-                    value={marginThresholdDisplay}
+                    step="1000"
+                    placeholder="마진금액"
+                    className="w-28 px-2 py-1.5 border border-emerald-300 rounded-lg text-sm text-right bg-white"
+                    value={marginAmountThresholdDisplay}
                     onChange={(e) => setMarginBonusDraft((p) => ({ ...p, threshold: e.target.value }))}
                   />
-                  <span className="text-xs text-gray-500">% 이상</span>
+                  <span className="text-xs text-gray-500">원 이상</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-gray-500">→</span>
@@ -517,9 +518,16 @@ const Incentive: React.FC<IncentiveProps> = ({
                 </div>
                 <button
                   onClick={() => {
-                    const threshold = Math.max(0, Number(marginThresholdDisplay || 0));
+                    const threshold = Math.max(0, Number(marginAmountThresholdDisplay || 0));
                     const bonus = Math.max(0, Number(marginBonusAmountDisplay || 0));
-                    onUpsertComplexRule({ storeId: storeIdForRules, staffName: selectedRuleStaffName || undefined, productName: '__MARGIN_BONUS__', ruleType: 'margin_bonus', marginThreshold: threshold, bonusAmount: bonus });
+                    onUpsertComplexRule({
+                      storeId: storeIdForRules,
+                      staffName: selectedRuleStaffName || undefined,
+                      productName: '__MARGIN_BONUS__',
+                      ruleType: 'margin_bonus',
+                      marginAmountThreshold: threshold,
+                      bonusAmount: bonus,
+                    });
                     setMarginBonusDraft({ threshold: '', bonus: '' });
                   }}
                   className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex-shrink-0"
