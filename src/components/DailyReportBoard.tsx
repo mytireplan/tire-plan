@@ -1,10 +1,41 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import type { Store, User, DailyReport, DailyReportItem } from '../types';
+import type { Store, User, DailyReport, DailyReportItem, DailyReportStaffItem } from '../types';
 import { formatCurrency } from '../utils/format';
 import { BookOpen, ChevronDown, ChevronUp, Trash2, Image as ImageIcon, TrendingUp, Users as UsersIcon } from 'lucide-react';
 
 const TIRE_CATEGORIES = ['타이어', '중고타이어'];
 const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'TPMS'];
+
+const STAFF_ITEM_METRICS: { key: string; label: string; keywords: string[]; isTire?: boolean; isUsedTire?: boolean }[] = [
+    { key: 'tire', label: '타이어', keywords: [], isTire: true },
+    { key: 'used_tire', label: '중고타이어', keywords: [], isUsedTire: true },
+    { key: 'brake_pad', label: '브레이크패드', keywords: ['브레이크패드'] },
+    { key: 'engine_oil', label: '엔진오일', keywords: ['엔진오일', '합성유', '오일교환'] },
+    { key: 'brake_oil', label: '브레이크오일', keywords: ['브레이크오일'] },
+    { key: 'tpms', label: 'TPMS', keywords: ['tpms'] },
+    { key: 'disk', label: '디스크', keywords: ['디스크', '로터'] },
+    { key: 'suspension', label: '하체', keywords: ['하체', '쇼바', '로어암', '활대링크', '부싱'] },
+];
+
+const normText = (t?: string) => (t || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
+
+function getStaffItemBreakdown(staffItems: DailyReportStaffItem[], staffName: string): { label: string; qty: number }[] {
+    const items = staffItems.filter(si => si.staffName === staffName);
+    return STAFF_ITEM_METRICS.map(m => {
+        let qty = 0;
+        items.forEach(si => {
+            const hn = normText(si.productName);
+            if (m.isTire) {
+                if (si.itemClass === 'tire' && !hn.includes('중고')) qty += si.qty;
+            } else if (m.isUsedTire) {
+                if (si.itemClass === 'tire' && hn.includes('중고')) qty += si.qty;
+            } else {
+                if (m.keywords.some(kw => hn.includes(normText(kw)))) qty += si.qty;
+            }
+        });
+        return { label: m.label, qty };
+    }).filter(r => r.qty > 0);
+}
 
 const resolveReportItemClass = (item: DailyReportItem): DailyReportItem['itemClass'] => {
     const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
@@ -675,16 +706,28 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
                                                 const sm = s.revenue > 0 && s.cost > 0
                                                     ? (sp / s.revenue * 100).toFixed(1) + '%'
                                                     : '-';
+                                                const breakdown = report.staffItems ? getStaffItemBreakdown(report.staffItems, s.staffName) : [];
                                                 return (
-                                                    <div key={i} className={`grid grid-cols-[1fr_50px_90px_90px_90px_60px] px-3 py-2.5 text-sm border-t border-gray-50 ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
-                                                        <span className="font-bold text-gray-800">{s.staffName}</span>
-                                                        <span className="text-right text-gray-500 self-center">{s.salesCount}건</span>
-                                                        <span className="text-right text-gray-700 self-center">{formatCurrency(s.revenue)}</span>
-                                                        <span className="text-right text-gray-600 self-center">{s.cost > 0 ? formatCurrency(s.cost) : '-'}</span>
-                                                        <span className={`text-right font-bold self-center ${sp >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                            {s.cost > 0 ? formatCurrency(sp) : '-'}
-                                                        </span>
-                                                        <span className="text-right text-xs text-gray-500 self-center">{s.cost > 0 ? sm : '-'}</span>
+                                                    <div key={i} className={`px-3 py-2.5 border-t border-gray-50 ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+                                                        <div className="grid grid-cols-[1fr_50px_90px_90px_90px_60px] text-sm">
+                                                            <span className="font-bold text-gray-800">{s.staffName}</span>
+                                                            <span className="text-right text-gray-500 self-center">{s.salesCount}건</span>
+                                                            <span className="text-right text-gray-700 self-center">{formatCurrency(s.revenue)}</span>
+                                                            <span className="text-right text-gray-600 self-center">{s.cost > 0 ? formatCurrency(s.cost) : '-'}</span>
+                                                            <span className={`text-right font-bold self-center ${sp >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                {s.cost > 0 ? formatCurrency(sp) : '-'}
+                                                            </span>
+                                                            <span className="text-right text-xs text-gray-500 self-center">{s.cost > 0 ? sm : '-'}</span>
+                                                        </div>
+                                                        {breakdown.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                                {breakdown.map(b => (
+                                                                    <span key={b.label} className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                                                        {b.label} <span className="font-bold text-slate-800">{b.qty}</span>
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
