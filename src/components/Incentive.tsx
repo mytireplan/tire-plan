@@ -470,6 +470,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         </div>
       </div>
 
+      {isOwner && (
       <div className="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-gray-100">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
@@ -491,6 +492,7 @@ const Incentive: React.FC<IncentiveProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {noReports && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-sm text-yellow-800">
@@ -722,6 +724,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         </div>
       ) : null}
 
+      {isOwner && (
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold text-gray-700">정비 품목별 인센티브 단가 (원/개)</h3>
@@ -768,6 +771,7 @@ const Incentive: React.FC<IncentiveProps> = ({
           })}
         </div>
       </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
