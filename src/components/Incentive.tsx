@@ -33,18 +33,6 @@ type FormulaMetricKey =
   | 'repair_suspension'
   | 'margin_rate';
 
-const FORMULA_METRICS: Array<{ key: FormulaMetricKey; label: string; unit: 'qty' | 'percent' }> = [
-  { key: 'tire_qty', label: '타이어', unit: 'qty' },
-  { key: 'used_tire_qty', label: '중고타이어', unit: 'qty' },
-  { key: 'repair_brake_pad', label: '브레이크패드', unit: 'qty' },
-  { key: 'repair_engine_oil', label: '엔진오일', unit: 'qty' },
-  { key: 'repair_brake_oil', label: '브레이크오일', unit: 'qty' },
-  { key: 'repair_tpms', label: 'TPMS', unit: 'qty' },
-  { key: 'repair_disk', label: '디스크', unit: 'qty' },
-  { key: 'repair_suspension', label: '하체', unit: 'qty' },
-  { key: 'margin_rate', label: '마진율', unit: 'percent' },
-];
-
 const REPAIR_CAT_ITEMS: Array<{ key: FormulaMetricKey; label: string }> = [
   { key: 'repair_brake_pad', label: '브레이크패드' },
   { key: 'repair_engine_oil', label: '엔진오일' },
@@ -162,16 +150,6 @@ const Incentive: React.FC<IncentiveProps> = ({
     return map;
   }, [incentiveRules]);
 
-  const formulaRuleMap = useMemo(() => {
-    const map = new Map<string, IncentiveRule>();
-    incentiveRules.forEach((r) => {
-      if (r.ruleType !== 'formula') return;
-      if (!r.metricKey) return;
-      map.set(buildScopedRuleKey(r.storeId, r.metricKey, r.staffName), r);
-    });
-    return map;
-  }, [incentiveRules]);
-
   const getComplexRule = (storeId: string, productName: string, staffName?: string): IncentiveRule | undefined => {
     return incentiveRules.find((r) => r.storeId === storeId && (r.staffName || '') === (staffName || '') && r.productName === productName)
       || incentiveRules.find((r) => r.storeId === storeId && !r.staffName && r.productName === productName);
@@ -200,11 +178,6 @@ const Incentive: React.FC<IncentiveProps> = ({
       || 0;
   };
 
-  const getFormulaRule = (storeId: string, metricKey: FormulaMetricKey, staffName?: string): IncentiveRule | undefined => {
-    return formulaRuleMap.get(buildScopedRuleKey(storeId, metricKey, staffName))
-      || formulaRuleMap.get(buildScopedRuleKey(storeId, metricKey, DEFAULT_RULE_SCOPE));
-  };
-
   const staffRows = useMemo(() => {
     type DailyStaffMetric = {
       storeId: string;
@@ -229,7 +202,6 @@ const Incentive: React.FC<IncentiveProps> = ({
       marginBonusEarned: number;
       managerStoreTireBonusEarned: number;
       managerStoreMarginBonusEarned: number;
-      formulaIncentive: number;
       metricValues: Record<FormulaMetricKey, number>;
       isManager: boolean;
     };
@@ -283,7 +255,6 @@ const Incentive: React.FC<IncentiveProps> = ({
         });
         const repairIncentiveDaily = repairDetails.reduce((sum, d) => sum + d.amount, 0);
         const totalRepairQtyDaily = repairDetails.reduce((sum, d) => sum + d.qty, 0);
-        const marginRateDaily = daily.revenue > 0 ? (daily.profit / daily.revenue) * 100 : 0;
 
         const rowTireRule = getComplexRule(daily.storeId, '__TIRE_BONUS__', staffName);
         const rowMarginRule = getComplexRule(daily.storeId, '__MARGIN_BONUS__', staffName);
@@ -305,31 +276,6 @@ const Incentive: React.FC<IncentiveProps> = ({
         const managerStoreTireBonusEarnedDaily = isManager && managerStoreTireThreshold > 0 && (report.tireQty || 0) >= managerStoreTireThreshold ? managerStoreTireBonus : 0;
         const managerStoreMarginBonusEarnedDaily = isManager && managerStoreMarginThreshold > 0 && (report.profit || 0) >= managerStoreMarginThreshold ? managerStoreMarginBonus : 0;
 
-        const metricValuesDaily: Record<FormulaMetricKey, number> = {
-          tire_qty: tireQty,
-          used_tire_qty: daily.usedTireQty,
-          repair_brake_pad: daily.repairMetrics.repair_brake_pad,
-          repair_engine_oil: daily.repairMetrics.repair_engine_oil,
-          repair_brake_oil: daily.repairMetrics.repair_brake_oil,
-          repair_tpms: daily.repairMetrics.repair_tpms,
-          repair_disk: daily.repairMetrics.repair_disk,
-          repair_suspension: daily.repairMetrics.repair_suspension,
-          margin_rate: marginRateDaily,
-        };
-
-        const formulaIncentiveDaily = FORMULA_METRICS.reduce((sum, metric) => {
-          const rule = getFormulaRule(daily.storeId, metric.key, staffName);
-          if (!rule) return sum;
-          const value = metricValuesDaily[metric.key];
-          const op = rule.comparisonOp || '>';
-          const threshold = Number(rule.thresholdValue || 0);
-          const multiplier = Number(rule.multiplier || 0);
-          const addend = Number(rule.addend || 0);
-          const matched = op === '>' ? value > threshold : value < threshold;
-          const raw = matched ? value * multiplier + addend : 0;
-          return sum + Math.max(0, Math.round(raw));
-        }, 0);
-
         if (!staffAggMap.has(staffName)) {
           staffAggMap.set(staffName, {
             staffName,
@@ -344,7 +290,6 @@ const Incentive: React.FC<IncentiveProps> = ({
             marginBonusEarned: 0,
             managerStoreTireBonusEarned: 0,
             managerStoreMarginBonusEarned: 0,
-            formulaIncentive: 0,
             metricValues: createEmptyRepairMetrics(),
             isManager,
           });
@@ -362,7 +307,6 @@ const Incentive: React.FC<IncentiveProps> = ({
         agg.marginBonusEarned += marginBonusEarnedDaily;
         agg.managerStoreTireBonusEarned += managerStoreTireBonusEarnedDaily;
         agg.managerStoreMarginBonusEarned += managerStoreMarginBonusEarnedDaily;
-        agg.formulaIncentive += formulaIncentiveDaily;
         agg.metricValues.repair_brake_pad += daily.repairMetrics.repair_brake_pad;
         agg.metricValues.repair_engine_oil += daily.repairMetrics.repair_engine_oil;
         agg.metricValues.repair_brake_oil += daily.repairMetrics.repair_brake_oil;
@@ -374,7 +318,7 @@ const Incentive: React.FC<IncentiveProps> = ({
 
     return Array.from(staffAggMap.values()).map((agg) => {
       const marginRate = agg.revenue > 0 ? (agg.profit / agg.revenue) * 100 : 0;
-      const totalAmount = agg.repairIncentive + agg.tireBonusEarned + agg.marginBonusEarned + agg.managerStoreTireBonusEarned + agg.managerStoreMarginBonusEarned + agg.formulaIncentive;
+      const totalAmount = agg.repairIncentive + agg.tireBonusEarned + agg.marginBonusEarned + agg.managerStoreTireBonusEarned + agg.managerStoreMarginBonusEarned;
       return {
         ...agg,
         marginRate,
@@ -387,7 +331,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         totalAmount,
       };
     }).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [monthReports, ruleMap, formulaRuleMap, incentiveRules, managerKeySet]);
+  }, [monthReports, ruleMap, incentiveRules, managerKeySet]);
 
   const visibleStaffRows = useMemo(() => {
     if (managerStaffName) return staffRows.filter((r) => r.staffName === managerStaffName);
@@ -397,7 +341,6 @@ const Incentive: React.FC<IncentiveProps> = ({
   const totalRepairQty = visibleStaffRows.reduce((s, r) => s + r.totalRepairQty, 0);
   const totalTireQty = visibleStaffRows.reduce((s, r) => s + r.tireQty, 0);
   const totalUsedTireQty = visibleStaffRows.reduce((s, r) => s + r.usedTireQty, 0);
-  const totalFormulaIncentive = visibleStaffRows.reduce((s, r) => s + r.formulaIncentive, 0);
   const totalComplexBonus = visibleStaffRows.reduce((s, r) => s + r.tireBonusEarned + r.marginBonusEarned + r.managerStoreTireBonusEarned + r.managerStoreMarginBonusEarned, 0);
   const totalIncentive = visibleStaffRows.reduce((s, r) => s + r.totalAmount, 0);
 
@@ -448,7 +391,7 @@ const Incentive: React.FC<IncentiveProps> = ({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="p-3 rounded-lg border border-blue-100 bg-blue-50">
             <div className="text-xs text-blue-600 font-semibold">정비 수량 합계</div>
             <div className="text-xl font-bold text-blue-700 mt-1">{formatNumber(totalRepairQty)}개</div>
@@ -460,10 +403,6 @@ const Incentive: React.FC<IncentiveProps> = ({
           <div className="p-3 rounded-lg border border-fuchsia-100 bg-fuchsia-50">
             <div className="text-xs text-fuchsia-600 font-semibold">중고타이어 합계</div>
             <div className="text-xl font-bold text-fuchsia-700 mt-1">{formatNumber(totalUsedTireQty)}개</div>
-          </div>
-          <div className="p-3 rounded-lg border border-amber-100 bg-amber-50">
-            <div className="text-xs text-amber-600 font-semibold">수식 인센티브 합계</div>
-            <div className="text-xl font-bold text-amber-700 mt-1">{formatCurrency(totalFormulaIncentive)}</div>
           </div>
           <div className="p-3 rounded-lg border border-emerald-100 bg-emerald-50">
             <div className="text-xs text-emerald-600 font-semibold">전체 인센티브 합계</div>
@@ -503,7 +442,7 @@ const Incentive: React.FC<IncentiveProps> = ({
       )}
       {!noReports && !hasStaffItems && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm text-blue-800">
-          보고서에 직원별 품목 데이터가 부족합니다. 최신 버전으로 마감을 다시 저장하면 품목별 수량과 수식 계산이 정확해집니다.
+          보고서에 직원별 품목 데이터가 부족합니다. 최신 버전으로 마감을 다시 저장하면 품목별 수량 집계가 정확해집니다.
         </div>
       )}
 
@@ -781,8 +720,8 @@ const Incentive: React.FC<IncentiveProps> = ({
           {visibleStaffRows.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">
               {showMarginRateColumn
-                ? '보고서 기준 집계: 타이어/중고타이어/정비 6개 품목/마진율 + 규칙 수식'
-                : '보고서 기준 집계: 타이어/중고타이어/정비 6개 품목 + 규칙 수식'}
+                ? '보고서 기준 집계: 타이어/중고타이어/정비 6개 품목/마진율'
+                : '보고서 기준 집계: 타이어/중고타이어/정비 6개 품목'}
             </p>
           )}
         </div>
@@ -804,7 +743,6 @@ const Incentive: React.FC<IncentiveProps> = ({
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">디스크</th>
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">하체</th>
                     {showMarginRateColumn && <th className="px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-xs">마진율</th>}
-                    <th className="px-3 py-3 text-right font-bold text-amber-600 whitespace-nowrap text-xs">수식인센티브</th>
                     {showComplexBonusColumns && <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-xs">복합보너스</th>}
                     <th className="px-4 py-3 text-right font-bold text-gray-700 whitespace-nowrap">총 인센티브</th>
                   </tr>
@@ -822,7 +760,6 @@ const Incentive: React.FC<IncentiveProps> = ({
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_disk)}개</td>
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_suspension)}개</td>
                       {showMarginRateColumn && <td className="px-3 py-3 text-right text-gray-600 whitespace-nowrap">{row.marginRate.toFixed(1)}%</td>}
-                      <td className="px-3 py-3 text-right text-amber-700 font-semibold whitespace-nowrap">{formatCurrency(row.formulaIncentive)}</td>
                       {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 font-semibold whitespace-nowrap">{formatCurrency(row.tireBonusEarned + row.marginBonusEarned + row.managerStoreTireBonusEarned + row.managerStoreMarginBonusEarned)}</td>}
                       <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(row.totalAmount)}</td>
                     </tr>
@@ -840,7 +777,6 @@ const Incentive: React.FC<IncentiveProps> = ({
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_disk, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
                   {showMarginRateColumn && <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">-</td>}
-                  <td className="px-3 py-3 text-right text-amber-700 whitespace-nowrap">{formatCurrency(totalFormulaIncentive)}</td>
                   {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 whitespace-nowrap">{formatCurrency(totalComplexBonus)}</td>}
                   <td className="px-4 py-3 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(totalIncentive)}</td>
                 </tr>
