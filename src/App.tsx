@@ -1667,55 +1667,6 @@ const App: React.FC = () => {
       await saveToFirestore<IncentiveRule>(COLLECTIONS.INCENTIVE_RULES, nextRule);
   };
 
-  const handleUpsertFormulaIncentiveRule = async (payload: {
-      storeId: string;
-      staffName?: string;
-      metricKey: string;
-      comparisonOp: '>' | '<';
-      thresholdValue: number;
-      multiplier: number;
-      addend: number;
-  }) => {
-      const productName = `__FORMULA__::${payload.metricKey}`;
-      const existing = incentiveRules.find(
-          (rule) => rule.storeId === payload.storeId && (rule.staffName || '') === (payload.staffName || '') && rule.productName === productName
-      );
-      const now = new Date().toISOString();
-      const nextRule: IncentiveRule = existing
-          ? {
-              ...existing,
-              productName,
-              category: 'formula',
-              ruleType: 'formula',
-              metricKey: payload.metricKey,
-              comparisonOp: payload.comparisonOp,
-              thresholdValue: payload.thresholdValue,
-              multiplier: payload.multiplier,
-              addend: payload.addend,
-              amountPerUnit: 0,
-              isActive: true,
-              updatedAt: now
-          }
-          : {
-              id: `INC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              storeId: payload.storeId,
-              staffName: payload.staffName,
-              productName,
-              category: 'formula',
-              ruleType: 'formula',
-              metricKey: payload.metricKey,
-              comparisonOp: payload.comparisonOp,
-              thresholdValue: payload.thresholdValue,
-              multiplier: payload.multiplier,
-              addend: payload.addend,
-              amountPerUnit: 0,
-              isActive: true,
-              createdAt: now,
-              updatedAt: now
-          };
-      await saveToFirestore<IncentiveRule>(COLLECTIONS.INCENTIVE_RULES, nextRule);
-  };
-
   // --- Super Admin Actions ---
 
     const persistOwner = (owner: OwnerAccount) => {
@@ -3384,7 +3335,6 @@ const App: React.FC = () => {
                     currentUser={effectiveUser}
                     onUpsertRule={handleUpsertIncentiveRule}
                     onUpsertComplexRule={handleUpsertComplexIncentiveRule}
-                    onUpsertFormulaRule={handleUpsertFormulaIncentiveRule}
                 />
             )}
             {(activeTab === 'dailyClose' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN')) && (
