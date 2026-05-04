@@ -17,7 +17,87 @@ interface IncentiveProps {
     marginThreshold?: number;
     bonusAmount: number;
   }) => void;
+  onUpsertFormulaRule: (payload: {
+    storeId: string;
+    metricKey: string;
+    comparisonOp: '>' | '<';
+    thresholdValue: number;
+    multiplier: number;
+    addend: number;
+  }) => void;
 }
+
+type FormulaMetricKey =
+  | 'tire_qty'
+  | 'used_tire_qty'
+  | 'repair_brake_pad'
+  | 'repair_engine_oil'
+  | 'repair_brake_oil'
+  | 'repair_tpms'
+  | 'repair_disk'
+  | 'repair_suspension'
+  | 'margin_rate';
+
+const FORMULA_METRICS: Array<{ key: FormulaMetricKey; label: string; unit: 'qty' | 'percent' }> = [
+  { key: 'tire_qty', label: '타이어', unit: 'qty' },
+  { key: 'used_tire_qty', label: '중고타이어', unit: 'qty' },
+  { key: 'repair_brake_pad', label: '브레이크패드', unit: 'qty' },
+  { key: 'repair_engine_oil', label: '엔진오일', unit: 'qty' },
+  { key: 'repair_brake_oil', label: '브레이크오일', unit: 'qty' },
+  { key: 'repair_tpms', label: 'TPMS', unit: 'qty' },
+  { key: 'repair_disk', label: '디스크', unit: 'qty' },
+  { key: 'repair_suspension', label: '하체', unit: 'qty' },
+  { key: 'margin_rate', label: '마진율', unit: 'percent' },
+];
+
+const REPAIR_CAT_ITEMS: Array<{ key: FormulaMetricKey; label: string }> = [
+  { key: 'repair_brake_pad', label: '브레이크패드' },
+  { key: 'repair_engine_oil', label: '엔진오일' },
+  { key: 'repair_brake_oil', label: '브레이크오일' },
+  { key: 'repair_tpms', label: 'TPMS' },
+  { key: 'repair_disk', label: '디스크' },
+  { key: 'repair_suspension', label: '하체' },
+];
+
+const REPAIR_METRIC_DEFS: Array<{ key: FormulaMetricKey; keywords: string[] }> = [
+  { key: 'repair_brake_pad', keywords: ['브레이크패드'] },
+  { key: 'repair_engine_oil', keywords: ['엔진오일', '합성유', '오일교환'] },
+  { key: 'repair_brake_oil', keywords: ['브레이크오일'] },
+  { key: 'repair_tpms', keywords: ['tpms'] },
+  { key: 'repair_disk', keywords: ['디스크', '로터'] },
+  { key: 'repair_suspension', keywords: ['하체', '쇼바', '로어암', '활대링크', '부싱'] },
+];
+
+const INCENTIVE_AGGREGATION_START_DATE = '2026-05-01';
+
+const createEmptyRepairMetrics = (): Record<FormulaMetricKey, number> => ({
+  tire_qty: 0,
+  used_tire_qty: 0,
+  repair_brake_pad: 0,
+  repair_engine_oil: 0,
+  repair_brake_oil: 0,
+  repair_tpms: 0,
+  repair_disk: 0,
+  repair_suspension: 0,
+  margin_rate: 0,
+});
+
+const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '');
+
+const pickRepairMetric = (productName: string, category: string): FormulaMetricKey | null => {
+  const haystack = normalizeText(`${productName} ${category}`);
+  for (const def of REPAIR_METRIC_DEFS) {
+    if (def.keywords.some((kw) => haystack.includes(normalizeText(kw)))) {
+      return def.key;
+    }
+  }
+  return null;
+};
+
+const isUsedTireItem = (productName: string, category: string): boolean => {
+  const haystack = normalizeText(`${productName} ${category}`);
+  return haystack.includes('중고') || haystack.includes('used');
+};
 
 const Incentive: React.FC<IncentiveProps> = ({
   dailyReports,
@@ -26,6 +106,7 @@ const Incentive: React.FC<IncentiveProps> = ({
   currentUser,
   onUpsertRule,
   onUpsertComplexRule,
+  onUpsertFormulaRule,
 }) => {
   const isOwner = currentUser.role === 'STORE_ADMIN' || currentUser.role === 'SUPER_ADMIN';
 
@@ -35,15 +116,17 @@ const Incentive: React.FC<IncentiveProps> = ({
   });
 
   const [draftRates, setDraftRates] = useState<Record<string, string>>({});
+  const [formulaDrafts, setFormulaDrafts] = useState<
+    Record<string, { comparisonOp: '>' | '<'; thresholdValue: string; multiplier: string; addend: string }>
+  >({});
 
-  // Complex rule draft state
   const [tireBonusDraft, setTireBonusDraft] = useState<{ threshold: string; bonus: string }>({ threshold: '', bonus: '' });
   const [marginBonusDraft, setMarginBonusDraft] = useState<{ threshold: string; bonus: string }>({ threshold: '', bonus: '' });
 
-  // 선택 월 + 지점 필터 보고서
   const monthReports = useMemo(() => {
     return dailyReports.filter((r) => {
-      if (r.dateStr.slice(0, 7) !== month) return false;
+      if (r.dateStr < INCENTIVE_AGGREGATION_START_DATE) return false;
+      if (r.dateStr.slice(0, 7) > month) return false;
       if (currentStoreId !== 'ALL' && r.storeId !== currentStoreId) return false;
       return true;
     });
@@ -51,18 +134,26 @@ const Incentive: React.FC<IncentiveProps> = ({
 
   const storeIdForRules = currentStoreId !== 'ALL' ? currentStoreId : (monthReports[0]?.storeId || '');
 
-  // ruleMap: "storeId::productName" -> IncentiveRule (unit_price only)
   const ruleMap = useMemo(() => {
     const map = new Map<string, IncentiveRule>();
     incentiveRules.forEach((r) => {
-      if (r.productName && r.productName !== '__TIRE_BONUS__' && r.productName !== '__MARGIN_BONUS__') {
+      if (r.productName && r.productName !== '__TIRE_BONUS__' && r.productName !== '__MARGIN_BONUS__' && !r.productName.startsWith('__FORMULA__::')) {
         map.set(`${r.storeId}::${r.productName}`, r);
       }
     });
     return map;
   }, [incentiveRules]);
 
-  // Complex rules
+  const formulaRuleMap = useMemo(() => {
+    const map = new Map<string, IncentiveRule>();
+    incentiveRules.forEach((r) => {
+      if (r.ruleType !== 'formula') return;
+      if (!r.metricKey) return;
+      map.set(`${r.storeId}::${r.metricKey}`, r);
+    });
+    return map;
+  }, [incentiveRules]);
+
   const tireRule = useMemo(
     () => incentiveRules.find((r) => r.productName === '__TIRE_BONUS__' && (currentStoreId === 'ALL' || r.storeId === currentStoreId)),
     [incentiveRules, currentStoreId]
@@ -76,27 +167,72 @@ const Incentive: React.FC<IncentiveProps> = ({
     return ruleMap.get(`${storeId}::${productName}`)?.amountPerUnit || 0;
   };
 
-  // staffItems에서 정비 항목만 수집 → 직원별/품목별 집계
+  const getFormulaRule = (storeId: string, metricKey: FormulaMetricKey): IncentiveRule | undefined => {
+    return formulaRuleMap.get(`${storeId}::${metricKey}`);
+  };
+
   const { productNames, staffMap } = useMemo(() => {
     const productSet = new Set<string>();
-    const staffMap = new Map<string, { storeId: string; items: Map<string, number>; tireQty: number; revenue: number; profit: number }>();
+    const staffMap = new Map<
+      string,
+      {
+        storeId: string;
+        items: Map<string, number>;
+        tireQty: number;
+        tireQtyFromItems: number;
+        usedTireQty: number;
+        repairMetrics: Record<FormulaMetricKey, number>;
+        revenue: number;
+        profit: number;
+      }
+    >();
 
     monthReports.forEach((report) => {
-      // Repair item breakdown (for unit_price calculation)
       (report.staffItems || []).forEach((si) => {
-        if (si.itemClass !== 'repair') return;
-        productSet.add(si.productName);
         if (!staffMap.has(si.staffName)) {
-          staffMap.set(si.staffName, { storeId: report.storeId, items: new Map(), tireQty: 0, revenue: 0, profit: 0 });
+          staffMap.set(si.staffName, {
+            storeId: report.storeId,
+            items: new Map(),
+            tireQty: 0,
+            tireQtyFromItems: 0,
+            usedTireQty: 0,
+            repairMetrics: createEmptyRepairMetrics(),
+            revenue: 0,
+            profit: 0,
+          });
         }
         const entry = staffMap.get(si.staffName)!;
-        entry.items.set(si.productName, (entry.items.get(si.productName) || 0) + si.qty);
+
+        if (si.itemClass === 'repair') {
+          productSet.add(si.productName);
+          entry.items.set(si.productName, (entry.items.get(si.productName) || 0) + si.qty);
+
+          const repairMetricKey = pickRepairMetric(si.productName, si.category);
+          if (repairMetricKey) {
+            entry.repairMetrics[repairMetricKey] += si.qty;
+          }
+        }
+
+        if (si.itemClass === 'tire') {
+          entry.tireQtyFromItems += si.qty;
+          if (isUsedTireItem(si.productName, si.category)) {
+            entry.usedTireQty += si.qty;
+          }
+        }
       });
 
-      // Staff-level aggregates from staffStats (tire qty, revenue/profit for margin)
       (report.staffStats || []).forEach((ss) => {
         if (!staffMap.has(ss.staffName)) {
-          staffMap.set(ss.staffName, { storeId: report.storeId, items: new Map(), tireQty: 0, revenue: 0, profit: 0 });
+          staffMap.set(ss.staffName, {
+            storeId: report.storeId,
+            items: new Map(),
+            tireQty: 0,
+            tireQtyFromItems: 0,
+            usedTireQty: 0,
+            repairMetrics: createEmptyRepairMetrics(),
+            revenue: 0,
+            profit: 0,
+          });
         }
         const entry = staffMap.get(ss.staffName)!;
         entry.tireQty += ss.tireQty || 0;
@@ -109,33 +245,79 @@ const Incentive: React.FC<IncentiveProps> = ({
     return { productNames, staffMap };
   }, [monthReports]);
 
-  // 직원별 행 계산
   const staffRows = useMemo(() => {
     const tireThreshold = tireRule?.tireThreshold ?? 0;
     const tireBonus = tireRule?.bonusAmount ?? 0;
     const marginThreshold = marginRule?.marginThreshold ?? 0;
     const marginBonusAmt = marginRule?.bonusAmount ?? 0;
 
-    return Array.from(staffMap.entries()).map(([staffName, { storeId, items, tireQty, revenue, profit }]) => {
-      const repairDetails = productNames.map((name) => {
-        const qty = items.get(name) || 0;
-        const rate = getRate(storeId, name);
-        return { productName: name, qty, rate, amount: qty * rate };
+    return Array.from(staffMap.entries()).map(([staffName, data]) => {
+      const tireQty = data.tireQty > 0 ? data.tireQty : data.tireQtyFromItems;
+      const repairDetails = REPAIR_CAT_ITEMS.map((cat) => {
+        const qty = data.repairMetrics[cat.key] || 0;
+        const rate = getRate(data.storeId, `__REPAIR_CAT__::${cat.key}`);
+        return { productName: cat.label, qty, rate, amount: qty * rate };
       });
 
-      const repairIncentive = repairDetails.reduce((s, d) => s + d.amount, 0);
-      const totalRepairQty = repairDetails.reduce((s, d) => s + d.qty, 0);
-      const marginRate = revenue > 0 ? (profit / revenue) * 100 : 0;
+      const repairIncentive = repairDetails.reduce((sum, d) => sum + d.amount, 0);
+      const totalRepairQty = repairDetails.reduce((sum, d) => sum + d.qty, 0);
+      const marginRate = data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0;
       const tireBonusEarned = tireThreshold > 0 && tireQty >= tireThreshold ? tireBonus : 0;
       const marginBonusEarned = marginThreshold > 0 && marginRate >= marginThreshold ? marginBonusAmt : 0;
-      const totalAmount = repairIncentive + tireBonusEarned + marginBonusEarned;
 
-      return { staffName, storeId, repairDetails, totalRepairQty, tireQty, marginRate, repairIncentive, tireBonusEarned, marginBonusEarned, totalAmount };
+      const metricValues: Record<FormulaMetricKey, number> = {
+        tire_qty: tireQty,
+        used_tire_qty: data.usedTireQty,
+        repair_brake_pad: data.repairMetrics.repair_brake_pad,
+        repair_engine_oil: data.repairMetrics.repair_engine_oil,
+        repair_brake_oil: data.repairMetrics.repair_brake_oil,
+        repair_tpms: data.repairMetrics.repair_tpms,
+        repair_disk: data.repairMetrics.repair_disk,
+        repair_suspension: data.repairMetrics.repair_suspension,
+        margin_rate: marginRate,
+      };
+
+      const formulaDetails = FORMULA_METRICS.map((metric) => {
+        const rule = getFormulaRule(data.storeId, metric.key);
+        const value = metricValues[metric.key];
+        if (!rule) return { metricKey: metric.key, value, amount: 0 };
+
+        const op = rule.comparisonOp || '>';
+        const threshold = Number(rule.thresholdValue || 0);
+        const multiplier = Number(rule.multiplier || 0);
+        const addend = Number(rule.addend || 0);
+        const matched = op === '>' ? value > threshold : value < threshold;
+        const rawAmount = matched ? value * multiplier + addend : 0;
+        const amount = Math.max(0, Math.round(rawAmount));
+
+        return { metricKey: metric.key, value, amount };
+      });
+
+      const formulaIncentive = formulaDetails.reduce((sum, d) => sum + d.amount, 0);
+      const totalAmount = repairIncentive + tireBonusEarned + marginBonusEarned + formulaIncentive;
+
+      return {
+        staffName,
+        storeId: data.storeId,
+        repairDetails,
+        totalRepairQty,
+        tireQty,
+        usedTireQty: data.usedTireQty,
+        marginRate,
+        metricValues,
+        repairIncentive,
+        tireBonusEarned,
+        marginBonusEarned,
+        formulaIncentive,
+        totalAmount,
+      };
     }).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [staffMap, productNames, ruleMap, tireRule, marginRule]);
+  }, [staffMap, productNames, ruleMap, formulaRuleMap, tireRule, marginRule]);
 
   const totalRepairQty = staffRows.reduce((s, r) => s + r.totalRepairQty, 0);
   const totalTireQty = staffRows.reduce((s, r) => s + r.tireQty, 0);
+  const totalUsedTireQty = staffRows.reduce((s, r) => s + r.usedTireQty, 0);
+  const totalFormulaIncentive = staffRows.reduce((s, r) => s + r.formulaIncentive, 0);
   const totalIncentive = staffRows.reduce((s, r) => s + r.totalAmount, 0);
 
   const noReports = monthReports.length === 0;
@@ -150,13 +332,12 @@ const Incentive: React.FC<IncentiveProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
-      {/* 헤더 */}
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-gray-800">인센티브</h2>
             <p className="text-xs text-gray-500 mt-1">
-              일마감 보고서 기반으로 직원별 실적을 집계해 인센티브를 자동 계산합니다.
+              보고서 게시판 데이터(staffStats/staffItems)로 직원별 수량과 마진을 집계하고 자동 계산합니다. (2026-05-01부터 누적)
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -170,7 +351,7 @@ const Incentive: React.FC<IncentiveProps> = ({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="p-3 rounded-lg border border-blue-100 bg-blue-50">
             <div className="text-xs text-blue-600 font-semibold">정비 수량 합계</div>
             <div className="text-xl font-bold text-blue-700 mt-1">{formatNumber(totalRepairQty)}개</div>
@@ -179,14 +360,21 @@ const Incentive: React.FC<IncentiveProps> = ({
             <div className="text-xs text-violet-600 font-semibold">타이어 판매 합계</div>
             <div className="text-xl font-bold text-violet-700 mt-1">{formatNumber(totalTireQty)}개</div>
           </div>
+          <div className="p-3 rounded-lg border border-fuchsia-100 bg-fuchsia-50">
+            <div className="text-xs text-fuchsia-600 font-semibold">중고타이어 합계</div>
+            <div className="text-xl font-bold text-fuchsia-700 mt-1">{formatNumber(totalUsedTireQty)}개</div>
+          </div>
+          <div className="p-3 rounded-lg border border-amber-100 bg-amber-50">
+            <div className="text-xs text-amber-600 font-semibold">수식 인센티브 합계</div>
+            <div className="text-xl font-bold text-amber-700 mt-1">{formatCurrency(totalFormulaIncentive)}</div>
+          </div>
           <div className="p-3 rounded-lg border border-emerald-100 bg-emerald-50">
-            <div className="text-xs text-emerald-600 font-semibold">인센티브 합계</div>
+            <div className="text-xs text-emerald-600 font-semibold">전체 인센티브 합계</div>
             <div className="text-xl font-bold text-emerald-700 mt-1">{formatCurrency(totalIncentive)}</div>
           </div>
         </div>
       </div>
 
-      {/* 상태 안내 */}
       {noReports && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-sm text-yellow-800">
           이 달에 저장된 일마감 보고서가 없습니다. 일별 마감 탭에서 마감을 저장하면 인센티브가 자동 집계됩니다.
@@ -194,24 +382,17 @@ const Incentive: React.FC<IncentiveProps> = ({
       )}
       {!noReports && !hasStaffItems && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm text-blue-800">
-          기존 보고서에는 직원별 품목 데이터가 없습니다. 오늘 이후 마감을 새로 저장하면 자동 집계됩니다.
+          보고서에 직원별 품목 데이터가 부족합니다. 최신 버전으로 마감을 다시 저장하면 품목별 수량과 수식 계산이 정확해집니다.
         </div>
       )}
 
-      {/* 복합 규칙 설정 */}
       {isOwner ? (
         <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-sm font-bold text-gray-700 mb-4">복합 인센티브 규칙 설정</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* 타이어 수량 달성 보너스 */}
             <div className="p-4 border border-violet-200 rounded-xl bg-violet-50/40 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-violet-700">🚗 타이어 수량 달성 보너스</span>
-                {tireRule?.bonusAmount ? (
-                  <span className="text-xs text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">
-                    {tireRule.tireThreshold}개 이상 → {formatCurrency(tireRule.bonusAmount)}
-                  </span>
-                ) : null}
+                <span className="text-sm font-bold text-violet-700">타이어 수량 달성 보너스</span>
               </div>
               <p className="text-xs text-gray-500">직원이 해당 월에 N개 이상 타이어를 판매하면 보너스를 지급합니다.</p>
               <div className="flex items-center gap-2 flex-wrap">
@@ -255,15 +436,9 @@ const Incentive: React.FC<IncentiveProps> = ({
               </div>
             </div>
 
-            {/* 마진 달성 보너스 */}
             <div className="p-4 border border-emerald-200 rounded-xl bg-emerald-50/40 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-emerald-700">📈 마진 달성 보너스</span>
-                {marginRule?.bonusAmount ? (
-                  <span className="text-xs text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
-                    마진 {marginRule.marginThreshold}% 이상 → {formatCurrency(marginRule.bonusAmount)}
-                  </span>
-                ) : null}
+                <span className="text-sm font-bold text-emerald-700">마진 달성 보너스</span>
               </div>
               <p className="text-xs text-gray-500">직원의 월 마진율이 N% 이상이면 보너스를 지급합니다.</p>
               <div className="flex items-center gap-2 flex-wrap">
@@ -310,157 +485,266 @@ const Incentive: React.FC<IncentiveProps> = ({
             </div>
           </div>
         </div>
-      ) : (tireRule?.bonusAmount || marginRule?.bonusAmount) ? (
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-            <Lock size={14} className="text-gray-400" /> 이달의 인센티브 조건
-          </h3>
-          <div className="flex flex-wrap gap-3">
-            {tireRule?.bonusAmount ? (
-              <div className="px-4 py-2 bg-violet-50 border border-violet-200 rounded-lg text-sm text-violet-700">
-                🚗 타이어 <strong>{tireRule.tireThreshold}개</strong> 이상 판매 시 <strong>{formatCurrency(tireRule.bonusAmount)}</strong> 보너스
-              </div>
-            ) : null}
-            {marginRule?.bonusAmount ? (
-              <div className="px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
-                📈 마진율 <strong>{marginRule.marginThreshold}%</strong> 이상 달성 시 <strong>{formatCurrency(marginRule.bonusAmount)}</strong> 보너스
-              </div>
-            ) : null}
-          </div>
-        </div>
       ) : null}
 
-      {/* 품목별 단가 설정 */}
-      {productNames.length > 0 && (
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-gray-700">품목별 인센티브 단가 (원/개)</h3>
-            {!isOwner && <span className="flex items-center gap-1 text-xs text-gray-400"><Lock size={12} /> 사장만 수정 가능</span>}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {productNames.map((name) => {
-              const key = `${storeIdForRules}::${name}`;
-              const currentRate = ruleMap.get(key)?.amountPerUnit || 0;
-              const inputVal = draftRates[key] ?? String(currentRate);
-              return (
-                <div key={name} className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50/50">
-                  <span className="text-sm font-semibold text-gray-700 flex-1 truncate" title={name}>{name}</span>
-                  {isOwner ? (
-                    <>
-                      <input
-                        type="number"
-                        min="0"
-                        step="100"
-                        value={inputVal}
-                        onChange={(e) => setDraftRates((prev) => ({ ...prev, [key]: e.target.value }))}
-                        className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right bg-white"
-                        placeholder="0"
-                      />
-                      <span className="text-xs text-gray-400 whitespace-nowrap">원</span>
-                      <button
-                        onClick={() => {
-                          const next = Math.max(0, Number((draftRates[key] ?? String(currentRate)).trim() || '0'));
-                          const existingRule = ruleMap.get(key);
-                          onUpsertRule({ storeId: storeIdForRules, productName: name, category: existingRule?.category || '정비', amountPerUnit: next });
-                          setDraftRates((prev) => ({ ...prev, [key]: String(next) }));
-                        }}
-                        className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex-shrink-0"
-                        title="저장"
-                      >
-                        <Save size={14} />
-                      </button>
-                    </>
-                  ) : (
-                    <span className="text-sm font-bold text-blue-700">{formatCurrency(currentRate)}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-gray-700">품목별 수식 규칙 설정</h3>
+          {!isOwner && <span className="flex items-center gap-1 text-xs text-gray-400"><Lock size={12} /> 사장만 수정 가능</span>}
         </div>
-      )}
+        <p className="text-xs text-gray-500 mb-3">지급식: 값이 조건을 만족하면 (값 * multiplier) + addend 를 지급합니다.</p>
 
-      {/* 직원 × 품목 테이블 */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[900px]">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500">항목</th>
+                <th className="px-3 py-2 text-center text-xs font-bold text-gray-500">조건</th>
+                <th className="px-3 py-2 text-right text-xs font-bold text-gray-500">기준값</th>
+                <th className="px-3 py-2 text-right text-xs font-bold text-gray-500">multiplier(*)</th>
+                <th className="px-3 py-2 text-right text-xs font-bold text-gray-500">addend(+)</th>
+                <th className="px-3 py-2 text-center text-xs font-bold text-gray-500">저장</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {FORMULA_METRICS.map((metric) => {
+                const rule = getFormulaRule(storeIdForRules, metric.key);
+                const draft = formulaDrafts[metric.key];
+                const op = draft?.comparisonOp ?? (rule?.comparisonOp || '>');
+                const thresholdDisplay = draft?.thresholdValue ?? String(rule?.thresholdValue ?? 0);
+                const multiplierDisplay = draft?.multiplier ?? String(rule?.multiplier ?? 0);
+                const addendDisplay = draft?.addend ?? String(rule?.addend ?? 0);
+                const unitLabel = metric.unit === 'percent' ? '%' : '개';
+
+                return (
+                  <tr key={metric.key}>
+                    <td className="px-3 py-2 font-semibold text-gray-700">{metric.label}</td>
+                    <td className="px-3 py-2 text-center">
+                      {isOwner ? (
+                        <select
+                          value={op}
+                          onChange={(e) => setFormulaDrafts((prev) => ({
+                            ...prev,
+                            [metric.key]: {
+                              comparisonOp: e.target.value as '>' | '<',
+                              thresholdValue: thresholdDisplay,
+                              multiplier: multiplierDisplay,
+                              addend: addendDisplay,
+                            },
+                          }))}
+                          className="px-2 py-1 border border-gray-300 rounded text-sm"
+                        >
+                          <option value=">">{`>`}</option>
+                          <option value="<">{`<`}</option>
+                        </select>
+                      ) : (
+                        <span className="font-semibold text-gray-600">{op}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {isOwner ? (
+                        <input
+                          type="number"
+                          step={metric.unit === 'percent' ? '0.1' : '1'}
+                          className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                          value={thresholdDisplay}
+                          onChange={(e) => setFormulaDrafts((prev) => ({
+                            ...prev,
+                            [metric.key]: {
+                              comparisonOp: op,
+                              thresholdValue: e.target.value,
+                              multiplier: multiplierDisplay,
+                              addend: addendDisplay,
+                            },
+                          }))}
+                        />
+                      ) : (
+                        <span className="font-semibold text-gray-700">{formatNumber(Number(thresholdDisplay || 0))}{unitLabel}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {isOwner ? (
+                        <input
+                          type="number"
+                          step="1"
+                          className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                          value={multiplierDisplay}
+                          onChange={(e) => setFormulaDrafts((prev) => ({
+                            ...prev,
+                            [metric.key]: {
+                              comparisonOp: op,
+                              thresholdValue: thresholdDisplay,
+                              multiplier: e.target.value,
+                              addend: addendDisplay,
+                            },
+                          }))}
+                        />
+                      ) : (
+                        <span className="font-semibold text-gray-700">{formatNumber(Number(multiplierDisplay || 0))}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {isOwner ? (
+                        <input
+                          type="number"
+                          step="100"
+                          className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                          value={addendDisplay}
+                          onChange={(e) => setFormulaDrafts((prev) => ({
+                            ...prev,
+                            [metric.key]: {
+                              comparisonOp: op,
+                              thresholdValue: thresholdDisplay,
+                              multiplier: multiplierDisplay,
+                              addend: e.target.value,
+                            },
+                          }))}
+                        />
+                      ) : (
+                        <span className="font-semibold text-gray-700">{formatCurrency(Number(addendDisplay || 0))}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {isOwner ? (
+                        <button
+                          onClick={() => {
+                            const thresholdValue = Number(thresholdDisplay || 0);
+                            const multiplier = Number(multiplierDisplay || 0);
+                            const addend = Number(addendDisplay || 0);
+                            onUpsertFormulaRule({
+                              storeId: storeIdForRules,
+                              metricKey: metric.key,
+                              comparisonOp: op,
+                              thresholdValue,
+                              multiplier,
+                              addend,
+                            });
+                          }}
+                          className="p-1.5 bg-amber-600 text-white rounded hover:bg-amber-700"
+                          title="저장"
+                        >
+                          <Save size={14} />
+                        </button>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-gray-700">정비 품목별 인센티브 단가 (원/개)</h3>
+          {!isOwner && <span className="flex items-center gap-1 text-xs text-gray-400"><Lock size={12} /> 사장만 수정 가능</span>}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          {REPAIR_CAT_ITEMS.map((cat) => {
+            const key = `${storeIdForRules}::__REPAIR_CAT__::${cat.key}`;
+            const currentRate = ruleMap.get(key)?.amountPerUnit || 0;
+            const inputVal = draftRates[key] ?? String(currentRate);
+            return (
+              <div key={cat.key} className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50/50">
+                <span className="text-sm font-semibold text-gray-700 flex-1">{cat.label}</span>
+                {isOwner ? (
+                  <>
+                    <input
+                      type="number"
+                      min="0"
+                      step="100"
+                      value={inputVal}
+                      onChange={(e) => setDraftRates((prev) => ({ ...prev, [key]: e.target.value }))}
+                      className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right bg-white"
+                      placeholder="0"
+                    />
+                    <span className="text-xs text-gray-400 whitespace-nowrap">원</span>
+                    <button
+                      onClick={() => {
+                        const next = Math.max(0, Number((draftRates[key] ?? String(currentRate)).trim() || '0'));
+                        onUpsertRule({ storeId: storeIdForRules, productName: `__REPAIR_CAT__::${cat.key}`, category: '정비', amountPerUnit: next });
+                        setDraftRates((prev) => ({ ...prev, [key]: String(next) }));
+                      }}
+                      className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex-shrink-0"
+                      title="저장"
+                    >
+                      <Save size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-sm font-bold text-blue-700">{formatCurrency(currentRate)}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-bold text-gray-700">직원별 실적 및 인센티브</h3>
+          <h3 className="text-sm font-bold text-gray-700">직원별 집계 및 인센티브</h3>
           {staffRows.length > 0 && (
-            <p className="text-xs text-gray-400 mt-0.5">수량 옆 괄호는 해당 품목 인센티브 금액입니다.</p>
+            <p className="text-xs text-gray-400 mt-0.5">보고서 기준 집계: 타이어/중고타이어/정비 6개 품목/마진율 + 규칙 수식</p>
           )}
         </div>
 
-        {staffRows.length === 0 ? (
-          <div className="p-10 text-center text-gray-400 text-sm">
-            표시할 실적 데이터가 없습니다.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[600px]">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-3 text-left font-bold text-gray-500 whitespace-nowrap">직원명</th>
-                  {productNames.map((name) => (
-                    <th key={name} className="px-3 py-3 text-right font-bold text-gray-500 whitespace-nowrap text-xs">{name}</th>
-                  ))}
-                  <th className="px-3 py-3 text-right font-bold text-gray-500 whitespace-nowrap text-xs">정비수량</th>
-                  <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-xs">타이어</th>
-                  <th className="px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-xs">마진율</th>
-                  {showComplexBonusColumns && (
-                    <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-xs">복합보너스</th>
-                  )}
-                  <th className="px-4 py-3 text-right font-bold text-gray-700 whitespace-nowrap">인센티브</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {staffRows.map((row, i) => (
-                  <tr key={row.staffName} className={i % 2 === 1 ? 'bg-gray-50/40' : ''}>
-                    <td className="px-4 py-3 font-bold text-gray-800 whitespace-nowrap">{row.staffName}</td>
-                    {row.repairDetails.map((d) => (
-                      <td key={d.productName} className="px-3 py-3 text-right whitespace-nowrap">
-                        {d.qty > 0 ? (
-                          <span className="text-gray-700">
-                            {formatNumber(d.qty)}개
-                            {d.amount > 0 && <span className="text-xs text-emerald-600 ml-1">({formatCurrency(d.amount)})</span>}
-                          </span>
-                        ) : <span className="text-gray-300">-</span>}
-                      </td>
-                    ))}
-                    <td className="px-3 py-3 text-right font-semibold text-blue-700 whitespace-nowrap">{formatNumber(row.totalRepairQty)}개</td>
-                    <td className="px-3 py-3 text-right whitespace-nowrap">
-                      <span className={`font-semibold ${row.tireBonusEarned > 0 ? 'text-violet-700' : 'text-gray-600'}`}>
-                        {formatNumber(row.tireQty)}개{row.tireBonusEarned > 0 && <span className="text-xs ml-1">🎯</span>}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-right whitespace-nowrap">
-                      <span className={`font-semibold ${row.marginBonusEarned > 0 ? 'text-emerald-700' : 'text-gray-600'}`}>
-                        {row.marginRate > 0 ? `${row.marginRate.toFixed(1)}%` : '-'}{row.marginBonusEarned > 0 && <span className="text-xs ml-1">🎯</span>}
-                      </span>
-                    </td>
-                    {showComplexBonusColumns && (
-                      <td className="px-3 py-3 text-right whitespace-nowrap">
-                        {(row.tireBonusEarned + row.marginBonusEarned) > 0
-                          ? <span className="font-semibold text-violet-700">{formatCurrency(row.tireBonusEarned + row.marginBonusEarned)}</span>
-                          : <span className="text-gray-300">-</span>}
-                      </td>
-                    )}
-                    <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(row.totalAmount)}</td>
+          {staffRows.length === 0 ? (
+            <div className="p-10 text-center text-gray-400 text-sm">표시할 실적 데이터가 없습니다.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[1300px]">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-3 text-left font-bold text-gray-500 whitespace-nowrap">직원명</th>
+                    <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-xs">타이어</th>
+                    <th className="px-3 py-3 text-right font-bold text-fuchsia-600 whitespace-nowrap text-xs">중고타이어</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">브레이크패드</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">엔진오일</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">브레이크오일</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">TPMS</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">디스크</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">하체</th>
+                    <th className="px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-xs">마진율</th>
+                    <th className="px-3 py-3 text-right font-bold text-amber-600 whitespace-nowrap text-xs">수식인센티브</th>
+                    {showComplexBonusColumns && <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-xs">복합보너스</th>}
+                    <th className="px-4 py-3 text-right font-bold text-gray-700 whitespace-nowrap">총 인센티브</th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot className="border-t-2 border-gray-200">
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {staffRows.map((row, i) => (
+                    <tr key={row.staffName} className={i % 2 === 1 ? 'bg-gray-50/40' : ''}>
+                      <td className="px-4 py-3 font-bold text-gray-800 whitespace-nowrap">{row.staffName}</td>
+                      <td className="px-3 py-3 text-right text-violet-700 font-semibold whitespace-nowrap">{formatNumber(row.tireQty)}개</td>
+                      <td className="px-3 py-3 text-right text-fuchsia-700 font-semibold whitespace-nowrap">{formatNumber(row.usedTireQty)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_brake_pad)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_engine_oil)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_brake_oil)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_tpms)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_disk)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_suspension)}개</td>
+                      <td className="px-3 py-3 text-right text-gray-600 whitespace-nowrap">{row.marginRate.toFixed(1)}%</td>
+                      <td className="px-3 py-3 text-right text-amber-700 font-semibold whitespace-nowrap">{formatCurrency(row.formulaIncentive)}</td>
+                      {showComplexBonusColumns && <td className="px-3 py-3 text-right text-gray-400 whitespace-nowrap">-</td>}
+                      <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(row.totalAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
                 <tr className="bg-gray-50 font-bold">
                   <td className="px-4 py-3 text-gray-700">합계</td>
-                  {productNames.map((name) => {
-                    const catTotal = staffRows.reduce((s, r) => s + (r.repairDetails.find((d) => d.productName === name)?.qty || 0), 0);
-                    return (
-                      <td key={name} className="px-3 py-3 text-right text-gray-700 whitespace-nowrap">
-                        {catTotal > 0 ? `${formatNumber(catTotal)}개` : '-'}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(totalRepairQty)}개</td>
                   <td className="px-3 py-3 text-right text-violet-700 whitespace-nowrap">{formatNumber(totalTireQty)}개</td>
+                  <td className="px-3 py-3 text-right text-fuchsia-700 whitespace-nowrap">{formatNumber(totalUsedTireQty)}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_brake_pad, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_engine_oil, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_brake_oil, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_tpms, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_disk, 0))}개</td>
+                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(staffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
                   <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">-</td>
+                  <td className="px-3 py-3 text-right text-amber-700 whitespace-nowrap">{formatCurrency(totalFormulaIncentive)}</td>
                   {showComplexBonusColumns && <td className="px-3 py-3 text-right text-gray-400 whitespace-nowrap">-</td>}
                   <td className="px-4 py-3 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(totalIncentive)}</td>
                 </tr>
