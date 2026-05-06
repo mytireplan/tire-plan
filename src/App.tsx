@@ -3363,6 +3363,8 @@ const App: React.FC = () => {
                         return true;
                     })}
                     stores={visibleStores}
+                    sales={visibleSales}
+                    products={visibleProducts}
                     currentUser={effectiveUser}
                     onDeleteReport={handleDeleteDailyReport}
                 />

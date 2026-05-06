@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import type { Store, User, DailyReport, DailyReportItem, DailyReportStaffItem } from '../types';
+import type { Store, User, DailyReport, DailyReportItem, DailyReportStaffItem, Sale, Product } from '../types';
 import { formatCurrency } from '../utils/format';
 import { BookOpen, ChevronDown, ChevronUp, Trash2, Image as ImageIcon, TrendingUp, Users as UsersIcon } from 'lucide-react';
 
@@ -73,6 +73,48 @@ const buildFallbackStaffItems = (report: DailyReport): DailyReportStaffItem[] | 
         cost: item.cost,
         profit: item.profit,
     }));
+};
+
+const buildStaffItemsFromSales = (report: DailyReport, sales: Sale[], products: Product[]): DailyReportStaffItem[] | null => {
+    const productMap = new Map(products.map((p) => [p.id, p]));
+    const rows = new Map<string, DailyReportStaffItem>();
+
+    sales
+        .filter((sale) => !sale.isCanceled && sale.storeId === report.storeId && sale.date.startsWith(report.dateStr))
+        .forEach((sale) => {
+            const staffName = (sale.staffName || '').trim() || '미지정';
+            (sale.items || []).forEach((item) => {
+                const product = productMap.get(item.productId);
+                const category = item.category || product?.category || '기타';
+                const resolvedClass = resolveReportItemClass({ productName: item.productName, category, itemClass: 'labor' });
+                const qty = item.quantity || 0;
+                const revenue = (item.priceAtSale || 0) * qty;
+                const cost = ((item.purchasePrice ?? product?.factoryPrice ?? 0) || 0) * qty;
+                const key = `${staffName}::${item.productName}::${category}`;
+
+                if (rows.has(key)) {
+                    const row = rows.get(key)!;
+                    row.qty += qty;
+                    row.revenue += revenue;
+                    row.cost += cost;
+                    row.profit += (revenue - cost);
+                } else {
+                    rows.set(key, {
+                        staffName,
+                        productName: item.productName,
+                        category,
+                        itemClass: resolvedClass,
+                        qty,
+                        revenue,
+                        cost,
+                        profit: revenue - cost,
+                    });
+                }
+            });
+        });
+
+    if (rows.size === 0) return null;
+    return Array.from(rows.values());
 };
 
 function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -478,11 +520,13 @@ function generateDailyReportImage(report: DailyReport): void {
 interface DailyReportBoardProps {
     reports: DailyReport[];
     stores: Store[];
+    sales: Sale[];
+    products: Product[];
     currentUser: User;
     onDeleteReport: (reportId: string) => void;
 }
 
-const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUser, onDeleteReport }) => {
+const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, products, currentUser, onDeleteReport }) => {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -498,23 +542,31 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
     const sortedReports = useMemo(() =>
         [...reports]
             .map(report => {
+                const staffItemsFromSales = buildStaffItemsFromSales(report, sales, products);
+                const normalizedExistingStaffItems = (report.staffItems || []).map(item => ({
+                    ...item,
+                    itemClass: resolveReportItemClass(item),
+                }));
+                const hasUsableStaffName = normalizedExistingStaffItems.some((item) => {
+                    const n = (item.staffName || '').trim();
+                    return n !== '' && n !== '-' && n !== '미지정';
+                });
                 const fallbackStaffItems = buildFallbackStaffItems(report);
+                const resolvedStaffItems = hasUsableStaffName
+                    ? normalizedExistingStaffItems
+                    : (staffItemsFromSales || fallbackStaffItems || []);
+
                 return {
                     ...report,
                     items: report.items.map(item => ({
                         ...item,
                         itemClass: resolveReportItemClass(item),
                     })),
-                    staffItems: report.staffItems && report.staffItems.length > 0
-                        ? report.staffItems.map(item => ({
-                            ...item,
-                            itemClass: resolveReportItemClass(item),
-                        }))
-                        : (fallbackStaffItems || []),
+                    staffItems: resolvedStaffItems,
                 };
             })
             .sort((a, b) => b.dateStr.localeCompare(a.dateStr)),
-        [reports]);
+        [reports, sales, products]);
 
     return (
         <div className="flex flex-col h-full min-h-0 bg-gray-50">
