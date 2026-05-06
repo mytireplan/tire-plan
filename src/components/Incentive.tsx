@@ -42,6 +42,14 @@ const REPAIR_CAT_ITEMS: Array<{ key: FormulaMetricKey; label: string }> = [
   { key: 'repair_suspension', label: '하체' },
 ];
 
+const TIRE_CATEGORIES = ['타이어', '중고타이어'];
+const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'TPMS'];
+const REPAIR_CLASS_KEYWORDS = [
+  '브레이크패드', '엔진오일', '합성유', '오일교환', '브레이크오일', '브레이크 오일', '브레이크액',
+  'tpms', '디스크', '로터', '하체', '쇼바', '로어암', '활대링크', '부싱',
+  '휠얼라인먼트', '휠얼라인', '얼라인', 'dot3', 'dot4',
+];
+
 const REPAIR_METRIC_DEFS: Array<{ key: FormulaMetricKey; keywords: string[] }> = [
   { key: 'repair_brake_pad', keywords: ['브레이크패드'] },
   { key: 'repair_engine_oil', keywords: ['엔진오일', '합성유', '오일교환'] },
@@ -67,6 +75,17 @@ const createEmptyRepairMetrics = (): Record<FormulaMetricKey, number> => ({
 
 const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
 const normalizeStaffName = (name?: string) => (name || '미지정').trim();
+
+const resolveIncentiveItemClass = (item: { productName: string; category: string; itemClass: 'tire' | 'repair' | 'labor' }) => {
+  const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
+  const haystack = normalizeText(`${item.productName} ${item.category}`);
+
+  if (TIRE_CATEGORIES.includes(normalizedCategory)) return 'tire' as const;
+  if (REPAIR_CATEGORIES.includes(normalizedCategory)) return 'repair' as const;
+  if (REPAIR_CLASS_KEYWORDS.some((kw) => haystack.includes(normalizeText(kw)))) return 'repair' as const;
+
+  return item.itemClass;
+};
 
 const pickRepairMetric = (productName: string, category: string): FormulaMetricKey | null => {
   const haystack = normalizeText(`${productName} ${category}`);
@@ -253,10 +272,11 @@ const Incentive: React.FC<IncentiveProps> = ({
 
       (report.staffItems || []).forEach((si) => {
         const daily = ensureDaily(si.staffName);
+        const resolvedItemClass = resolveIncentiveItemClass(si);
         // 보고서 게시판과 동일하게 itemClass와 무관하게 정비 키워드 매칭
         const mk = pickRepairMetric(si.productName, si.category);
-        if (mk) daily.repairMetrics[mk] += si.qty;
-        if (si.itemClass === 'tire') {
+        if (resolvedItemClass !== 'tire' && mk) daily.repairMetrics[mk] += si.qty;
+        if (resolvedItemClass === 'tire') {
           daily.tireQtyFromItems += si.qty;
           if (isUsedTireItem(si.productName, si.category)) {
             daily.usedTireQty += si.qty;
