@@ -23,6 +23,14 @@ interface DailyCloseProps {
 
 const TIRE_CATEGORIES = ['Ÿ�̾�', '�߰�Ÿ�̾�'];
 const REPAIR_CATEGORIES = ['����'];
+const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
+
+const isOnlineRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
+    const pid = (productId || '').toLowerCase();
+    if (pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline') return true;
+    const haystack = normalizeText(`${productName || ''} ${category || ''}`);
+    return haystack.includes('온라인렌탈') || haystack.includes('onlinerental');
+};
 
 const DailyClose: React.FC<DailyCloseProps> = ({
     sales, stores, products, dailyReports, stockInHistory, currentUser, currentStoreId, onUpdateSale, onSaveReport
@@ -84,9 +92,12 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 cost += (item.purchasePrice || 0) * item.quantity;
                 const product = productMap.get(item.productId);
                 const cls = getItemClass(item.productId, product?.category || '��Ÿ');
-                if (cls === 'tire') tireQty += item.quantity;
-                else if (cls === 'repair') repairQty += item.quantity;
-                else laborQty += item.quantity;
+                const excludedFromCount = isOnlineRentalItem(item.productId, item.productName, item.category || product?.category);
+                if (!excludedFromCount) {
+                    if (cls === 'tire') tireQty += item.quantity;
+                    else if (cls === 'repair') repairQty += item.quantity;
+                    else laborQty += item.quantity;
+                }
             });
         });
         return { dateStr, salesCount: daySales.length, revenue, cost, profit: revenue - cost, tireQty, repairQty, laborQty };
@@ -219,6 +230,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 const product = productMap.get(item.productId);
                 const category = product?.category || '��Ÿ';
                 const itemClass = getItemClass(item.productId, category);
+                const excludedFromCount = isOnlineRentalItem(item.productId, item.productName, item.category || category);
                 const fp = product?.factoryPrice || 0;
                 const cost = getItemEffectiveCost(sale.id, idx, fp, item.purchasePrice || 0);
                 const revenue = item.priceAtSale * item.quantity;
@@ -228,49 +240,51 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 totalCost += itemCostTotal;
                 staffEntry.cost += itemCostTotal;
 
-                if (itemClass === 'tire') { tireQty += item.quantity; staffEntry.tireQty += item.quantity; }
-                else if (itemClass === 'repair') { repairQty += item.quantity; staffEntry.repairQty += item.quantity; }
-                else { laborQty += item.quantity; staffEntry.laborQty += item.quantity; }
+                if (!excludedFromCount) {
+                    if (itemClass === 'tire') { tireQty += item.quantity; staffEntry.tireQty += item.quantity; }
+                    else if (itemClass === 'repair') { repairQty += item.quantity; staffEntry.repairQty += item.quantity; }
+                    else { laborQty += item.quantity; staffEntry.laborQty += item.quantity; }
 
-                // Per-staff per-product breakdown (for incentive calculation)
-                const staffItemKey = `${staffName}::${item.productName}`;
-                if (staffItemMap.has(staffItemKey)) {
-                    const row = staffItemMap.get(staffItemKey)!;
-                    row.qty += item.quantity;
-                    row.revenue += revenue;
-                    row.cost += itemCostTotal;
-                    row.profit += profit;
-                } else {
-                    staffItemMap.set(staffItemKey, {
-                        staffName,
-                        productName: item.productName,
-                        category,
-                        itemClass,
-                        qty: item.quantity,
-                        revenue,
-                        cost: itemCostTotal,
-                        profit,
-                    });
-                }
+                    // Per-staff per-product breakdown (for incentive calculation)
+                    const staffItemKey = `${staffName}::${item.productName}`;
+                    if (staffItemMap.has(staffItemKey)) {
+                        const row = staffItemMap.get(staffItemKey)!;
+                        row.qty += item.quantity;
+                        row.revenue += revenue;
+                        row.cost += itemCostTotal;
+                        row.profit += profit;
+                    } else {
+                        staffItemMap.set(staffItemKey, {
+                            staffName,
+                            productName: item.productName,
+                            category,
+                            itemClass,
+                            qty: item.quantity,
+                            revenue,
+                            cost: itemCostTotal,
+                            profit,
+                        });
+                    }
 
-                const key = item.productId + '-' + (item.specification || '');
-                if (itemMap.has(key)) {
-                    const row = itemMap.get(key)!;
-                    row.qty += item.quantity;
-                    row.revenue += revenue;
-                    row.cost += itemCostTotal;
-                    row.profit += profit;
-                } else {
-                    itemMap.set(key, {
-                        productName: item.productName,
-                        specification: item.specification || '',
-                        category,
-                        itemClass,
-                        qty: item.quantity,
-                        revenue,
-                        cost: itemCostTotal,
-                        profit,
-                    });
+                    const key = item.productId + '-' + (item.specification || '');
+                    if (itemMap.has(key)) {
+                        const row = itemMap.get(key)!;
+                        row.qty += item.quantity;
+                        row.revenue += revenue;
+                        row.cost += itemCostTotal;
+                        row.profit += profit;
+                    } else {
+                        itemMap.set(key, {
+                            productName: item.productName,
+                            specification: item.specification || '',
+                            category,
+                            itemClass,
+                            qty: item.quantity,
+                            revenue,
+                            cost: itemCostTotal,
+                            profit,
+                        });
+                    }
                 }
             });
             staffEntry.profit = staffEntry.revenue - staffEntry.cost;
@@ -313,7 +327,9 @@ const DailyClose: React.FC<DailyCloseProps> = ({
             sale.items.forEach(item => {
                 const product = productMap.get(item.productId);
                 const category = normalizeCategory(product?.category);
-                soldByCategory.set(category, (soldByCategory.get(category) || 0) + item.quantity);
+                if (!isOnlineRentalItem(item.productId, item.productName, item.category || category)) {
+                    soldByCategory.set(category, (soldByCategory.get(category) || 0) + item.quantity);
+                }
             });
         });
         const stockInByCategory = new Map<string, number>();
