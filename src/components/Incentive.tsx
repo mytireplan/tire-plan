@@ -292,6 +292,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         cost: item.cost,
         profit: item.profit,
       })).filter((item) => !isOnlineRentalItem(undefined, item.productName, item.category));
+      })).filter((item) => !isOnlineRentalItem(undefined, item.productName, item.category));
     }
     return [];
   };

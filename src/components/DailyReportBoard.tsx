@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { Store, User, DailyReport, DailyReportItem, DailyReportStaffItem, Sale, Product } from '../types';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, formatToKoreaTime, isoToLocalDate } from '../utils/format';
 import { BookOpen, ChevronDown, ChevronUp, Trash2, Image as ImageIcon, TrendingUp, Users as UsersIcon } from 'lucide-react';
 
 const TIRE_CATEGORIES = ['타이어', '중고타이어'];
@@ -23,6 +23,24 @@ const STAFF_ITEM_METRICS: { key: string; label: string; keywords: string[]; isTi
 ];
 
 const normText = (t?: string) => (t || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
+const isPartCodeName = (productName?: string) => {
+    const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return /^(YEC\d+[A-Z0-9]*|YUMI\d+[A-Z0-9]*|XOIL\d+[A-Z0-9]*)$/.test(normalized);
+};
+
+const getItemBadge = (item: Pick<DailyReportItem, 'productName' | 'category' | 'itemClass'>) => {
+    const resolvedClass = resolveReportItemClass(item);
+    if (isPartCodeName(item.productName) || item.category === '부품') {
+        return { label: '부품', colorHex: '#0369a1', className: 'text-sky-700 bg-sky-50' };
+    }
+    if (resolvedClass === 'tire') {
+        return { label: '타이어', colorHex: '#ea580c', className: 'text-orange-600 bg-orange-50' };
+    }
+    if (resolvedClass === 'repair') {
+        return { label: '정비', colorHex: '#7c3aed', className: 'text-violet-600 bg-violet-50' };
+    }
+    return { label: '공임', colorHex: '#475569', className: 'text-slate-500 bg-slate-50' };
+};
 
 function getStaffItemBreakdown(staffItems: DailyReportStaffItem[], staffName: string): { label: string; qty: number }[] {
     const items = staffItems.filter(si => si.staffName === staffName);
@@ -45,6 +63,9 @@ function getStaffItemBreakdown(staffItems: DailyReportStaffItem[], staffName: st
 const resolveReportItemClass = (item: Pick<DailyReportItem, 'productName' | 'category' | 'itemClass'>): DailyReportItem['itemClass'] => {
     const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
     const haystack = normText(`${item.productName} ${item.category}`);
+
+    // 품번형 부품(YEC/YUMI/X-OIL 계열)은 정비 카운트에서 제외
+    if (isPartCodeName(item.productName)) return 'labor';
 
     if (TIRE_CATEGORIES.includes(normalizedCategory)) return 'tire';
     if (REPAIR_CATEGORIES.includes(normalizedCategory)) return 'repair';
@@ -80,7 +101,7 @@ const buildStaffItemsFromSales = (report: DailyReport, sales: Sale[], products: 
     const rows = new Map<string, DailyReportStaffItem>();
 
     sales
-        .filter((sale) => !sale.isCanceled && sale.storeId === report.storeId && sale.date.startsWith(report.dateStr))
+        .filter((sale) => !sale.isCanceled && sale.storeId === report.storeId && isoToLocalDate(sale.date) === report.dateStr)
         .forEach((sale) => {
             const staffName = (sale.staffName || '').trim() || '미지정';
             (sale.items || []).forEach((item) => {
@@ -245,8 +266,9 @@ function generateDailyReportImage(report: DailyReport): void {
         reportStaffItems.forEach((item, i) => {
             ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f9fafb';
             ctx.fillRect(0, y, W, ROW_H);
-            const bc = item.itemClass === 'tire' ? '#ea580c' : item.itemClass === 'repair' ? '#7c3aed' : '#475569';
-            const bl = item.itemClass === 'tire' ? '타이어' : item.itemClass === 'repair' ? '정비' : '공임';
+            const badge = getItemBadge(item);
+            const bc = badge.colorHex;
+            const bl = badge.label;
             ctx.fillStyle = bc + '20';
             drawRoundRect(ctx, IC[0], y + 12, 46, 20, 10);
             ctx.fill();
@@ -288,8 +310,9 @@ function generateDailyReportImage(report: DailyReport): void {
             ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f9fafb';
             ctx.fillRect(0, y, W, ROW_H);
 
-            const bc = item.itemClass === 'tire' ? '#ea580c' : item.itemClass === 'repair' ? '#7c3aed' : '#475569';
-            const bl = item.itemClass === 'tire' ? '타이어' : item.itemClass === 'repair' ? '정비' : '공임';
+            const badge = getItemBadge(item);
+            const bc = badge.colorHex;
+            const bl = badge.label;
 
             ctx.fillStyle = bc + '20';
             drawRoundRect(ctx, IC[0], y + 12, 46, 20, 10);
@@ -508,7 +531,7 @@ function generateDailyReportImage(report: DailyReport): void {
     ctx.fillStyle = '#94a3b8';
     ctx.fillText('tireplan.kr', PAD, y + 28);
     ctx.textAlign = 'right';
-    ctx.fillText(new Date(report.createdAt).toLocaleString('ko-KR'), W - PAD, y + 28);
+    ctx.fillText(formatToKoreaTime(report.createdAt), W - PAD, y + 28);
     ctx.textAlign = 'left';
 
     const link = document.createElement('a');
@@ -727,12 +750,9 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                         <span className="text-right">수익</span>
                                                     </div>
                                                     {report.staffItems.map((item, i) => {
-                                                        const cc = item.itemClass === 'tire'
-                                                            ? 'text-orange-600 bg-orange-50'
-                                                            : item.itemClass === 'repair'
-                                                                ? 'text-violet-600 bg-violet-50'
-                                                                : 'text-slate-500 bg-slate-50';
-                                                        const cl = item.itemClass === 'tire' ? '타이어' : item.itemClass === 'repair' ? '정비' : '공임';
+                                                        const badge = getItemBadge(item);
+                                                        const cc = badge.className;
+                                                        const cl = badge.label;
                                                         const displayProfit = item.revenue - item.cost;
                                                         return (
                                                             <div key={i} className={`grid grid-cols-[50px_1fr_72px_40px_90px_90px_90px] px-3 py-2.5 text-sm border-t border-gray-50 ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
@@ -763,12 +783,9 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                         <span className="text-right">수익</span>
                                                     </div>
                                                     {report.items.map((item, i) => {
-                                                        const cc = item.itemClass === 'tire'
-                                                            ? 'text-orange-600 bg-orange-50'
-                                                            : item.itemClass === 'repair'
-                                                                ? 'text-violet-600 bg-violet-50'
-                                                                : 'text-slate-500 bg-slate-50';
-                                                        const cl = item.itemClass === 'tire' ? '타이어' : item.itemClass === 'repair' ? '정비' : '공임';
+                                                        const badge = getItemBadge(item);
+                                                        const cc = badge.className;
+                                                        const cl = badge.label;
                                                         const displayProfit = item.revenue - item.cost;
                                                         return (
                                                             <div key={i} className={`grid grid-cols-[50px_1fr_72px_40px_90px_90px_90px] px-3 py-2.5 text-sm border-t border-gray-50 ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
@@ -921,7 +938,7 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                     )}
 
                                     <div className="text-xs text-gray-400 text-right">
-                                        {report.storeName} · {new Date(report.createdAt).toLocaleString('ko-KR')}
+                                        {report.storeName} · {formatToKoreaTime(report.createdAt)}
                                     </div>
                                 </div>
                             )}

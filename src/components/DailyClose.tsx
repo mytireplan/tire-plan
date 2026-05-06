@@ -64,7 +64,6 @@ const DailyClose: React.FC<DailyCloseProps> = ({
     const filteredSales = useMemo(() => {
         return sales.filter(s => {
             if (s.isCanceled) return false;
-            // 날짜 비교를 isoToLocalDate로 통일
             return isoToLocalDate(s.date).startsWith(selectedMonth) &&
                 (selectedStoreFilter === 'ALL' || s.storeId === selectedStoreFilter);
         });
@@ -517,7 +516,12 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                     {daySales.map(sale => {
                                         const isSaleExpanded = expandedSaleId === sale.id;
                                         const isSaved = savedSaleIds.has(sale.id);
-                                        const saleTime = new Date(sale.date).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                                        const saleTime = new Intl.DateTimeFormat('ko-KR', {
+                                            timeZone: 'Asia/Seoul',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                            hour12: false,
+                                        }).format(new Date(sale.date));
 
                                         const saleCost = sale.items.reduce((sum, item, idx) => {
                                             const product = productMap.get(item.productId);

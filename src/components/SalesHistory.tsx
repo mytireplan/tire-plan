@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff, DailyReport, DailyReportExpenseEntry, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStaffItem, DailyReportStockInEntry, ExpenseRecord } from '../types';
 import { PaymentMethod } from '../types';
 import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar, Zap, ClipboardCheck, CheckCircle, Upload } from 'lucide-react';
-import { formatCurrency, formatNumber, isDateInRange, formatToKoreaTime } from '../utils/format';
+import { formatCurrency, formatNumber, isDateInRange, formatToKoreaTime, isoToLocalDate, dateToLocalDateString, getKoreaDateString, getKoreaMidnightUTC, getKoreaEndOfDayUTC, koreaDateTimeToISO } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface SalesHistoryProps {
@@ -44,6 +44,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   const [searchTerm, setSearchTerm] = useState(''); // Vehicle or Phone
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
+    const formatSaleTime = (iso: string) => new Intl.DateTimeFormat('ko-KR', {
+            timeZone: 'Asia/Seoul',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+    }).format(new Date(iso));
+
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -53,12 +60,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
     const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
     const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
       const toLocalInputValue = (date: Date) => {
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          const hours = String(date.getHours()).padStart(2, '0');
-          const minutes = String(date.getMinutes()).padStart(2, '0');
-          return `${year}-${month}-${day}T${hours}:${minutes}`;
+          // Always use Asia/Seoul timezone for both date AND time
+          const koreaDateStr = getKoreaDateString(date);
+          
+          // Get Korea time as well
+          const formatter = new Intl.DateTimeFormat('en-US', {
+              timeZone: 'Asia/Seoul',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false
+          });
+          
+          const timeStr = formatter.format(date);
+          const [hour, minute] = timeStr.split(':');
+          
+          return `${koreaDateStr}T${hour}:${minute}`;
       };
 
       const [quickAddForm, setQuickAddForm] = useState<{
@@ -142,7 +158,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       const m = String(currentDate.getMonth() + 1).padStart(2, '0');
       const d = String(currentDate.getDate()).padStart(2, '0');
       const dateStr = `${y}-${m}-${d}`;
-      const daySales = filteredSales.filter(s => !s.isCanceled && s.date.startsWith(dateStr));
+    const daySales = filteredSales.filter(s => !s.isCanceled && isoToLocalDate(s.date) === dateStr);
       // Pre-fill edits
       const initialEdits: Record<string, Record<number, CloseItemEdit>> = {};
       daySales.forEach(sale => {
@@ -263,14 +279,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   useEffect(() => {
       if (!shifts || !staffList) return;
       
-      const selectedDate = quickAddForm.datetime ? new Date(quickAddForm.datetime).toISOString().split('T')[0] : null;
+    const selectedDate = quickAddForm.datetime ? quickAddForm.datetime.slice(0, 10) : null;
       const selectedStoreId = quickAddForm.storeId;
       
       if (!selectedDate || !selectedStoreId) return;
       
       const matchingShifts = shifts.filter(shift => {
           if (!shift.start) return false;
-          const shiftDate = shift.start.split('T')[0];
+          const shiftDate = isoToLocalDate(shift.start);
           return shiftDate === selectedDate && shift.storeId === selectedStoreId;
       });
       
@@ -303,26 +319,35 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   };
 
   const getDateRange = () => {
-      const start = new Date(currentDate);
-      const end = new Date(currentDate);
-
+      const koreaDateStr = getKoreaDateString(currentDate);
+      const [year, month, day] = koreaDateStr.split('-').map(Number);
+      
       if (viewMode === 'daily') {
-          start.setHours(0,0,0,0);
-          end.setHours(23,59,59,999);
+          // Asia/Seoul 기준 이 날짜의 00:00 ~ 23:59:59
+          const start = getKoreaMidnightUTC(new Date(year, month - 1, day));
+          const end = getKoreaEndOfDayUTC(new Date(year, month - 1, day));
+          return { start, end };
       } else if (viewMode === 'weekly') {
-          const day = start.getDay();
-          start.setDate(start.getDate() - day);
-          start.setHours(0,0,0,0);
-          end.setDate(start.getDate() + 6);
-          end.setHours(23,59,59,999);
-      } else {
-          start.setDate(1);
-          start.setHours(0,0,0,0);
-          end.setMonth(end.getMonth() + 1);
-          end.setDate(0);
-          end.setHours(23,59,59,999);
+          // Sunday 기준 이번 주의 시작(일요일)과 끝(토요일)
+          const first = new Date(year, month - 1, day);
+          const dayOfWeek = first.getDay();
+          const sundayDate = new Date(first);
+          sundayDate.setDate(first.getDate() - dayOfWeek);
+          
+          const sundayKoreaStr = getKoreaDateString(sundayDate);
+          const [sy, sm, sd] = sundayKoreaStr.split('-').map(Number);
+          
+          const start = getKoreaMidnightUTC(new Date(sy, sm - 1, sd));
+          const saturdayDate = new Date(sy, sm - 1, sd + 6);
+          const end = getKoreaEndOfDayUTC(saturdayDate);
+          return { start, end };
+      } else { // monthly
+          // Asia/Seoul 기준 이 달의 1일 00:00 ~ 마지막 날 23:59:59
+          const start = getKoreaMidnightUTC(new Date(year, month - 1, 1));
+          const lastDayOfMonth = new Date(year, month, 0).getDate();
+          const end = getKoreaEndOfDayUTC(new Date(year, month - 1, lastDayOfMonth));
+          return { start, end };
       }
-      return { start, end };
   };
 
   const { start: filterStart, end: filterEnd } = getDateRange();
@@ -678,7 +703,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       
       const record: StockInRecord = {
           id: `IN-${Date.now()}`,
-          date: new Date().toISOString().split('T')[0],
+          date: dateToLocalDateString(new Date()),
           storeId: selectedSale ? selectedSale.storeId : (swapTarget?.isQuickAddCart ? quickAddForm.storeId : currentStoreId),
           productId: undefined,
           supplier: stockInForm.supplier || '자체입고',
@@ -1245,13 +1270,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   const availableStaffForQuickAdd = useMemo(() => {
       if (!quickAddForm.datetime || !quickAddForm.storeId || !shifts || !staffList) return [];
       
-      const selectedDate = new Date(quickAddForm.datetime).toISOString().split('T')[0];
+    const selectedDate = quickAddForm.datetime.slice(0, 10);
       const selectedStoreId = quickAddForm.storeId;
       
       // Find shifts for the selected date and store
       const matchingShifts = shifts.filter(shift => {
           if (!shift.start) return false;
-          const shiftDate = shift.start.split('T')[0];
+          const shiftDate = isoToLocalDate(shift.start);
           return shiftDate === selectedDate && shift.storeId === selectedStoreId;
       });
       
@@ -1279,29 +1304,25 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       // Calculate total amount from items
       const totalAmount = quickAddForm.items.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
 
-      // ✅ FIX: Parse datetime correctly - Create local date and convert to ISO
+      // ✅ FIX: Parse datetime correctly - Both date and time are now Asia/Seoul based
       let isoString: string;
       if (quickAddForm.datetime) {
-          // quickAddForm.datetime format: "2026-02-01T22:00" (local time in browser)
+          // quickAddForm.datetime format: "2026-05-18T22:00" (both date and time in Asia/Seoul)
           const [datePart, timePart] = quickAddForm.datetime.split('T');
-          const [year, month, day] = datePart.split('-');
-          const [hour, minute] = timePart.split(':');
-          
-          // Create Date object in local timezone
-          const localDate = new Date(
-              parseInt(year),
-              parseInt(month) - 1,
-              parseInt(day),
-              parseInt(hour),
-              parseInt(minute),
-              0
-          );
-          
-          // toISOString() automatically converts to UTC
-          // For KST (UTC+9): 2026-02-01 22:00 KST → 2026-02-01 13:00 UTC (correct)
-          isoString = localDate.toISOString();
+          isoString = koreaDateTimeToISO(datePart, timePart);
       } else {
-          isoString = new Date().toISOString();
+          // Use current time in Asia/Seoul
+          const now = new Date();
+          const koreaDateStr = getKoreaDateString(now);
+          const formatter = new Intl.DateTimeFormat('en-US', {
+              timeZone: 'Asia/Seoul',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false
+          });
+          const timeStr = formatter.format(now);
+          const [hour, minute] = timeStr.split(':');
+          isoString = koreaDateTimeToISO(koreaDateStr, `${hour}:${minute}`);
       }
       
       const customer = (quickAddForm.customerName || quickAddForm.customerPhone) ? {
@@ -1496,7 +1517,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                             {salesWithMetrics.map((sale) => {
                                 const displayItem = getPrimaryItem(sale);
                                 // Extract time from ISO string (YYYY-MM-DDTHH:mm:ss.SSSZ)
-                                const timeFromISO = sale.date ? sale.date.split('T')[1]?.substring(0, 5) : '--:--';
+                                const timeFromISO = sale.date ? formatSaleTime(sale.date) : '--:--';
                                 const paymentIcon = getPaymentIcon(sale.paymentMethod);
 
                                 return (
@@ -1581,7 +1602,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                     salesWithMetrics.map((sale) => {
                                         const displayItem = getPrimaryItem(sale);
                                         // Extract time from ISO string (YYYY-MM-DDTHH:mm:ss.SSSZ)
-                                        const timeFromISO = sale.date ? sale.date.split('T')[1]?.substring(0, 5) : '--:--';
+                                        const timeFromISO = sale.date ? formatSaleTime(sale.date) : '--:--';
                                         return (
                                         <tr key={sale.id} className={`hover:bg-blue-50 transition-colors ${sale.isCanceled ? 'bg-gray-50' : ''}`}>
                                             <td className="px-4 py-3 text-center text-gray-500 font-medium whitespace-nowrap text-xs truncate">
@@ -2994,7 +3015,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
           const m = String(currentDate.getMonth() + 1).padStart(2, '0');
           const d = String(currentDate.getDate()).padStart(2, '0');
           const dateStr = `${y}-${m}-${d}`;
-          const daySales = filteredSales.filter(s => !s.isCanceled && s.date.startsWith(dateStr))
+          const daySales = filteredSales.filter(s => !s.isCanceled && isoToLocalDate(s.date) === dateStr)
               .sort((a, b) => a.date.localeCompare(b.date));
           const reportStoreId = (currentStoreId && currentStoreId !== 'ALL')
               ? currentStoreId
@@ -3191,7 +3212,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                               </div>
                           ) : daySales.map(sale => {
                               const isSaved = closeSavedIds.has(sale.id);
-                              const saleTime = new Date(sale.date).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                              const saleTime = new Intl.DateTimeFormat('ko-KR', {
+                                  timeZone: 'Asia/Seoul',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: false,
+                              }).format(new Date(sale.date));
                               const saleCost = sale.items.reduce((sum, item, idx) => {
                                   const product = products.find(p => p.id === item.productId);
                                   return sum + getCloseCost(sale.id, idx, product?.factoryPrice || 0, item.purchasePrice || 0) * item.quantity;
@@ -3534,6 +3560,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                         '에어크리너': ['에어크리너']
                                       };
                                       const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
+                                      const isPartCodeName = (productName?: string) => {
+                                          const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                                          return /^(YEC\d+[A-Z0-9]*|YUMI\d+[A-Z0-9]*|XOIL\d+[A-Z0-9]*)$/.test(normalized);
+                                      };
                                       const isOnlineRental = (pid?: string, productName?: string, category?: string) => {
                                           const p = (pid || '').toLowerCase();
                                           if (p === 'rental-online' || p === 'rental_online' || p === 'rentalonline') return true;
@@ -3542,6 +3572,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                       };
                                       const getClass = (pid: string, productName: string, cat: string) => {
                                           if (pid === '99999' || pid?.startsWith('RENTAL-')) return 'labor' as const;
+                                          // 품번형 부품은 정비 카운트에서 제외한다.
+                                          if (isPartCodeName(productName)) return 'labor' as const;
                                           const haystack = normalizeText(`${productName} ${cat}`);
                                           if (TIRE_CATS_KEYWORDS.some(kw => haystack.includes(normalizeText(kw)))) return 'tire' as const;
                                           for (const [, keywords] of Object.entries(REPAIR_KEYWORDS)) {
@@ -3563,7 +3595,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                           se.revenue += sale.totalAmount;
                                           sale.items.forEach((item, idx) => {
                                               const product = products.find(p => p.id === item.productId);
-                                              const cat = product?.category || '기타';
+                                              const cat = isPartCodeName(item.productName) ? '부품' : (product?.category || '기타');
                                               const ic = getClass(item.productId, item.productName || '', cat);
                                               const excludedFromCount = isOnlineRental(item.productId, item.productName, item.category || cat);
                                               const fp = product?.factoryPrice || 0;
