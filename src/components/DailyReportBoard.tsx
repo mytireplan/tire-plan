@@ -199,7 +199,7 @@ function generateDailyReportImage(report: DailyReport): void {
             ctx.fillText(nm, IC[1], y + 27);
             sf(11);
             ctx.fillStyle = '#2563eb';
-            ctx.fillText(item.staffName, IC[2], y + 27);
+            ctx.fillText(item.staffName || '미지정', IC[2], y + 27);
             sf(12);
             ctx.fillStyle = '#374151';
             ctx.fillText(item.qty + '개', IC[3], y + 27);
@@ -217,8 +217,8 @@ function generateDailyReportImage(report: DailyReport): void {
             y += ROW_H;
         });
     } else {
-        const IC = [PAD + 6, PAD + 62, PAD + 282, PAD + 340, PAD + 470, PAD + 600];
-        ['구분', '상품명', '수량', '판매액', '원가', '수익'].forEach((h, i) => ctx.fillText(h, IC[i], y + 19));
+        const IC = [PAD + 6, PAD + 62, PAD + 228, PAD + 342, PAD + 392, PAD + 522, PAD + 650];
+        ['구분', '상품명', '담당직원', '수량', '판매액', '원가', '수익'].forEach((h, i) => ctx.fillText(h, IC[i], y + 19));
         y += COL_H;
         normalizedItems.forEach((item, i) => {
             ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f9fafb';
@@ -244,13 +244,18 @@ function generateDailyReportImage(report: DailyReport): void {
             if (nm !== item.productName + (item.specification ? ' ' + item.specification : '')) nm += '…';
             ctx.fillText(nm, IC[1], y + 27);
 
+            sf(11);
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('-', IC[2], y + 27);
+
+            sf(12);
             ctx.fillStyle = '#374151';
-            ctx.fillText(item.qty + '개', IC[2], y + 27);
-            ctx.fillText(won(item.revenue), IC[3], y + 27);
-            ctx.fillText(item.cost > 0 ? won(item.cost) : '-', IC[4], y + 27);
+            ctx.fillText(item.qty + '개', IC[3], y + 27);
+            ctx.fillText(won(item.revenue), IC[4], y + 27);
+            ctx.fillText(item.cost > 0 ? won(item.cost) : '-', IC[5], y + 27);
             ctx.fillStyle = item.profit >= 0 ? '#059669' : '#dc2626';
             sf(12, true);
-            ctx.fillText(item.cost > 0 ? won(item.profit) : '-', IC[5], y + 27);
+            ctx.fillText(item.cost > 0 ? won(item.profit) : '-', IC[6], y + 27);
 
             ctx.strokeStyle = '#e5e7eb';
             ctx.lineWidth = 0.5;
@@ -653,7 +658,7 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
                                                                 <div className="min-w-0">
                                                                     <div className="font-medium text-gray-800 truncate">{item.productName}</div>
                                                                 </div>
-                                                                <span className="text-xs text-blue-600 self-center font-medium truncate">{item.staffName}</span>
+                                                                <span className="text-xs text-blue-600 self-center font-medium truncate">{item.staffName || '미지정'}</span>
                                                                 <span className="text-right text-gray-500 self-center">{item.qty}</span>
                                                                 <span className="text-right text-gray-700 self-center">{formatCurrency(item.revenue)}</span>
                                                                 <span className="text-right text-gray-600 self-center">{item.cost > 0 ? formatCurrency(item.cost) : '-'}</span>
@@ -666,9 +671,10 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
                                                 </>
                                             ) : (
                                                 <>
-                                                    <div className="grid grid-cols-[50px_1fr_40px_90px_90px_90px] bg-gray-50 text-[11px] text-gray-500 font-medium px-3 py-2">
+                                                    <div className="grid grid-cols-[50px_1fr_72px_40px_90px_90px_90px] bg-gray-50 text-[11px] text-gray-500 font-medium px-3 py-2">
                                                         <span>구분</span>
                                                         <span>상품명</span>
+                                                        <span>담당직원</span>
                                                         <span className="text-right">수량</span>
                                                         <span className="text-right">판매</span>
                                                         <span className="text-right">원가</span>
@@ -682,12 +688,13 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
                                                                 : 'text-slate-500 bg-slate-50';
                                                         const cl = item.itemClass === 'tire' ? '타이어' : item.itemClass === 'repair' ? '정비' : '공임';
                                                         return (
-                                                            <div key={i} className={`grid grid-cols-[50px_1fr_40px_90px_90px_90px] px-3 py-2.5 text-sm border-t border-gray-50 ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+                                                            <div key={i} className={`grid grid-cols-[50px_1fr_72px_40px_90px_90px_90px] px-3 py-2.5 text-sm border-t border-gray-50 ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
                                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full self-center text-center ${cc}`}>{cl}</span>
                                                                 <div>
                                                                     <div className="font-medium text-gray-800 truncate">{item.productName}</div>
                                                                     {item.specification && <div className="text-xs text-blue-500">{item.specification}</div>}
                                                                 </div>
+                                                                <span className="text-xs text-slate-400 self-center font-medium">-</span>
                                                                 <span className="text-right text-gray-500 self-center">{item.qty}</span>
                                                                 <span className="text-right text-gray-700 self-center">{formatCurrency(item.revenue)}</span>
                                                                 <span className="text-right text-gray-600 self-center">{item.cost > 0 ? formatCurrency(item.cost) : '-'}</span>
