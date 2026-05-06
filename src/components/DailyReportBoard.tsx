@@ -5,6 +5,11 @@ import { BookOpen, ChevronDown, ChevronUp, Trash2, Image as ImageIcon, TrendingU
 
 const TIRE_CATEGORIES = ['타이어', '중고타이어'];
 const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'TPMS'];
+const REPAIR_KEYWORDS = [
+    '브레이크패드', '엔진오일', '합성유', '오일교환', '브레이크오일', '브레이크 오일', '브레이크액',
+    'tpms', '디스크', '로터', '하체', '쇼바', '로어암', '활대링크', '부싱',
+    '휠얼라인먼트', '휠얼라인', '얼라인', 'dot3', 'dot4',
+];
 
 const STAFF_ITEM_METRICS: { key: string; label: string; keywords: string[]; isTire?: boolean; isUsedTire?: boolean }[] = [
     { key: 'tire', label: '타이어', keywords: [], isTire: true },
@@ -37,10 +42,14 @@ function getStaffItemBreakdown(staffItems: DailyReportStaffItem[], staffName: st
     }).filter(r => r.qty > 0);
 }
 
-const resolveReportItemClass = (item: DailyReportItem): DailyReportItem['itemClass'] => {
+const resolveReportItemClass = (item: Pick<DailyReportItem, 'productName' | 'category' | 'itemClass'>): DailyReportItem['itemClass'] => {
     const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
+    const haystack = normText(`${item.productName} ${item.category}`);
+
     if (TIRE_CATEGORIES.includes(normalizedCategory)) return 'tire';
     if (REPAIR_CATEGORIES.includes(normalizedCategory)) return 'repair';
+    if (REPAIR_KEYWORDS.some(kw => haystack.includes(normText(kw)))) return 'repair';
+
     return item.itemClass;
 };
 
@@ -67,7 +76,9 @@ function generateDailyReportImage(report: DailyReport): void {
     const HEADER_H = 80, KPI_H = 90, SEC_H = 36, COL_H = 28;
     const ROW_H = 46, STAFF_ROW_H = 44, FOOTER_H = 44, GAP = 16;
     const normalizedItems = report.items.map(item => ({ ...item, itemClass: resolveReportItemClass(item) }));
-    const reportStaffItems = report.staffItems && report.staffItems.length > 0 ? report.staffItems : null;
+    const reportStaffItems = report.staffItems && report.staffItems.length > 0
+        ? report.staffItems.map(item => ({ ...item, itemClass: resolveReportItemClass(item) }))
+        : null;
     const itemRowCount = reportStaffItems ? reportStaffItems.length : normalizedItems.length;
     const inventoryFlowCount = report.inventoryFlowEntries?.length || 0;
     const stockInCount = report.stockInRecords?.length || 0;
@@ -462,6 +473,10 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
             .map(report => ({
                 ...report,
                 items: report.items.map(item => ({
+                    ...item,
+                    itemClass: resolveReportItemClass(item),
+                })),
+                staffItems: (report.staffItems || []).map(item => ({
                     ...item,
                     itemClass: resolveReportItemClass(item),
                 })),
