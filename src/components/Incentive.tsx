@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import type { DailyReport, IncentiveRule, Staff, User } from '../types';
+import type { DailyReport, DailyReportStaffItem, IncentiveRule, Product, Sale, Staff, User } from '../types';
 import { formatCurrency, formatNumber } from '../utils/format';
 import { Save, Lock } from 'lucide-react';
 
 interface IncentiveProps {
   dailyReports: DailyReport[];
+  sales: Sale[];
+  products: Product[];
   incentiveRules: IncentiveRule[];
   staffList: Staff[];
   currentStoreId: string;
@@ -127,8 +129,51 @@ const buildScopedRuleKey = (storeId: string, ruleKey: string, staffName?: string
   return `${storeId}::${staffName || '__COMMON__'}::${ruleKey}`;
 };
 
+const buildStaffItemsFromSales = (report: DailyReport, sales: Sale[], products: Product[]): DailyReportStaffItem[] => {
+  const productMap = new Map(products.map((p) => [p.id, p]));
+  const rows = new Map<string, DailyReportStaffItem>();
+
+  sales
+    .filter((sale) => !sale.isCanceled && sale.storeId === report.storeId && sale.date.startsWith(report.dateStr))
+    .forEach((sale) => {
+      const staffName = normalizeStaffName(sale.staffName);
+      (sale.items || []).forEach((item) => {
+        const product = productMap.get(item.productId);
+        const category = item.category || product?.category || '기타';
+        const itemClass = resolveIncentiveItemClass({ productName: item.productName, category, itemClass: 'labor' });
+        const qty = item.quantity || 0;
+        const revenue = (item.priceAtSale || 0) * qty;
+        const cost = ((item.purchasePrice ?? product?.factoryPrice ?? 0) || 0) * qty;
+        const key = `${staffName}::${item.productName}::${category}`;
+
+        if (rows.has(key)) {
+          const row = rows.get(key)!;
+          row.qty += qty;
+          row.revenue += revenue;
+          row.cost += cost;
+          row.profit += (revenue - cost);
+        } else {
+          rows.set(key, {
+            staffName,
+            productName: item.productName,
+            category,
+            itemClass,
+            qty,
+            revenue,
+            cost,
+            profit: revenue - cost,
+          });
+        }
+      });
+    });
+
+  return Array.from(rows.values());
+};
+
 const Incentive: React.FC<IncentiveProps> = ({
   dailyReports,
+  sales,
+  products,
   incentiveRules,
   staffList,
   currentStoreId,
@@ -215,6 +260,33 @@ const Incentive: React.FC<IncentiveProps> = ({
       || 0;
   };
 
+  const getReportStaffItems = (report: DailyReport): DailyReportStaffItem[] => {
+    const normalizedExisting = (report.staffItems || [])
+      .map((item) => ({ ...item, staffName: normalizeStaffName(item.staffName) }))
+      .filter((item) => item.staffName !== '' && item.staffName !== '-');
+    if (normalizedExisting.length > 0) return normalizedExisting;
+
+    const rebuilt = buildStaffItemsFromSales(report, sales, products);
+    if (rebuilt.length > 0) return rebuilt;
+
+    // 최후 fallback: 단일 직원 보고서면 items를 해당 직원으로 귀속
+    const uniqueStaff = Array.from(new Set((report.staffStats || []).map((s) => normalizeStaffName(s.staffName)).filter(Boolean)));
+    if (uniqueStaff.length === 1) {
+      const onlyStaff = uniqueStaff[0];
+      return (report.items || []).map((item) => ({
+        staffName: onlyStaff,
+        productName: item.productName,
+        category: item.category,
+        itemClass: item.itemClass,
+        qty: item.qty,
+        revenue: item.revenue,
+        cost: item.cost,
+        profit: item.profit,
+      }));
+    }
+    return [];
+  };
+
   const staffRows = useMemo(() => {
     type DailyStaffMetric = {
       storeId: string;
@@ -270,7 +342,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         daily.profit += ss.profit || 0;
       });
 
-      (report.staffItems || []).forEach((si) => {
+      getReportStaffItems(report).forEach((si) => {
         const daily = ensureDaily(si.staffName);
         const resolvedItemClass = resolveIncentiveItemClass(si);
         // 보고서 게시판과 동일하게 itemClass와 무관하게 정비 키워드 매칭
@@ -369,7 +441,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         totalAmount,
       };
     }).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [monthReports, ruleMap, incentiveRules, managerKeySet]);
+  }, [monthReports, ruleMap, incentiveRules, managerKeySet, sales, products]);
 
   const visibleStaffRows = useMemo(() => {
     if (managerStaffName) {
@@ -386,7 +458,7 @@ const Incentive: React.FC<IncentiveProps> = ({
   const totalIncentive = visibleStaffRows.reduce((s, r) => s + r.totalAmount, 0);
 
   const noReports = monthReports.length === 0;
-  const hasStaffItems = monthReports.some((r) => r.staffItems && r.staffItems.length > 0);
+  const hasStaffItems = monthReports.some((r) => getReportStaffItems(r).length > 0);
 
   const tireBonusThresholdDisplay = tireBonusDraft.threshold !== '' ? tireBonusDraft.threshold : String(tireRule?.tireThreshold ?? '');
   const tireBonusAmountDisplay = tireBonusDraft.bonus !== '' ? tireBonusDraft.bonus : String(tireRule?.bonusAmount ?? '');

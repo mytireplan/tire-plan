@@ -3329,6 +3329,8 @@ const App: React.FC = () => {
             {activeTab === 'incentive' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN' || managerSession) && (
                 <Incentive
                     dailyReports={dailyReports}
+                    sales={visibleSales}
+                    products={visibleProducts}
                     incentiveRules={incentiveRules}
                     staffList={visibleStaff}
                     currentStoreId={currentStoreId}
