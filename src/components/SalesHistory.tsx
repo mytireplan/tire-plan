@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff, DailyReport, DailyReportExpenseEntry, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStockInEntry, ExpenseRecord } from '../types';
+import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff, DailyReport, DailyReportExpenseEntry, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStaffItem, DailyReportStockInEntry, ExpenseRecord } from '../types';
 import { PaymentMethod } from '../types';
 import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar, Zap, ClipboardCheck, CheckCircle, Upload } from 'lucide-react';
 import { formatCurrency, formatNumber, isDateInRange, formatToKoreaTime } from '../utils/format';
@@ -392,6 +392,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
 
   const isTireItem = (item: SalesItem | null | undefined) => {
     if (!item) return false;
+        const pid = (item.productId || '').toLowerCase();
+        const name = ((item.productName || '') + ' ' + (item.category || '')).toLowerCase().replace(/\s+/g, '');
+        const isOnlineRental = pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline' || name.includes('온라인렌탈') || name.includes('onlinerental');
+        if (isOnlineRental) return false;
     const product = products.find(p => p.id === item.productId);
         const productCategory = normalizeCategory(product?.category);
         const itemCategory = normalizeCategory(item.category);
@@ -410,13 +414,18 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
     const hasTireSpecText = (text: string) => /\d{3}\s*[\/-]?\s*\d{2}\s*[A-Z]?\s*R?\s*\d{2}/i.test(text);
 
     const getTireQuantityForSale = (sale: Sale) => {
-        const tireItems = (sale.items || []).filter(item => isTireItem(item));
+          const tireItems = (sale.items || []).filter(item => isTireItem(item));
         const qtySum = tireItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
         if (qtySum > 0) return qtySum;
         if (tireItems.length > 0) return tireItems.length;
 
         // Legacy safety: if category mapping failed but spec text clearly indicates tire, still count it.
         const fallbackItems = (sale.items || []).filter(item => {
+            const pid = (item.productId || '').toLowerCase();
+            const normalized = `${item?.productName || ''} ${item?.category || ''}`.toLowerCase().replace(/\s+/g, '');
+            if (pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline' || normalized.includes('온라인렌탈') || normalized.includes('onlinerental')) {
+                return false;
+            }
             const specText = `${item?.specification || ''} ${item?.productName || ''}`;
             return hasTireSpecText(specText) && !isRepairLikeItem(item, item?.category);
         });
@@ -2314,6 +2323,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                                           title={isTireItem(item) ? "클릭하여 수정" : ""}
                                                        >
                                                            {(() => {
+                                                               const pid = (item?.productId || '').toLowerCase();
+                                                               const normalized = `${item?.productName || ''} ${item?.category || ''}`.toLowerCase().replace(/\s+/g, '');
+                                                               if (pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline' || normalized.includes('온라인렌탈') || normalized.includes('onlinerental')) {
+                                                                   return '-';
+                                                               }
                                                                if (isTireItem(item)) return item.quantity;
                                                                const text = `${item?.specification || ''} ${item?.productName || ''}`;
                                                                return hasTireSpecText(text) ? (item.quantity || 1) : '-';
@@ -3495,16 +3509,36 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                   const buildCloseReport = (): DailyReport => {
                                       const storeId = reportStoreId;
                                       const store = stores.find(s => s.id === storeId);
-                                      const TIRE_CATS = ['타이어', '중고타이어'];
-                                      const REPAIR_CATS = ['브레이크패드', '오일필터', '엔진오일', '에어크리너'];
-                                      const getClass = (pid: string, cat: string) => {
+                                      const TIRE_CATS_KEYWORDS = ['타이어', '중고', 'used', 'tire'];
+                                      const REPAIR_KEYWORDS: Record<string, string[]> = {
+                                        '브레이크패드': ['브레이크패드'],
+                                        '엔진오일': ['엔진오일', '합성유', '오일교환'],
+                                        '브레이크오일': ['브레이크오일'],
+                                        'TPMS': ['tpms'],
+                                        '디스크': ['디스크', '로터'],
+                                        '하체': ['하체', '쇼바', '로어암', '활대링크', '부싱'],
+                                        '오일필터': ['오일필터'],
+                                        '에어크리너': ['에어크리너']
+                                      };
+                                      const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
+                                      const isOnlineRental = (pid?: string, productName?: string, category?: string) => {
+                                          const p = (pid || '').toLowerCase();
+                                          if (p === 'rental-online' || p === 'rental_online' || p === 'rentalonline') return true;
+                                          const haystack = normalizeText(`${productName || ''} ${category || ''}`);
+                                          return haystack.includes('온라인렌탈') || haystack.includes('onlinerental');
+                                      };
+                                      const getClass = (pid: string, productName: string, cat: string) => {
                                           if (pid === '99999' || pid?.startsWith('RENTAL-')) return 'labor' as const;
-                                          if (TIRE_CATS.includes(cat)) return 'tire' as const;
-                                          if (REPAIR_CATS.includes(cat)) return 'repair' as const;
+                                          const haystack = normalizeText(`${productName} ${cat}`);
+                                          if (TIRE_CATS_KEYWORDS.some(kw => haystack.includes(normalizeText(kw)))) return 'tire' as const;
+                                          for (const [, keywords] of Object.entries(REPAIR_KEYWORDS)) {
+                                            if (keywords.some(kw => haystack.includes(normalizeText(kw)))) return 'repair' as const;
+                                          }
                                           return 'labor' as const;
                                       };
                                       const itemMap = new Map<string, DailyReportItem>();
                                       const staffMap = new Map<string, DailyReportStaff>();
+                                      const staffItemMap = new Map<string, DailyReportStaffItem>();
                                       let totalRevenue = 0, totalCost = 0;
                                       let tireQty = 0, repairQty = 0, laborQty = 0;
                                       daySales.forEach(sale => {
@@ -3517,7 +3551,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                           sale.items.forEach((item, idx) => {
                                               const product = products.find(p => p.id === item.productId);
                                               const cat = product?.category || '기타';
-                                              const ic = getClass(item.productId, cat);
+                                              const ic = getClass(item.productId, item.productName || '', cat);
+                                              const excludedFromCount = isOnlineRental(item.productId, item.productName, item.category || cat);
                                               const fp = product?.factoryPrice || 0;
                                               const cost = getCloseCost(sale.id, idx, fp, item.purchasePrice || 0);
                                               const rev = item.priceAtSale * item.quantity;
@@ -3525,15 +3560,37 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                               const pf = rev - ct;
                                               totalCost += ct;
                                               se.cost += ct;
-                                              if (ic === 'tire') { tireQty += item.quantity; se.tireQty += item.quantity; }
-                                              else if (ic === 'repair') { repairQty += item.quantity; se.repairQty += item.quantity; }
-                                              else { laborQty += item.quantity; se.laborQty += item.quantity; }
-                                              const key = item.productId + '-' + (item.specification || '');
-                                              if (itemMap.has(key)) {
-                                                  const r = itemMap.get(key)!;
-                                                  r.qty += item.quantity; r.revenue += rev; r.cost += ct; r.profit += pf;
-                                              } else {
-                                                  itemMap.set(key, { productName: item.productName, specification: item.specification || '', category: cat, itemClass: ic, qty: item.quantity, revenue: rev, cost: ct, profit: pf });
+                                              if (!excludedFromCount) {
+                                                  if (ic === 'tire') { tireQty += item.quantity; se.tireQty += item.quantity; }
+                                                  else if (ic === 'repair') { repairQty += item.quantity; se.repairQty += item.quantity; }
+                                                  else { laborQty += item.quantity; se.laborQty += item.quantity; }
+                                                  const key = item.productId + '-' + (item.specification || '');
+                                                  if (itemMap.has(key)) {
+                                                      const r = itemMap.get(key)!;
+                                                      r.qty += item.quantity; r.revenue += rev; r.cost += ct; r.profit += pf;
+                                                  } else {
+                                                      itemMap.set(key, { productName: item.productName, specification: item.specification || '', category: cat, itemClass: ic, qty: item.quantity, revenue: rev, cost: ct, profit: pf });
+                                                  }
+
+                                                  const staffItemKey = `${sName}::${item.productName}`;
+                                                  if (staffItemMap.has(staffItemKey)) {
+                                                      const row = staffItemMap.get(staffItemKey)!;
+                                                      row.qty += item.quantity;
+                                                      row.revenue += rev;
+                                                      row.cost += ct;
+                                                      row.profit += pf;
+                                                  } else {
+                                                      staffItemMap.set(staffItemKey, {
+                                                          staffName: sName,
+                                                      productName: item.productName,
+                                                      category: cat,
+                                                      itemClass: ic,
+                                                      qty: item.quantity,
+                                                      revenue: rev,
+                                                      cost: ct,
+                                                      profit: pf,
+                                                      });
+                                                  }
                                               }
                                           });
                                           se.profit = se.revenue - se.cost;
@@ -3541,6 +3598,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                       const ORDER = ['tire', 'repair', 'labor'] as const;
                                       const items = Array.from(itemMap.values()).sort((a, b) => ORDER.indexOf(a.itemClass) - ORDER.indexOf(b.itemClass));
                                       const staffStats = Array.from(staffMap.values()).sort((a, b) => b.revenue - a.revenue);
+                                      const staffItems = Array.from(staffItemMap.values()).sort((a, b) => a.staffName.localeCompare(b.staffName));
                                       const profit = totalRevenue - totalCost;
                                       const margin = totalRevenue > 0 && totalCost > 0 ? (profit / totalRevenue) * 100 : 0;
                                       const expenseEntries = [...mergedSavedDayExpenses, ...manualDayExpenses];
@@ -3556,7 +3614,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                           revenue: totalRevenue, cost: totalCost, profit, margin,
                                           tireQty, repairQty, laborQty,
                                           salesCount: daySales.length,
-                                          items, staffStats,
+                                          items, staffStats, staffItems,
                                           stockInRecords: dayStockIns,
                                           expenseEntries,
                                           expenseTotal,
