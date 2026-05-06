@@ -65,7 +65,7 @@ const createEmptyRepairMetrics = (): Record<FormulaMetricKey, number> => ({
   margin_rate: 0,
 });
 
-const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '');
+const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
 const normalizeStaffName = (name?: string) => (name || '미지정').trim();
 
 const pickRepairMetric = (productName: string, category: string): FormulaMetricKey | null => {
@@ -253,12 +253,9 @@ const Incentive: React.FC<IncentiveProps> = ({
 
       (report.staffItems || []).forEach((si) => {
         const daily = ensureDaily(si.staffName);
-        // itemClass 조건 없이 타이어 외 모든 품목에 키워드 매칭 시도
-        // (기타/labor 포함, pickRepairMetric이 null이면 자동 제외)
-        if (si.itemClass !== 'tire') {
-          const mk = pickRepairMetric(si.productName, si.category);
-          if (mk) daily.repairMetrics[mk] += si.qty;
-        }
+        // 보고서 게시판과 동일하게 itemClass와 무관하게 정비 키워드 매칭
+        const mk = pickRepairMetric(si.productName, si.category);
+        if (mk) daily.repairMetrics[mk] += si.qty;
         if (si.itemClass === 'tire') {
           daily.tireQtyFromItems += si.qty;
           if (isUsedTireItem(si.productName, si.category)) {
