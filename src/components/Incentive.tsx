@@ -245,9 +245,9 @@ const Incentive: React.FC<IncentiveProps> = ({
 
       (report.staffItems || []).forEach((si) => {
         const daily = ensureDaily(si.staffName);
-        // itemClass가 'repair'인 것 외에도, 'labor'나 기타 클래스여도
-        // productName이 정비 키워드와 매칭되면 정비 항목으로 집계
-        if (si.itemClass === 'repair' || si.itemClass === 'labor') {
+        // itemClass 조건 없이 타이어 외 모든 품목에 키워드 매칭 시도
+        // (기타/labor 포함, pickRepairMetric이 null이면 자동 제외)
+        if (si.itemClass !== 'tire') {
           const mk = pickRepairMetric(si.productName, si.category);
           if (mk) daily.repairMetrics[mk] += si.qty;
         }
