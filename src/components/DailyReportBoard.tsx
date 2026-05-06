@@ -53,6 +53,28 @@ const resolveReportItemClass = (item: Pick<DailyReportItem, 'productName' | 'cat
     return item.itemClass;
 };
 
+const buildFallbackStaffItems = (report: DailyReport): DailyReportStaffItem[] | null => {
+    if (report.staffItems && report.staffItems.length > 0) return null;
+    const validStaffNames = (report.staffStats || [])
+        .map(s => (s.staffName || '').trim())
+        .filter(Boolean);
+    const uniqueStaffNames = Array.from(new Set(validStaffNames));
+    // 단일 직원 근무일 때만 안전하게 담당자 복원
+    if (uniqueStaffNames.length !== 1) return null;
+
+    const onlyStaff = uniqueStaffNames[0];
+    return (report.items || []).map(item => ({
+        staffName: onlyStaff,
+        productName: item.productName,
+        category: item.category,
+        itemClass: resolveReportItemClass(item),
+        qty: item.qty,
+        revenue: item.revenue,
+        cost: item.cost,
+        profit: item.profit,
+    }));
+};
+
 function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -78,7 +100,7 @@ function generateDailyReportImage(report: DailyReport): void {
     const normalizedItems = report.items.map(item => ({ ...item, itemClass: resolveReportItemClass(item) }));
     const reportStaffItems = report.staffItems && report.staffItems.length > 0
         ? report.staffItems.map(item => ({ ...item, itemClass: resolveReportItemClass(item) }))
-        : null;
+        : buildFallbackStaffItems(report);
     const itemRowCount = reportStaffItems ? reportStaffItems.length : normalizedItems.length;
     const inventoryFlowCount = report.inventoryFlowEntries?.length || 0;
     const stockInCount = report.stockInRecords?.length || 0;
@@ -475,17 +497,22 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, currentUse
 
     const sortedReports = useMemo(() =>
         [...reports]
-            .map(report => ({
-                ...report,
-                items: report.items.map(item => ({
-                    ...item,
-                    itemClass: resolveReportItemClass(item),
-                })),
-                staffItems: (report.staffItems || []).map(item => ({
-                    ...item,
-                    itemClass: resolveReportItemClass(item),
-                })),
-            }))
+            .map(report => {
+                const fallbackStaffItems = buildFallbackStaffItems(report);
+                return {
+                    ...report,
+                    items: report.items.map(item => ({
+                        ...item,
+                        itemClass: resolveReportItemClass(item),
+                    })),
+                    staffItems: report.staffItems && report.staffItems.length > 0
+                        ? report.staffItems.map(item => ({
+                            ...item,
+                            itemClass: resolveReportItemClass(item),
+                        }))
+                        : (fallbackStaffItems || []),
+                };
+            })
             .sort((a, b) => b.dateStr.localeCompare(a.dateStr)),
         [reports]);
 
