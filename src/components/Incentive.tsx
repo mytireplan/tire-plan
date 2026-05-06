@@ -45,10 +45,10 @@ const REPAIR_CAT_ITEMS: Array<{ key: FormulaMetricKey; label: string }> = [
 const REPAIR_METRIC_DEFS: Array<{ key: FormulaMetricKey; keywords: string[] }> = [
   { key: 'repair_brake_pad', keywords: ['브레이크패드'] },
   { key: 'repair_engine_oil', keywords: ['엔진오일', '합성유', '오일교환'] },
-  { key: 'repair_brake_oil', keywords: ['브레이크오일'] },
+  { key: 'repair_brake_oil', keywords: ['브레이크오일', '브레이크 오일'] },
   { key: 'repair_tpms', keywords: ['tpms'] },
   { key: 'repair_disk', keywords: ['디스크', '로터'] },
-  { key: 'repair_suspension', keywords: ['하체', '쇼바', '로어암', '활대링크', '부싱'] },
+  { key: 'repair_suspension', keywords: ['하체', '쇼바', '로어암', '활대링크', '부싱', '휠', '얼라인', '휠얼라인먼트'] },
 ];
 
 const INCENTIVE_AGGREGATION_START_DATE = '2026-05-01';
@@ -74,6 +74,17 @@ const pickRepairMetric = (productName: string, category: string): FormulaMetricK
       return def.key;
     }
   }
+  
+  // Fallback: category="기타"인 경우 productName만으로 재매칭 시도
+  if (normalizeText(category).includes('기타')) {
+    const productHaystack = normalizeText(productName);
+    for (const def of REPAIR_METRIC_DEFS) {
+      if (def.keywords.some((kw) => productHaystack.includes(normalizeText(kw)))) {
+        return def.key;
+      }
+    }
+  }
+  
   return null;
 };
 
