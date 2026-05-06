@@ -45,10 +45,10 @@ const REPAIR_CAT_ITEMS: Array<{ key: FormulaMetricKey; label: string }> = [
 const REPAIR_METRIC_DEFS: Array<{ key: FormulaMetricKey; keywords: string[] }> = [
   { key: 'repair_brake_pad', keywords: ['브레이크패드'] },
   { key: 'repair_engine_oil', keywords: ['엔진오일', '합성유', '오일교환'] },
-  { key: 'repair_brake_oil', keywords: ['브레이크오일', '브레이크 오일'] },
+  { key: 'repair_brake_oil', keywords: ['브레이크오일', '브레이크 오일', '브레이크액', 'brakeoil', 'dot3', 'dot4'] },
   { key: 'repair_tpms', keywords: ['tpms'] },
   { key: 'repair_disk', keywords: ['디스크', '로터'] },
-  { key: 'repair_suspension', keywords: ['하체', '쇼바', '로어암', '활대링크', '부싱', '휠', '얼라인', '휠얼라인먼트'] },
+  { key: 'repair_suspension', keywords: ['하체', '쇼바', '로어암', '활대링크', '부싱', '휠', '얼라인', '휠얼라인먼트', '휠밸런스', '휠발란스'] },
 ];
 
 const INCENTIVE_AGGREGATION_START_DATE = '2026-05-01';
@@ -66,9 +66,16 @@ const createEmptyRepairMetrics = (): Record<FormulaMetricKey, number> => ({
 });
 
 const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '');
+const normalizeStaffName = (name?: string) => (name || '미지정').trim();
 
 const pickRepairMetric = (productName: string, category: string): FormulaMetricKey | null => {
   const haystack = normalizeText(`${productName} ${category}`);
+
+  // 명칭 변형 대응: 브레이크 오일/액, DOT 규격
+  if (haystack.includes('브레이크') && (haystack.includes('오일') || haystack.includes('액') || haystack.includes('dot'))) {
+    return 'repair_brake_oil';
+  }
+
   for (const def of REPAIR_METRIC_DEFS) {
     if (def.keywords.some((kw) => haystack.includes(normalizeText(kw)))) {
       return def.key;
@@ -142,7 +149,7 @@ const Incentive: React.FC<IncentiveProps> = ({
     return new Set(
       staffList
         .filter((s) => s.isManager)
-        .map((s) => `${s.name}::${s.storeId || ''}`)
+        .map((s) => `${normalizeStaffName(s.name)}::${s.storeId || ''}`)
     );
   }, [staffList]);
   const selectedStaffMeta = useMemo(
@@ -222,8 +229,9 @@ const Incentive: React.FC<IncentiveProps> = ({
     monthReports.forEach((report) => {
       const dailyMap = new Map<string, DailyStaffMetric>();
       const ensureDaily = (staffName: string): DailyStaffMetric => {
-        if (!dailyMap.has(staffName)) {
-          dailyMap.set(staffName, {
+        const normalizedStaffName = normalizeStaffName(staffName);
+        if (!dailyMap.has(normalizedStaffName)) {
+          dailyMap.set(normalizedStaffName, {
             storeId: report.storeId,
             tireQty: 0,
             tireQtyFromItems: 0,
@@ -233,7 +241,7 @@ const Incentive: React.FC<IncentiveProps> = ({
             profit: 0,
           });
         }
-        return dailyMap.get(staffName)!;
+        return dailyMap.get(normalizedStaffName)!;
       };
 
       (report.staffStats || []).forEach((ss) => {
@@ -347,7 +355,10 @@ const Incentive: React.FC<IncentiveProps> = ({
   }, [monthReports, ruleMap, incentiveRules, managerKeySet]);
 
   const visibleStaffRows = useMemo(() => {
-    if (managerStaffName) return staffRows.filter((r) => r.staffName === managerStaffName);
+    if (managerStaffName) {
+      const target = normalizeStaffName(managerStaffName);
+      return staffRows.filter((r) => normalizeStaffName(r.staffName) === target);
+    }
     return staffRows;
   }, [staffRows, managerStaffName]);
 
