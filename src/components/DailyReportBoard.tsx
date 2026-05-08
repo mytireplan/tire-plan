@@ -591,8 +591,9 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                 ) : sortedReports.map(report => {
                     const isExpanded = expandedId === report.id;
                     const isDownloading = downloadingId === report.id;
+                    const netProfit = report.profit - (report.expenseTotal || 0);
                     const margin = report.revenue > 0 && report.cost > 0
-                        ? (report.profit / report.revenue * 100).toFixed(1)
+                        ? (netProfit / report.revenue * 100).toFixed(1)
                         : null;
                     const inventoryFlowEntries = report.inventoryFlowEntries || [];
                     const priorityCategories = ['타이어', '중고타이어'];
@@ -628,9 +629,10 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                         <div>
                                             <div className="text-[11px] text-gray-400">
                                                 수익{margin && <span className="text-gray-300 ml-1">({margin}%)</span>}
+                                                {report.expenseTotal ? <span className="text-rose-400 ml-1">지출 차감</span> : null}
                                             </div>
-                                            <div className={`font-bold text-sm ${report.cost > 0 ? (report.profit >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-gray-300'}`}>
-                                                {report.cost > 0 ? formatCurrency(report.profit) : '원가 없음'}
+                                            <div className={`font-bold text-sm ${report.cost > 0 ? (netProfit >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-gray-300'}`}>
+                                                {report.cost > 0 ? formatCurrency(netProfit) : '원가 없음'}
                                             </div>
                                         </div>
                                         <div className="hidden md:block">
