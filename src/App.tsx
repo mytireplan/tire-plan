@@ -1470,6 +1470,7 @@ const App: React.FC = () => {
           setSessionRole('STORE_ADMIN');
           setManagerSession(true);
           setActiveManagerAccount(manager);
+          if (manager.storeId) setCurrentStoreId(manager.storeId);
           setIsAdminModalOpen(false);
           setPinLoginId(''); setPinInput(''); setPinError('');
           setActiveTab('dashboard');

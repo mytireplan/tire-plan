@@ -533,6 +533,7 @@ const Settings: React.FC<SettingsProps> = ({
                                 <div>
                                     <div className="text-sm font-bold text-gray-800">{manager.name}</div>
                                     <div className="text-xs text-gray-500">아이디: {manager.loginId}</div>
+                                    <div className="text-xs text-violet-600 font-medium">{stores.find(s => s.id === manager.storeId)?.name || '지점 미지정'}</div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -1093,6 +1094,17 @@ const Settings: React.FC<SettingsProps> = ({
                                 placeholder="로그인 시 사용할 아이디" autoComplete="off" />
                         </div>
                         <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">담당 지점</label>
+                            <select value={managerForm.storeId}
+                                onChange={e => setManagerForm(p => ({ ...p, storeId: e.target.value }))}
+                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none bg-white">
+                                <option value="">지점 선택</option>
+                                {stores.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
                             <label className="block text-xs font-bold text-gray-700 mb-1">
                                 비밀번호{editingManager && <span className="text-gray-400 font-normal ml-1">(변경 시에만 입력)</span>}
                             </label>
@@ -1140,6 +1152,7 @@ const Settings: React.FC<SettingsProps> = ({
                                         const updates: Partial<ManagerAccount> = {
                                             name: managerForm.name.trim(),
                                             loginId: managerForm.loginId.trim(),
+                                            storeId: managerForm.storeId || currentStoreId,
                                             tabPermissions: managerForm.tabPermissions,
                                         };
                                         if (managerForm.password.trim()) updates.password = managerForm.password.trim();
