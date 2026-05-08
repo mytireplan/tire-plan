@@ -3307,7 +3307,7 @@ const App: React.FC = () => {
                 onAdd={(p) => setProducts([...products, p])} 
                 onDelete={(productId) => setProducts(products.filter(p => p.id !== productId))}
                 onAddCategory={(c) => setCategories([...categories, c])}
-                currentUser={effectiveUser} currentStoreId={currentStoreId} onStockTransfer={handleStockTransfer}
+                currentUser={managerSession ? { ...effectiveUser, role: 'STAFF' as UserRole } : effectiveUser} currentStoreId={currentStoreId} onStockTransfer={handleStockTransfer}
                 />
             )}
 
@@ -3360,14 +3360,15 @@ const App: React.FC = () => {
                         if (!storeMatch) return false;
                         if (managerSession) {
                             const today = new Date().toISOString().slice(0, 10);
-                            return r.dateStr === today;
+                            const currentMonth = today.slice(0, 7);
+                            return r.dateStr.slice(0, 7) === currentMonth && r.dateStr <= today;
                         }
                         return true;
                     })}
                     stores={visibleStores}
                     sales={visibleSales}
                     products={visibleProducts}
-                    currentUser={effectiveUser}
+                    currentUser={managerSession ? { ...effectiveUser, role: 'STAFF' as UserRole } : effectiveUser}
                     onDeleteReport={handleDeleteDailyReport}
                 />
             )}

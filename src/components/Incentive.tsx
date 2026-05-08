@@ -58,7 +58,7 @@ const REPAIR_METRIC_DEFS: Array<{ key: FormulaMetricKey; keywords: string[] }> =
   { key: 'repair_brake_oil', keywords: ['브레이크오일', '브레이크 오일', '브레이크액', 'brakeoil', 'dot3', 'dot4'] },
   { key: 'repair_tpms', keywords: ['tpms'] },
   { key: 'repair_disk', keywords: ['디스크', '로터'] },
-  { key: 'repair_suspension', keywords: ['하체', '쇼바', '로어암', '활대링크', '부싱', '휠', '얼라인', '휠얼라인먼트', '휠밸런스', '휠발란스'] },
+  { key: 'repair_suspension', keywords: ['하체', '쇼바', '로어암', '활대링크', '부싱', '얼라인', '휠얼라인먼트', '휠얼라인', '휠밸런스', '휠발란스'] },
 ];
 
 const INCENTIVE_AGGREGATION_START_DATE = '2026-05-01';
@@ -452,13 +452,7 @@ const Incentive: React.FC<IncentiveProps> = ({
     }).sort((a, b) => b.totalAmount - a.totalAmount);
   }, [monthReports, ruleMap, incentiveRules, managerKeySet, sales, products]);
 
-  const visibleStaffRows = useMemo(() => {
-    if (managerStaffName) {
-      const target = normalizeStaffName(managerStaffName);
-      return staffRows.filter((r) => normalizeStaffName(r.staffName) === target);
-    }
-    return staffRows;
-  }, [staffRows, managerStaffName]);
+  const visibleStaffRows = useMemo(() => staffRows, [staffRows]);
 
   const totalRepairQty = visibleStaffRows.reduce((s, r) => s + r.totalRepairQty, 0);
   const totalTireQty = visibleStaffRows.reduce((s, r) => s + r.tireQty, 0);
