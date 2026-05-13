@@ -744,7 +744,7 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                                 <span className="text-right text-gray-700 self-center">{formatCurrency(item.revenue)}</span>
                                                                 <span className="text-right text-gray-600 self-center">{item.cost > 0 ? formatCurrency(item.cost) : '-'}</span>
                                                                 <span className={`text-right font-bold self-center ${item.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                                    {item.cost > 0 ? formatCurrency(item.profit) : '-'}
+                                                                    {(item.revenue > 0 || item.cost > 0) ? formatCurrency(item.profit) : '-'}
                                                                 </span>
                                                             </div>
                                                         );
@@ -780,7 +780,7 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                                 <span className="text-right text-gray-700 self-center">{formatCurrency(item.revenue)}</span>
                                                                 <span className="text-right text-gray-600 self-center">{item.cost > 0 ? formatCurrency(item.cost) : '-'}</span>
                                                                 <span className={`text-right font-bold self-center ${item.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                                    {item.cost > 0 ? formatCurrency(item.profit) : '-'}
+                                                                    {(item.revenue > 0 || item.cost > 0) ? formatCurrency(item.profit) : '-'}
                                                                 </span>
                                                             </div>
                                                         );
