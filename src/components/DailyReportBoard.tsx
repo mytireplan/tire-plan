@@ -2,7 +2,6 @@ import React, { useState, useMemo, useCallback } from 'react';
 import type { Store, User, DailyReport, DailyReportItem, DailyReportStaffItem, Sale, Product } from '../types';
 import { formatCurrency } from '../utils/format';
 import { BookOpen, ChevronDown, ChevronUp, Trash2, Image as ImageIcon, TrendingUp, Users as UsersIcon } from 'lucide-react';
-import { isoToLocalDate } from '../utils/format';
 
 const TIRE_CATEGORIES = ['타이어', '중고타이어'];
 const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'TPMS'];
@@ -81,7 +80,7 @@ const buildStaffItemsFromSales = (report: DailyReport, sales: Sale[], products: 
     const rows = new Map<string, DailyReportStaffItem>();
 
     sales
-        .filter((sale) => !sale.isCanceled && sale.storeId === report.storeId && isoToLocalDate(sale.date) === report.dateStr)
+        .filter((sale) => !sale.isCanceled && sale.storeId === report.storeId && sale.date.startsWith(report.dateStr))
         .forEach((sale) => {
             const staffName = (sale.staffName || '').trim() || '미지정';
             (sale.items || []).forEach((item) => {
@@ -272,7 +271,7 @@ function generateDailyReportImage(report: DailyReport): void {
             ctx.fillText(item.cost > 0 ? won(item.cost) : '-', IC[5], y + 27);
             ctx.fillStyle = item.profit >= 0 ? '#059669' : '#dc2626';
             sf(12, true);
-            ctx.fillText(item.cost > 0 ? won(item.profit) : '-', IC[6], y + 27);
+            ctx.fillText((item.revenue > 0 || item.cost > 0) ? won(item.profit) : '-', IC[6], y + 27);
             ctx.strokeStyle = '#e5e7eb';
             ctx.lineWidth = 0.5;
             ctx.beginPath();
@@ -320,7 +319,7 @@ function generateDailyReportImage(report: DailyReport): void {
             ctx.fillText(item.cost > 0 ? won(item.cost) : '-', IC[5], y + 27);
             ctx.fillStyle = item.profit >= 0 ? '#059669' : '#dc2626';
             sf(12, true);
-            ctx.fillText(item.cost > 0 ? won(item.profit) : '-', IC[6], y + 27);
+            ctx.fillText((item.revenue > 0 || item.cost > 0) ? won(item.profit) : '-', IC[6], y + 27);
 
             ctx.strokeStyle = '#e5e7eb';
             ctx.lineWidth = 0.5;
@@ -593,7 +592,7 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                     const isExpanded = expandedId === report.id;
                     const isDownloading = downloadingId === report.id;
                     const netProfit = report.profit - (report.expenseTotal || 0);
-                    const margin = report.revenue > 0 && report.cost > 0
+                    const margin = report.revenue > 0
                         ? (netProfit / report.revenue * 100).toFixed(1)
                         : null;
                     const inventoryFlowEntries = report.inventoryFlowEntries || [];
@@ -632,8 +631,8 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                 수익{margin && <span className="text-gray-300 ml-1">({margin}%)</span>}
                                                 {report.expenseTotal ? <span className="text-rose-400 ml-1">지출 차감</span> : null}
                                             </div>
-                                            <div className={`font-bold text-sm ${report.cost > 0 ? (netProfit >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-gray-300'}`}>
-                                                {report.cost > 0 ? formatCurrency(netProfit) : '원가 없음'}
+                                            <div className={`font-bold text-sm ${(report.revenue > 0 || report.cost > 0) ? (netProfit >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-gray-300'}`}>
+                                                {(report.revenue > 0 || report.cost > 0) ? formatCurrency(netProfit) : '-'}
                                             </div>
                                         </div>
                                         <div className="hidden md:block">
