@@ -2366,6 +2366,45 @@ const App: React.FC = () => {
           .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
   };
 
+  const handleRestoreSale = (saleId: string) => {
+      const targetSale = sales.find(s => s.id === saleId);
+      if (!targetSale || !targetSale.isCanceled) return;
+      
+      const restoredSale = { ...targetSale, isCanceled: false, cancelDate: undefined } as Sale;
+      
+      // 재고 감소 (취소 시 증가했던 것을 다시 감소)
+      const qtyMap: Record<string, number> = {};
+      (targetSale.items || []).forEach(it => {
+          qtyMap[it.productId] = (qtyMap[it.productId] || 0) + it.quantity;
+      });
+      
+      const storeId = targetSale.storeId;
+      const updatedProducts: Product[] = [];
+
+      setProducts(prev => prev.map(prod => {
+          const qty = qtyMap[prod.id];
+          if (!qty || prod.id === '99999' || !storeId) return prod;
+          const currentStoreStock = prod.stockByStore[storeId] || 0;
+          const newStockByStore = { ...prod.stockByStore, [storeId]: Math.max(0, currentStoreStock - qty) };
+          const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+          const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+          updatedProducts.push(updated);
+          console.log(`✅ Reduced stock on restore: ${prod.name} in store ${storeId}: ${currentStoreStock} → ${newTotalStock}`);
+          return updated;
+      }));
+
+      updatedProducts.forEach(p => {
+          saveToFirestore<Product>(COLLECTIONS.PRODUCTS, p)
+              .then(() => console.log('✅ Stock reduced after restore:', p.id))
+              .catch((err) => console.error('❌ Failed to reduce stock after restore:', err));
+      });
+
+      setSales(prev => prev.map(s => s.id === saleId ? restoredSale : s));
+      saveToFirestore<Sale>(COLLECTIONS.SALES, restoredSale)
+          .then(() => console.log('✅ Sale restored in Firestore:', restoredSale.id))
+          .catch((err) => console.error('❌ Failed to restore sale in Firestore:', err));
+  };
+
   const handleDeleteSale = (saleId: string) => {
       const targetSale = sales.find(s => s.id === saleId);
       if (!targetSale) return;
@@ -3320,7 +3359,7 @@ const App: React.FC = () => {
                 currentStoreId={currentStoreId}
                 dailyReports={dailyReports}
                 stockInHistory={visibleStockHistory} expenses={visibleExpenses} onSwapProduct={() => {/* swap logic */}}
-                onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onDeleteSale={handleDeleteSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
+                onUpdateSale={handleUpdateSale} onCancelSale={handleCancelSale} onRestoreSale={handleRestoreSale} onDeleteSale={handleDeleteSale} onQuickAddSale={handleSaleComplete} onStockIn={handleStockIn}
                 categories={categories} tireBrands={tireBrands} tireModels={TIRE_MODELS}
                 shifts={shifts} staffList={staffList}
                 onSaveReport={handleSaveDailyReport}

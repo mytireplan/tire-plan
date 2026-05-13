@@ -19,6 +19,7 @@ interface SalesHistoryProps {
   onSwapProduct: (saleId: string, originalItemId: string, newProduct: Product) => void;
   onUpdateSale: (sale: Sale) => void;
   onCancelSale: (saleId: string) => void;
+  onRestoreSale: (saleId: string) => void;
   onDeleteSale: (saleId: string) => void;
     onQuickAddSale: (sale: Sale, options?: { adjustInventory?: boolean }) => void;
   onStockIn: (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => void;
@@ -33,7 +34,7 @@ interface SalesHistoryProps {
 
 type ViewMode = 'daily' | 'weekly' | 'monthly' | 'staff';
 
-const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, dailyReports, expenses, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onDeleteSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, shifts, staffList, onSaveReport, onAddExpense }) => {
+const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, dailyReports, expenses, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onRestoreSale, onDeleteSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, shifts, staffList, onSaveReport, onAddExpense }) => {
   
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -1736,6 +1737,18 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                                             title="결제 취소"
                                                         >
                                                             결제취소
+                                                        </button>
+                                                    )}
+                                                    {sale.isCanceled && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onRestoreSale(sale.id);
+                                                            }}
+                                                            className="px-2 py-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors flex-shrink-0"
+                                                            title="판매 복구"
+                                                        >
+                                                            복구
                                                         </button>
                                                     )}
                                                 </div>
