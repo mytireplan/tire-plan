@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { Sale, Store, Product, User, StockInRecord, DailyReport, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStockInEntry, DailyReportStaffItem } from '../types';
 import { Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Save, CheckCircle, Upload } from 'lucide-react';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, isoToLocalDate } from '../utils/format';
 
 type ItemClass = 'tire' | 'repair' | 'labor';
 type EditMode = 'discount' | 'direct';
@@ -64,7 +64,8 @@ const DailyClose: React.FC<DailyCloseProps> = ({
     const filteredSales = useMemo(() => {
         return sales.filter(s => {
             if (s.isCanceled) return false;
-            return s.date.startsWith(selectedMonth) &&
+            // 날짜 비교를 isoToLocalDate로 통일
+            return isoToLocalDate(s.date).startsWith(selectedMonth) &&
                 (selectedStoreFilter === 'ALL' || s.storeId === selectedStoreFilter);
         });
     }, [sales, selectedMonth, selectedStoreFilter]);
@@ -78,7 +79,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
     }, [selectedMonth]);
 
     const getDaySales = useCallback((dateStr: string) =>
-        filteredSales.filter(s => s.date.startsWith(dateStr))
+        filteredSales.filter(s => isoToLocalDate(s.date) === dateStr)
             .sort((a, b) => a.date.localeCompare(b.date)),
         [filteredSales]);
 

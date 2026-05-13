@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import type { Store, User, DailyReport, DailyReportItem, DailyReportStaffItem, Sale, Product } from '../types';
 import { formatCurrency } from '../utils/format';
 import { BookOpen, ChevronDown, ChevronUp, Trash2, Image as ImageIcon, TrendingUp, Users as UsersIcon } from 'lucide-react';
+import { isoToLocalDate } from '../utils/format';
 
 const TIRE_CATEGORIES = ['타이어', '중고타이어'];
 const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'TPMS'];
@@ -80,7 +81,7 @@ const buildStaffItemsFromSales = (report: DailyReport, sales: Sale[], products: 
     const rows = new Map<string, DailyReportStaffItem>();
 
     sales
-        .filter((sale) => !sale.isCanceled && sale.storeId === report.storeId && sale.date.startsWith(report.dateStr))
+        .filter((sale) => !sale.isCanceled && sale.storeId === report.storeId && isoToLocalDate(sale.date) === report.dateStr)
         .forEach((sale) => {
             const staffName = (sale.staffName || '').trim() || '미지정';
             (sale.items || []).forEach((item) => {
