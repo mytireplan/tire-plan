@@ -733,6 +733,7 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                                 ? 'text-violet-600 bg-violet-50'
                                                                 : 'text-slate-500 bg-slate-50';
                                                         const cl = item.itemClass === 'tire' ? '타이어' : item.itemClass === 'repair' ? '정비' : '공임';
+                                                        const displayProfit = item.revenue - item.cost;
                                                         return (
                                                             <div key={i} className={`grid grid-cols-[50px_1fr_72px_40px_90px_90px_90px] px-3 py-2.5 text-sm border-t border-gray-50 ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
                                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full self-center text-center ${cc}`}>{cl}</span>
@@ -743,8 +744,8 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                                 <span className="text-right text-gray-500 self-center">{item.qty}</span>
                                                                 <span className="text-right text-gray-700 self-center">{formatCurrency(item.revenue)}</span>
                                                                 <span className="text-right text-gray-600 self-center">{item.cost > 0 ? formatCurrency(item.cost) : '-'}</span>
-                                                                <span className={`text-right font-bold self-center ${item.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                                    {(item.revenue > 0 || item.cost > 0) ? formatCurrency(item.profit) : '-'}
+                                                                <span className={`text-right font-bold self-center ${displayProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                    {(item.revenue > 0 || item.cost > 0) ? formatCurrency(displayProfit) : '-'}
                                                                 </span>
                                                             </div>
                                                         );
@@ -768,6 +769,7 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                                 ? 'text-violet-600 bg-violet-50'
                                                                 : 'text-slate-500 bg-slate-50';
                                                         const cl = item.itemClass === 'tire' ? '타이어' : item.itemClass === 'repair' ? '정비' : '공임';
+                                                        const displayProfit = item.revenue - item.cost;
                                                         return (
                                                             <div key={i} className={`grid grid-cols-[50px_1fr_72px_40px_90px_90px_90px] px-3 py-2.5 text-sm border-t border-gray-50 ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
                                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full self-center text-center ${cc}`}>{cl}</span>
@@ -779,8 +781,8 @@ const DailyReportBoard: React.FC<DailyReportBoardProps> = ({ reports, sales, pro
                                                                 <span className="text-right text-gray-500 self-center">{item.qty}</span>
                                                                 <span className="text-right text-gray-700 self-center">{formatCurrency(item.revenue)}</span>
                                                                 <span className="text-right text-gray-600 self-center">{item.cost > 0 ? formatCurrency(item.cost) : '-'}</span>
-                                                                <span className={`text-right font-bold self-center ${item.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                                    {(item.revenue > 0 || item.cost > 0) ? formatCurrency(item.profit) : '-'}
+                                                                <span className={`text-right font-bold self-center ${displayProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                    {(item.revenue > 0 || item.cost > 0) ? formatCurrency(displayProfit) : '-'}
                                                                 </span>
                                                             </div>
                                                         );
