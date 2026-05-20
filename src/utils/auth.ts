@@ -8,6 +8,9 @@
 import bcrypt from 'bcryptjs';
 import { getFromFirestore, saveToFirestore, COLLECTIONS } from './firestore';
 import type { User } from '../types';
+import { auth } from '../firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { signInWithCustomToken } from 'firebase/auth';
 
 /**
  * 비밀번호 복잡도 검증
@@ -72,6 +75,32 @@ export const validateOwnerPassword = async (
   password: string
 ): Promise<{ valid: boolean; owner?: User; error?: string; locked?: boolean }> => {
   try {
+    // 1) Prefer server-side auth (Custom Token) so Firestore security rules can use request.auth.uid
+    // If function is unavailable, fall back to the legacy local validation path below.
+    try {
+      const functions = getFunctions();
+      const loginWithOwnerId = httpsCallable(functions, 'loginWithOwnerId');
+      const result = await loginWithOwnerId({ ownerId, password });
+      const data = result.data as {
+        success?: boolean;
+        customToken?: string;
+        user?: { id: string; name: string; role: User['role']; email?: string; storeId?: string };
+      };
+
+      if (data?.success && data.customToken && data.user) {
+        await signInWithCustomToken(auth, data.customToken);
+        const owner: User = {
+          id: data.user.id,
+          name: data.user.name,
+          role: data.user.role,
+          storeId: data.user.storeId
+        };
+        return { valid: true, owner };
+      }
+    } catch (_cloudErr) {
+      // fallback to local validation below
+    }
+
     // 계정 잠금 확인
     if (isAccountLocked(ownerId)) {
       return { 
