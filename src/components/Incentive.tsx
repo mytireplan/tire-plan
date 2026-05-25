@@ -494,6 +494,7 @@ const Incentive: React.FC<IncentiveProps> = ({
   const visibleStaffRows = useMemo(() => staffRows, [staffRows]);
 
   const totalRepairQty = visibleStaffRows.reduce((s, r) => s + r.totalRepairQty, 0);
+  const totalRepairIncentive = visibleStaffRows.reduce((s, r) => s + r.repairIncentive, 0);
   const totalTireQty = visibleStaffRows.reduce((s, r) => s + r.tireQty, 0);
   const totalUsedTireQty = visibleStaffRows.reduce((s, r) => s + r.usedTireQty, 0);
   const totalSuspensionIncentive = visibleStaffRows.reduce((s, r) => s + r.suspensionMarginStepEarned, 0);
@@ -931,7 +932,7 @@ const Incentive: React.FC<IncentiveProps> = ({
           <h3 className="text-sm font-bold text-gray-700">직원별 집계 및 인센티브</h3>
           {visibleStaffRows.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">
-              보고서 기준 집계: 타이어/중고타이어/정비 5개 품목/하체 인센티브금액/개인마진 인센티브/매장마진 인센티브
+              보고서 기준 집계: 타이어/중고타이어/정비 5개 품목/정비인센티브/하체 인센티브금액/개인마진 인센티브/매장마진 인센티브
             </p>
           )}
         </div>
@@ -940,7 +941,7 @@ const Incentive: React.FC<IncentiveProps> = ({
             <div className="p-10 text-center text-gray-400 text-sm">표시할 실적 데이터가 없습니다.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px] md:text-sm min-w-[1460px]">
+              <table className="w-full text-[12px] md:text-sm min-w-[1580px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="px-4 py-3 text-left font-bold text-gray-500 whitespace-nowrap text-[11px] md:text-xs">직원명</th>
@@ -951,6 +952,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-[11px] md:text-xs">브레이크오일</th>
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-[11px] md:text-xs">TPMS</th>
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-[11px] md:text-xs">하체</th>
+                    <th className="px-2 md:px-3 py-3 text-right font-bold text-teal-700 whitespace-nowrap text-[11px] md:text-xs">정비인센티브</th>
                     <th className="px-2 md:px-3 py-3 text-right font-bold text-cyan-700 whitespace-nowrap text-[11px] md:text-xs">하체 인센티브금액</th>
                     <th className="px-2 md:px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-[11px] md:text-xs">개인마진 인센티브</th>
                     <th className="px-2 md:px-3 py-3 text-right font-bold text-indigo-600 whitespace-nowrap text-[11px] md:text-xs">매장마진 인센티브</th>
@@ -968,6 +970,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_brake_oil)}개</td>
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_tpms)}개</td>
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_suspension)}개</td>
+                      <td className="px-2 md:px-3 py-3 text-right text-teal-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.repairIncentive)}</td>
                       <td className="px-2 md:px-3 py-3 text-right text-cyan-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.suspensionMarginStepEarned)}</td>
                       <td className="px-2 md:px-3 py-3 text-right text-emerald-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.marginBonusEarned + row.suspensionMarginStepEarned)}</td>
                       <td className="px-2 md:px-3 py-3 text-right text-indigo-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.managerStoreMarginBonusEarned)}</td>
@@ -985,6 +988,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_brake_oil, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_tpms, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
+                  <td className="px-2 md:px-3 py-3 text-right text-teal-700 whitespace-nowrap">{formatCurrency(totalRepairIncentive)}</td>
                   <td className="px-2 md:px-3 py-3 text-right text-cyan-700 whitespace-nowrap">{formatCurrency(totalSuspensionIncentive)}</td>
                   <td className="px-2 md:px-3 py-3 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(totalPersonalMarginIncentive)}</td>
                   <td className="px-2 md:px-3 py-3 text-right text-indigo-700 whitespace-nowrap">{formatCurrency(totalStoreMarginIncentive)}</td>
