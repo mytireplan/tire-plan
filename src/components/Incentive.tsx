@@ -566,6 +566,10 @@ const Incentive: React.FC<IncentiveProps> = ({
             <div className="text-xs text-fuchsia-600 font-semibold">중고타이어 합계</div>
             <div className="text-xl font-bold text-fuchsia-700 mt-1">{formatNumber(totalUsedTireQty)}개</div>
           </div>
+          <div className="p-3 rounded-lg border border-teal-100 bg-teal-50">
+            <div className="text-xs text-teal-700 font-semibold">정비인센티브 합계</div>
+            <div className="text-xl font-bold text-teal-700 mt-1">{formatCurrency(totalRepairIncentive)}</div>
+          </div>
           <div className="p-3 rounded-lg border border-cyan-100 bg-cyan-50">
             <div className="text-xs text-cyan-700 font-semibold">하체 인센티브금액 합계</div>
             <div className="text-xl font-bold text-cyan-700 mt-1">{formatCurrency(totalSuspensionIncentive)}</div>
