@@ -496,8 +496,9 @@ const Incentive: React.FC<IncentiveProps> = ({
   const totalRepairQty = visibleStaffRows.reduce((s, r) => s + r.totalRepairQty, 0);
   const totalTireQty = visibleStaffRows.reduce((s, r) => s + r.tireQty, 0);
   const totalUsedTireQty = visibleStaffRows.reduce((s, r) => s + r.usedTireQty, 0);
-  const totalComplexBonus = visibleStaffRows.reduce((s, r) => s + r.tireBonusEarned + r.marginBonusEarned + r.managerStoreTireBonusEarned + r.managerStoreMarginBonusEarned + r.suspensionMarginStepEarned, 0);
-  const totalSuspensionMargin = visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension_margin, 0);
+  const totalSuspensionIncentive = visibleStaffRows.reduce((s, r) => s + r.suspensionMarginStepEarned, 0);
+  const totalPersonalMarginIncentive = visibleStaffRows.reduce((s, r) => s + r.marginBonusEarned + r.suspensionMarginStepEarned, 0);
+  const totalStoreMarginIncentive = visibleStaffRows.reduce((s, r) => s + r.managerStoreMarginBonusEarned, 0);
   const totalIncentive = visibleStaffRows.reduce((s, r) => s + r.totalAmount, 0);
 
   const noReports = monthReports.length === 0;
@@ -528,8 +529,6 @@ const Incentive: React.FC<IncentiveProps> = ({
     ? suspensionMarginStepDraft.bonus
     : String(suspensionMarginStepRule?.bonusAmount ?? '');
 
-  const showComplexBonusColumns = visibleStaffRows.some((row) => (row.tireBonusEarned + row.marginBonusEarned + row.managerStoreTireBonusEarned + row.managerStoreMarginBonusEarned + row.suspensionMarginStepEarned) > 0);
-  const showMarginRateColumn = !managerStaffName;
   const selectedRuleStaffLabel = selectedRuleStaffName || '공통 규칙';
 
   return (
@@ -567,8 +566,8 @@ const Incentive: React.FC<IncentiveProps> = ({
             <div className="text-xl font-bold text-fuchsia-700 mt-1">{formatNumber(totalUsedTireQty)}개</div>
           </div>
           <div className="p-3 rounded-lg border border-cyan-100 bg-cyan-50">
-            <div className="text-xs text-cyan-700 font-semibold">하체 마진 합계</div>
-            <div className="text-xl font-bold text-cyan-700 mt-1">{formatCurrency(totalSuspensionMargin)}</div>
+            <div className="text-xs text-cyan-700 font-semibold">하체 인센티브금액 합계</div>
+            <div className="text-xl font-bold text-cyan-700 mt-1">{formatCurrency(totalSuspensionIncentive)}</div>
           </div>
           <div className="p-3 rounded-lg border border-emerald-100 bg-emerald-50">
             <div className="text-xs text-emerald-600 font-semibold">전체 인센티브 합계</div>
@@ -932,9 +931,7 @@ const Incentive: React.FC<IncentiveProps> = ({
           <h3 className="text-sm font-bold text-gray-700">직원별 집계 및 인센티브</h3>
           {visibleStaffRows.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">
-              {showMarginRateColumn
-                ? '보고서 기준 집계: 타이어/중고타이어/정비 5개 품목/하체마진/마진율'
-                : '보고서 기준 집계: 타이어/중고타이어/정비 5개 품목/하체마진'}
+              보고서 기준 집계: 타이어/중고타이어/정비 5개 품목/하체 인센티브금액/개인마진 인센티브/매장마진 인센티브
             </p>
           )}
         </div>
@@ -943,37 +940,37 @@ const Incentive: React.FC<IncentiveProps> = ({
             <div className="p-10 text-center text-gray-400 text-sm">표시할 실적 데이터가 없습니다.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[1300px]">
+              <table className="w-full text-[12px] md:text-sm min-w-[1460px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-3 text-left font-bold text-gray-500 whitespace-nowrap">직원명</th>
-                    <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-xs">타이어</th>
-                    <th className="px-3 py-3 text-right font-bold text-fuchsia-600 whitespace-nowrap text-xs">중고타이어</th>
-                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">브레이크패드</th>
-                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">엔진오일</th>
-                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">브레이크오일</th>
-                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">TPMS</th>
-                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">하체</th>
-                    <th className="px-3 py-3 text-right font-bold text-cyan-700 whitespace-nowrap text-xs">하체마진</th>
-                    {showMarginRateColumn && <th className="px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-xs">마진율</th>}
-                    {showComplexBonusColumns && <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-xs">복합보너스</th>}
+                    <th className="px-4 py-3 text-left font-bold text-gray-500 whitespace-nowrap text-[11px] md:text-xs">직원명</th>
+                    <th className="px-3 py-3 text-right font-bold text-violet-600 whitespace-nowrap text-[11px] md:text-xs">타이어</th>
+                    <th className="px-3 py-3 text-right font-bold text-fuchsia-600 whitespace-nowrap text-[11px] md:text-xs">중고타이어</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-[11px] md:text-xs">브레이크패드</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-[11px] md:text-xs">엔진오일</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-[11px] md:text-xs">브레이크오일</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-[11px] md:text-xs">TPMS</th>
+                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-[11px] md:text-xs">하체</th>
+                    <th className="px-2 md:px-3 py-3 text-right font-bold text-cyan-700 whitespace-nowrap text-[11px] md:text-xs">하체 인센티브금액</th>
+                    <th className="px-2 md:px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-[11px] md:text-xs">개인마진 인센티브</th>
+                    <th className="px-2 md:px-3 py-3 text-right font-bold text-indigo-600 whitespace-nowrap text-[11px] md:text-xs">매장마진 인센티브</th>
                     <th className="px-4 py-3 text-right font-bold text-gray-700 whitespace-nowrap">총 인센티브</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {visibleStaffRows.map((row, i) => (
                     <tr key={row.staffName} className={i % 2 === 1 ? 'bg-gray-50/40' : ''}>
-                      <td className="px-4 py-3 font-bold text-gray-800 whitespace-nowrap">{row.staffName}</td>
-                      <td className="px-3 py-3 text-right text-violet-700 font-semibold whitespace-nowrap">{formatNumber(row.tireQty)}개</td>
-                      <td className="px-3 py-3 text-right text-fuchsia-700 font-semibold whitespace-nowrap">{formatNumber(row.usedTireQty)}개</td>
-                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_brake_pad)}개</td>
-                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_engine_oil)}개</td>
-                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_brake_oil)}개</td>
-                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_tpms)}개</td>
-                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_suspension)}개</td>
-                      <td className="px-3 py-3 text-right text-cyan-700 whitespace-nowrap">{formatCurrency(row.metricValues.repair_suspension_margin)}</td>
-                      {showMarginRateColumn && <td className="px-3 py-3 text-right text-gray-600 whitespace-nowrap">{row.marginRate.toFixed(1)}%</td>}
-                      {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 font-semibold whitespace-nowrap">{formatCurrency(row.tireBonusEarned + row.marginBonusEarned + row.managerStoreTireBonusEarned + row.managerStoreMarginBonusEarned + row.suspensionMarginStepEarned)}</td>}
+                      <td className="px-4 py-3 font-bold text-gray-800 whitespace-nowrap text-[12px] md:text-sm">{row.staffName}</td>
+                      <td className="px-3 py-3 text-right text-violet-700 font-semibold whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.tireQty)}개</td>
+                      <td className="px-3 py-3 text-right text-fuchsia-700 font-semibold whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.usedTireQty)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_brake_pad)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_engine_oil)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_brake_oil)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_tpms)}개</td>
+                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_suspension)}개</td>
+                      <td className="px-2 md:px-3 py-3 text-right text-cyan-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.suspensionMarginStepEarned)}</td>
+                      <td className="px-2 md:px-3 py-3 text-right text-emerald-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.marginBonusEarned + row.suspensionMarginStepEarned)}</td>
+                      <td className="px-2 md:px-3 py-3 text-right text-indigo-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.managerStoreMarginBonusEarned)}</td>
                       <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(row.totalAmount)}</td>
                     </tr>
                   ))}
@@ -988,9 +985,9 @@ const Incentive: React.FC<IncentiveProps> = ({
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_brake_oil, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_tpms, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
-                  <td className="px-3 py-3 text-right text-cyan-700 whitespace-nowrap">{formatCurrency(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension_margin, 0))}</td>
-                  {showMarginRateColumn && <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">-</td>}
-                  {showComplexBonusColumns && <td className="px-3 py-3 text-right text-violet-700 whitespace-nowrap">{formatCurrency(totalComplexBonus)}</td>}
+                  <td className="px-2 md:px-3 py-3 text-right text-cyan-700 whitespace-nowrap">{formatCurrency(totalSuspensionIncentive)}</td>
+                  <td className="px-2 md:px-3 py-3 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(totalPersonalMarginIncentive)}</td>
+                  <td className="px-2 md:px-3 py-3 text-right text-indigo-700 whitespace-nowrap">{formatCurrency(totalStoreMarginIncentive)}</td>
                   <td className="px-4 py-3 text-right text-emerald-700 whitespace-nowrap">{formatCurrency(totalIncentive)}</td>
                 </tr>
               </tfoot>
