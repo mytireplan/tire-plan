@@ -78,6 +78,7 @@ const createEmptyRepairMetrics = (): Record<FormulaMetricKey, number> => ({
 
 const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
 const normalizeStaffName = (name?: string) => (name || '미지정').trim();
+const normalizeRuleStaffScope = (name?: string) => (name || '').trim();
 const toSafeNumber = (value: unknown): number => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'string') {
@@ -157,7 +158,8 @@ const MANAGER_STORE_MARGIN_BONUS_KEY = '__STORE_MARGIN_BONUS__';
 const SUSPENSION_MARGIN_STEP_KEY = '__SUSP_MARGIN_STEP__';
 
 const buildScopedRuleKey = (storeId: string, ruleKey: string, staffName?: string) => {
-  return `${storeId}::${staffName || '__COMMON__'}::${ruleKey}`;
+  const scope = normalizeRuleStaffScope(staffName);
+  return `${storeId}::${scope || '__COMMON__'}::${ruleKey}`;
 };
 
 const buildStaffItemsFromSales = (report: DailyReport, sales: Sale[], products: Product[]): DailyReportStaffItem[] => {
@@ -266,7 +268,8 @@ const Incentive: React.FC<IncentiveProps> = ({
   }, [incentiveRules]);
 
   const getComplexRule = (storeId: string, productName: string, staffName?: string): IncentiveRule | undefined => {
-    return incentiveRules.find((r) => r.storeId === storeId && (r.staffName || '') === (staffName || '') && r.productName === productName)
+    const targetScope = normalizeRuleStaffScope(staffName);
+    return incentiveRules.find((r) => r.storeId === storeId && normalizeRuleStaffScope(r.staffName) === targetScope && r.productName === productName)
       || incentiveRules.find((r) => r.storeId === storeId && !r.staffName && r.productName === productName);
   };
 
