@@ -82,7 +82,8 @@ const normalizeRuleStaffScope = (name?: string) => (name || '').trim();
 const toSafeNumber = (value: unknown): number => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'string') {
-    const cleaned = value.replace(/,/g, '').trim();
+    const cleaned = value.replace(/[^0-9.-]/g, '').trim();
+    if (cleaned === '' || cleaned === '-' || cleaned === '.' || cleaned === '-.') return 0;
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed : 0;
   }
@@ -397,9 +398,15 @@ const Incentive: React.FC<IncentiveProps> = ({
 
       (report.staffStats || []).forEach((ss) => {
         const daily = ensureDaily(ss.staffName);
+        const staffRevenue = toSafeNumber(ss.revenue);
+        const staffCost = toSafeNumber(ss.cost);
+        const rawProfit = (ss as unknown as { profit?: unknown }).profit;
+        const staffProfit = (rawProfit === undefined || rawProfit === null || rawProfit === '')
+          ? (staffRevenue - staffCost)
+          : toSafeNumber(ss.profit);
         daily.tireQty += toSafeNumber(ss.tireQty);
-        daily.revenue += toSafeNumber(ss.revenue);
-        daily.profit += toSafeNumber(ss.profit);
+        daily.revenue += staffRevenue;
+        daily.profit += staffProfit;
       });
 
       getReportStaffItems(report).forEach((si) => {
