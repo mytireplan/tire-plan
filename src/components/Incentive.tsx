@@ -157,6 +157,18 @@ const MANAGER_STORE_TIRE_BONUS_KEY = '__STORE_TIRE_BONUS__';
 const MANAGER_STORE_MARGIN_BONUS_KEY = '__STORE_MARGIN_BONUS__';
 const SUSPENSION_MARGIN_STEP_KEY = '__SUSP_MARGIN_STEP__';
 
+const isValidComplexRule = (rule: IncentiveRule | undefined, productName: string): boolean => {
+  if (!rule) return false;
+  if (productName === '__TIRE_BONUS__' || productName === MANAGER_STORE_TIRE_BONUS_KEY) {
+    return (rule.tireThreshold || 0) > 0 && (rule.bonusAmount || 0) > 0;
+  }
+  if (productName === '__MARGIN_BONUS__' || productName === MANAGER_STORE_MARGIN_BONUS_KEY || productName === SUSPENSION_MARGIN_STEP_KEY) {
+    const threshold = rule.marginAmountThreshold ?? rule.marginThreshold ?? 0;
+    return threshold > 0 && (rule.bonusAmount || 0) > 0;
+  }
+  return true;
+};
+
 const buildScopedRuleKey = (storeId: string, ruleKey: string, staffName?: string) => {
   const scope = normalizeRuleStaffScope(staffName);
   return `${storeId}::${scope || '__COMMON__'}::${ruleKey}`;
@@ -269,8 +281,12 @@ const Incentive: React.FC<IncentiveProps> = ({
 
   const getComplexRule = (storeId: string, productName: string, staffName?: string): IncentiveRule | undefined => {
     const targetScope = normalizeRuleStaffScope(staffName);
-    return incentiveRules.find((r) => r.storeId === storeId && normalizeRuleStaffScope(r.staffName) === targetScope && r.productName === productName)
-      || incentiveRules.find((r) => r.storeId === storeId && !r.staffName && r.productName === productName);
+    const staffRule = incentiveRules.find((r) => r.storeId === storeId && normalizeRuleStaffScope(r.staffName) === targetScope && r.productName === productName);
+    const commonRule = incentiveRules.find((r) => r.storeId === storeId && !r.staffName && r.productName === productName);
+
+    if (isValidComplexRule(staffRule, productName)) return staffRule;
+    if (isValidComplexRule(commonRule, productName)) return commonRule;
+    return staffRule || commonRule;
   };
 
   const tireRule = useMemo(
