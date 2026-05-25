@@ -23,13 +23,14 @@ const STAFF_ITEM_METRICS: { key: string; label: string; keywords: string[]; isTi
 ];
 
 const normText = (t?: string) => (t || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
+const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
 const isPartCodeName = (productName?: string) => {
     const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
 };
 const isPartCategory = (category?: string) => {
     const normalized = normText(category);
-    return normalized.includes('부품') || normalized === 'part' || normalized.includes('parts');
+    return PART_CATEGORY_KEYWORDS.some((kw) => normalized.includes(normText(kw)));
 };
 
 const getItemBadge = (item: Pick<DailyReportItem, 'productName' | 'category' | 'itemClass'>) => {

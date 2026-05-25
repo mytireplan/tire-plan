@@ -3560,13 +3560,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                         '에어크리너': ['에어크리너']
                                       };
                                       const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
+                                      const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
                                       const isPartCodeName = (productName?: string) => {
                                           const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
                                           return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
                                       };
                                       const isPartCategory = (category?: string) => {
                                           const normalized = normalizeText(category);
-                                          return normalized.includes('부품') || normalized === 'part' || normalized.includes('parts');
+                                          return PART_CATEGORY_KEYWORDS.some((kw) => normalized.includes(normalizeText(kw)));
                                       };
                                       const isOnlineRental = (pid?: string, productName?: string, category?: string) => {
                                           const p = (pid || '').toLowerCase();

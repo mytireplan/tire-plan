@@ -77,6 +77,7 @@ const createEmptyRepairMetrics = (): Record<FormulaMetricKey, number> => ({
 
 const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
 const normalizeStaffName = (name?: string) => (name || '미지정').trim();
+const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
 
 const isOnlineRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
   const pid = (productId || '').toLowerCase();
@@ -92,7 +93,7 @@ const isPartCodeName = (productName?: string): boolean => {
 
 const isPartCategory = (category?: string): boolean => {
   const normalized = normalizeText(category);
-  return normalized.includes('부품') || normalized === 'part' || normalized.includes('parts');
+  return PART_CATEGORY_KEYWORDS.some((kw) => normalized.includes(normalizeText(kw)));
 };
 
 const resolveIncentiveItemClass = (item: { productName: string; category: string; itemClass: 'tire' | 'repair' | 'labor' }) => {
