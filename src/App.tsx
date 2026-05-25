@@ -1630,7 +1630,7 @@ const App: React.FC = () => {
       storeId: string;
       staffName?: string;
       productName: string;
-      ruleType: 'tire_quantity' | 'margin_bonus';
+      ruleType: 'tire_quantity' | 'margin_bonus' | 'margin_step';
       tireThreshold?: number;
       marginAmountThreshold?: number;
       bonusAmount: number;

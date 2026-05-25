@@ -222,7 +222,7 @@ export interface IncentiveRule {
   updatedAt: string;
   managerLoginId?: string; // legacy — 하위 호환용
   // 복합 규칙 확장 필드
-  ruleType?: 'unit_price' | 'tire_quantity' | 'margin_bonus' | 'formula';
+  ruleType?: 'unit_price' | 'tire_quantity' | 'margin_bonus' | 'margin_step' | 'formula';
   tireThreshold?: number;    // 타이어 수량 임계값 (N개 이상)
   marginThreshold?: number;  // legacy: 마진율 임계값 (N%)
   marginAmountThreshold?: number; // 마진 금액 임계값 (N원)
