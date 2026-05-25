@@ -85,9 +85,21 @@ const isOnlineRentalItem = (productId?: string, productName?: string, category?:
   return haystack.includes('온라인렌탈') || haystack.includes('onlinerental');
 };
 
+const isPartCodeName = (productName?: string): boolean => {
+  const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
+};
+
+const isPartCategory = (category?: string): boolean => {
+  const normalized = normalizeText(category);
+  return normalized.includes('부품') || normalized === 'part' || normalized.includes('parts');
+};
+
 const resolveIncentiveItemClass = (item: { productName: string; category: string; itemClass: 'tire' | 'repair' | 'labor' }) => {
   const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
   const haystack = normalizeText(`${item.productName} ${item.category}`);
+
+  if (isPartCodeName(item.productName) || isPartCategory(item.category)) return 'labor' as const;
 
   if (TIRE_CATEGORIES.includes(normalizedCategory)) return 'tire' as const;
   if (REPAIR_CATEGORIES.includes(normalizedCategory)) return 'repair' as const;
@@ -292,7 +304,6 @@ const Incentive: React.FC<IncentiveProps> = ({
         cost: item.cost,
         profit: item.profit,
       })).filter((item) => !isOnlineRentalItem(undefined, item.productName, item.category));
-      })).filter((item) => !isOnlineRentalItem(undefined, item.productName, item.category));
     }
     return [];
   };
@@ -355,9 +366,9 @@ const Incentive: React.FC<IncentiveProps> = ({
       getReportStaffItems(report).forEach((si) => {
         const daily = ensureDaily(si.staffName);
         const resolvedItemClass = resolveIncentiveItemClass(si);
-        // 보고서 게시판과 동일하게 itemClass와 무관하게 정비 키워드 매칭
+        // 정비 건수는 정비 class에만 반영
         const mk = pickRepairMetric(si.productName, si.category);
-        if (resolvedItemClass !== 'tire' && mk) daily.repairMetrics[mk] += si.qty;
+        if (resolvedItemClass === 'repair' && mk) daily.repairMetrics[mk] += si.qty;
         if (resolvedItemClass === 'tire') {
           daily.tireQtyFromItems += si.qty;
           if (isUsedTireItem(si.productName, si.category)) {

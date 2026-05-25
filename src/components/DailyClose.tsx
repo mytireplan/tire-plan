@@ -32,6 +32,16 @@ const isOnlineRentalItem = (productId?: string, productName?: string, category?:
     return haystack.includes('온라인렌탈') || haystack.includes('onlinerental');
 };
 
+const isPartCodeName = (productName?: string): boolean => {
+    const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
+};
+
+const isPartCategory = (category?: string): boolean => {
+    const normalized = normalizeText(category);
+    return normalized.includes('부품') || normalized === 'part' || normalized.includes('parts');
+};
+
 const DailyClose: React.FC<DailyCloseProps> = ({
     sales, stores, products, dailyReports, stockInHistory, currentUser, currentStoreId, onUpdateSale, onSaveReport
 }) => {
@@ -54,8 +64,9 @@ const DailyClose: React.FC<DailyCloseProps> = ({
         return map;
     }, [products]);
 
-    const getItemClass = useCallback((productId: string, category: string): ItemClass => {
+    const getItemClass = useCallback((productId: string, category: string, productName?: string): ItemClass => {
         if (productId === '99999' || productId?.startsWith('RENTAL-')) return 'labor';
+        if (isPartCodeName(productName) || isPartCategory(category)) return 'labor';
         if (TIRE_CATEGORIES.includes(category)) return 'tire';
         if (REPAIR_CATEGORIES.includes(category)) return 'repair';
         return 'labor';
@@ -91,8 +102,10 @@ const DailyClose: React.FC<DailyCloseProps> = ({
             s.items.forEach(item => {
                 cost += (item.purchasePrice || 0) * item.quantity;
                 const product = productMap.get(item.productId);
-                const cls = getItemClass(item.productId, product?.category || '��Ÿ');
-                const excludedFromCount = isOnlineRentalItem(item.productId, item.productName, item.category || product?.category);
+                const sourceCategory = item.category || product?.category || '��Ÿ';
+                const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
+                const cls = getItemClass(item.productId, category, item.productName);
+                const excludedFromCount = isOnlineRentalItem(item.productId, item.productName, category);
                 if (!excludedFromCount) {
                     if (cls === 'tire') tireQty += item.quantity;
                     else if (cls === 'repair') repairQty += item.quantity;
@@ -228,9 +241,10 @@ const DailyClose: React.FC<DailyCloseProps> = ({
 
             sale.items.forEach((item, idx) => {
                 const product = productMap.get(item.productId);
-                const category = product?.category || '��Ÿ';
-                const itemClass = getItemClass(item.productId, category);
-                const excludedFromCount = isOnlineRentalItem(item.productId, item.productName, item.category || category);
+                const sourceCategory = item.category || product?.category || '��Ÿ';
+                const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
+                const itemClass = getItemClass(item.productId, category, item.productName);
+                const excludedFromCount = isOnlineRentalItem(item.productId, item.productName, category);
                 const fp = product?.factoryPrice || 0;
                 const cost = getItemEffectiveCost(sale.id, idx, fp, item.purchasePrice || 0);
                 const revenue = item.priceAtSale * item.quantity;
@@ -299,7 +313,10 @@ const DailyClose: React.FC<DailyCloseProps> = ({
         const profit = totalRevenue - totalCost;
         const margin = totalRevenue > 0 && totalCost > 0 ? (profit / totalRevenue) * 100 : 0;
 
-        const normalizeCategory = (category?: string) => (category || '��Ÿ').trim() || '��Ÿ';
+        const normalizeCategory = (category?: string) => {
+            const raw = (category || '��Ÿ').trim() || '��Ÿ';
+            return isPartCategory(raw) ? '부품' : raw;
+        };
         const getPreviousDateStr = (baseDateStr: string) => {
             const [yy, mm, dd] = baseDateStr.split('-').map(Number);
             const dt = new Date(yy, mm - 1, dd);
@@ -326,7 +343,10 @@ const DailyClose: React.FC<DailyCloseProps> = ({
         daySales.forEach(sale => {
             sale.items.forEach(item => {
                 const product = productMap.get(item.productId);
-                const category = normalizeCategory(product?.category);
+                const sourceCategory = item.category || product?.category || '��Ÿ';
+                const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory))
+                    ? '부품'
+                    : normalizeCategory(sourceCategory);
                 if (!isOnlineRentalItem(item.productId, item.productName, item.category || category)) {
                     soldByCategory.set(category, (soldByCategory.get(category) || 0) + item.quantity);
                 }
@@ -575,8 +595,9 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                         <p className="text-[11px] font-bold text-gray-400 pt-2 pb-1">�׸� ���� �Է�</p>
                                                         {sale.items.map((item, idx) => {
                                                             const product = productMap.get(item.productId);
-                                                            const category = product?.category || '��Ÿ';
-                                                            const itemClass = getItemClass(item.productId, category);
+                                                            const sourceCategory = item.category || product?.category || '��Ÿ';
+                                                            const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
+                                                            const itemClass = getItemClass(item.productId, category, item.productName);
                                                             const factoryPrice = product?.factoryPrice || 0;
 
                                                             const edit = costEdits[sale.id]?.[idx] || {
@@ -590,12 +611,15 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                             const totalItemCost = effectiveCost * item.quantity;
                                                             const itemProfit = totalItemRevenue - totalItemCost;
 
-                                                            const clsColor = itemClass === 'tire'
-                                                                ? 'bg-orange-100 text-orange-600'
-                                                                : itemClass === 'repair'
-                                                                    ? 'bg-violet-100 text-violet-600'
-                                                                    : 'bg-slate-100 text-slate-500';
-                                                            const clsLabel = itemClass === 'tire' ? 'Ÿ�̾�' : itemClass === 'repair' ? '����' : '����';
+                                                            const isPartItem = isPartCodeName(item.productName) || isPartCategory(category);
+                                                            const clsColor = isPartItem
+                                                                ? 'bg-sky-100 text-sky-700'
+                                                                : itemClass === 'tire'
+                                                                    ? 'bg-orange-100 text-orange-600'
+                                                                    : itemClass === 'repair'
+                                                                        ? 'bg-violet-100 text-violet-600'
+                                                                        : 'bg-slate-100 text-slate-500';
+                                                            const clsLabel = isPartItem ? '부품' : itemClass === 'tire' ? 'Ÿ�̾�' : itemClass === 'repair' ? '����' : '����';
 
                                                             return (
                                                                 <div key={idx} className="bg-white rounded-xl border border-gray-100 p-3 flex flex-col sm:flex-row sm:items-center gap-3">

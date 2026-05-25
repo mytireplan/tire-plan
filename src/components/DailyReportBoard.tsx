@@ -25,12 +25,16 @@ const STAFF_ITEM_METRICS: { key: string; label: string; keywords: string[]; isTi
 const normText = (t?: string) => (t || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
 const isPartCodeName = (productName?: string) => {
     const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    return /^(YEC\d+[A-Z0-9]*|YUMI\d+[A-Z0-9]*|XOIL\d+[A-Z0-9]*)$/.test(normalized);
+    return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
+};
+const isPartCategory = (category?: string) => {
+    const normalized = normText(category);
+    return normalized.includes('부품') || normalized === 'part' || normalized.includes('parts');
 };
 
 const getItemBadge = (item: Pick<DailyReportItem, 'productName' | 'category' | 'itemClass'>) => {
     const resolvedClass = resolveReportItemClass(item);
-    if (isPartCodeName(item.productName) || item.category === '부품') {
+    if (isPartCodeName(item.productName) || isPartCategory(item.category)) {
         return { label: '부품', colorHex: '#0369a1', className: 'text-sky-700 bg-sky-50' };
     }
     if (resolvedClass === 'tire') {
@@ -64,8 +68,8 @@ const resolveReportItemClass = (item: Pick<DailyReportItem, 'productName' | 'cat
     const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
     const haystack = normText(`${item.productName} ${item.category}`);
 
-    // 품번형 부품(YEC/YUMI/X-OIL 계열)은 정비 카운트에서 제외
-    if (isPartCodeName(item.productName)) return 'labor';
+    // 품번형 또는 부품 카테고리는 정비 카운트에서 제외
+    if (isPartCodeName(item.productName) || isPartCategory(item.category)) return 'labor';
 
     if (TIRE_CATEGORIES.includes(normalizedCategory)) return 'tire';
     if (REPAIR_CATEGORIES.includes(normalizedCategory)) return 'repair';

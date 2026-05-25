@@ -3562,7 +3562,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                       const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
                                       const isPartCodeName = (productName?: string) => {
                                           const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                                          return /^(YEC\d+[A-Z0-9]*|YUMI\d+[A-Z0-9]*|XOIL\d+[A-Z0-9]*)$/.test(normalized);
+                                          return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
+                                      };
+                                      const isPartCategory = (category?: string) => {
+                                          const normalized = normalizeText(category);
+                                          return normalized.includes('부품') || normalized === 'part' || normalized.includes('parts');
                                       };
                                       const isOnlineRental = (pid?: string, productName?: string, category?: string) => {
                                           const p = (pid || '').toLowerCase();
@@ -3572,8 +3576,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                       };
                                       const getClass = (pid: string, productName: string, cat: string) => {
                                           if (pid === '99999' || pid?.startsWith('RENTAL-')) return 'labor' as const;
-                                          // 품번형 부품은 정비 카운트에서 제외한다.
-                                          if (isPartCodeName(productName)) return 'labor' as const;
+                                          // 품번형 부품/부품 카테고리는 정비 카운트에서 제외한다.
+                                          if (isPartCodeName(productName) || isPartCategory(cat)) return 'labor' as const;
                                           const haystack = normalizeText(`${productName} ${cat}`);
                                           if (TIRE_CATS_KEYWORDS.some(kw => haystack.includes(normalizeText(kw)))) return 'tire' as const;
                                           for (const [, keywords] of Object.entries(REPAIR_KEYWORDS)) {
@@ -3595,7 +3599,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                           se.revenue += sale.totalAmount;
                                           sale.items.forEach((item, idx) => {
                                               const product = products.find(p => p.id === item.productId);
-                                              const cat = isPartCodeName(item.productName) ? '부품' : (product?.category || '기타');
+                                              const sourceCategory = item.category || product?.category || '기타';
+                                              const cat = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
                                               const ic = getClass(item.productId, item.productName || '', cat);
                                               const excludedFromCount = isOnlineRental(item.productId, item.productName, item.category || cat);
                                               const fp = product?.factoryPrice || 0;
