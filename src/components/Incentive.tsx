@@ -326,7 +326,6 @@ const Incentive: React.FC<IncentiveProps> = ({
       suspensionMargin: number;
       revenue: number;
       profit: number;
-      profitFromItems: number;
     };
 
     type StaffAggregate = {
@@ -363,7 +362,6 @@ const Incentive: React.FC<IncentiveProps> = ({
             suspensionMargin: 0,
             revenue: 0,
             profit: 0,
-            profitFromItems: 0,
           });
         }
         return dailyMap.get(normalizedStaffName)!;
@@ -379,7 +377,6 @@ const Incentive: React.FC<IncentiveProps> = ({
       getReportStaffItems(report).forEach((si) => {
         const daily = ensureDaily(si.staffName);
         const resolvedItemClass = resolveIncentiveItemClass(si);
-        daily.profitFromItems += Math.max(0, si.profit || 0);
         // 정비 건수는 정비 class에만 반영
         const mk = pickRepairMetric(si.productName, si.category);
         if (resolvedItemClass === 'repair' && mk) {
@@ -416,9 +413,8 @@ const Incentive: React.FC<IncentiveProps> = ({
         const tireBonus = rowTireRule?.bonusAmount ?? 0;
         const marginAmountThreshold = rowMarginRule?.marginAmountThreshold ?? rowMarginRule?.marginThreshold ?? 0;
         const marginBonusAmt = rowMarginRule?.bonusAmount ?? 0;
-        const marginBaseProfit = Math.max(daily.profit || 0, daily.profitFromItems || 0);
         const tireBonusEarnedDaily = tireThreshold > 0 && tireQty >= tireThreshold ? tireBonus : 0;
-        const marginBonusEarnedDaily = marginAmountThreshold > 0 && marginBaseProfit >= marginAmountThreshold ? marginBonusAmt : 0;
+        const marginBonusEarnedDaily = marginAmountThreshold > 0 && daily.profit >= marginAmountThreshold ? marginBonusAmt : 0;
         const suspensionStepThreshold = rowSuspensionMarginStepRule?.marginAmountThreshold ?? 0;
         const suspensionStepBonus = rowSuspensionMarginStepRule?.bonusAmount ?? 0;
         const suspensionMarginStepEarnedDaily = suspensionStepThreshold > 0
