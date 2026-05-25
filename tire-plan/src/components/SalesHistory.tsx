@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem } from '../types';
 import { PaymentMethod } from '../types';
 import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck } from 'lucide-react';
-import { formatCurrency, formatNumber } from '../utils/format';
+import { formatCurrency, formatNumber, formatToKoreaTime } from '../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface SalesHistoryProps {
@@ -831,7 +831,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                                         return (
                                         <tr key={sale.id} onClick={() => setSelectedSale(sale)} className={`hover:bg-blue-50 cursor-pointer transition-colors ${sale.isCanceled ? 'bg-gray-50' : ''}`}>
                                             <td className="px-4 py-3 text-center text-gray-500 font-medium whitespace-nowrap text-xs truncate">
-                                                {new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                {formatToKoreaTime(sale.date).split(' ').pop()?.slice(0, 5) || '--:--'}
                                                 {sale.isEdited && !sale.isCanceled && (
                                                     <span className="block text-[9px] text-blue-500 font-bold mt-0.5">(수정됨)</span>
                                                 )}
@@ -936,7 +936,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                           <div className="bg-red-50 border border-red-200 p-4 rounded-xl text-center">
                               <AlertTriangle size={32} className="text-red-500 mx-auto mb-2"/>
                               <h3 className="font-bold text-red-600">결제 취소된 내역입니다.</h3>
-                              <p className="text-xs text-gray-500">취소일시: {selectedSale.cancelDate ? new Date(selectedSale.cancelDate).toLocaleString() : '-'}</p>
+                              <p className="text-xs text-gray-500">취소일시: {selectedSale.cancelDate ? formatToKoreaTime(selectedSale.cancelDate) : '-'}</p>
                           </div>
                       )}
 
@@ -952,7 +952,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, fi
                              <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold bg-white shadow-sm mb-1 ${selectedSale.paymentMethod === PaymentMethod.CARD ? 'text-blue-600' : selectedSale.paymentMethod === PaymentMethod.CASH ? 'text-emerald-600' : 'text-violet-600'}`}>
                                 {getPaymentLabel(selectedSale.paymentMethod)}
                              </div>
-                             <div className="text-xs text-gray-500">{new Date(selectedSale.date).toLocaleString()}</div>
+                             <div className="text-xs text-gray-500">{formatToKoreaTime(selectedSale.date)}</div>
                          </div>
                       </div>
                       
