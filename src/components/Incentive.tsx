@@ -41,7 +41,6 @@ const REPAIR_CAT_ITEMS: Array<{ key: FormulaMetricKey; label: string }> = [
   { key: 'repair_engine_oil', label: '엔진오일' },
   { key: 'repair_brake_oil', label: '브레이크오일' },
   { key: 'repair_tpms', label: 'TPMS' },
-  { key: 'repair_disk', label: '디스크' },
   { key: 'repair_suspension', label: '하체' },
 ];
 
@@ -720,60 +719,6 @@ const Incentive: React.FC<IncentiveProps> = ({
               </div>
             </div>
 
-            <div className="p-4 border border-cyan-200 rounded-xl bg-cyan-50/40 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-cyan-700">하체 전용 마진 스텝 보너스</span>
-              </div>
-              <p className="text-xs text-gray-500">직원의 일마감 하체 마진이 N원 누적될 때마다 보너스를 반복 지급합니다. (예: 10만원당 5천원)</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500">하체 마진</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    placeholder="기준금액"
-                    className="w-28 px-2 py-1.5 border border-cyan-300 rounded-lg text-sm text-right bg-white"
-                    value={suspensionMarginStepThresholdDisplay}
-                    onChange={(e) => setSuspensionMarginStepDraft((p) => ({ ...p, threshold: e.target.value }))}
-                  />
-                  <span className="text-xs text-gray-500">원마다</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500">→</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    placeholder="지급금액"
-                    className="w-28 px-2 py-1.5 border border-cyan-300 rounded-lg text-sm text-right bg-white"
-                    value={suspensionMarginStepBonusDisplay}
-                    onChange={(e) => setSuspensionMarginStepDraft((p) => ({ ...p, bonus: e.target.value }))}
-                  />
-                  <span className="text-xs text-gray-500">원 지급</span>
-                </div>
-                <button
-                  onClick={() => {
-                    const threshold = Math.max(0, Number(suspensionMarginStepThresholdDisplay || 0));
-                    const bonus = Math.max(0, Number(suspensionMarginStepBonusDisplay || 0));
-                    onUpsertComplexRule({
-                      storeId: storeIdForRules,
-                      staffName: selectedRuleStaffName || undefined,
-                      productName: SUSPENSION_MARGIN_STEP_KEY,
-                      ruleType: 'margin_step',
-                      marginAmountThreshold: threshold,
-                      bonusAmount: bonus,
-                    });
-                    setSuspensionMarginStepDraft({ threshold: '', bonus: '' });
-                  }}
-                  className="p-1.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex-shrink-0"
-                  title="저장"
-                >
-                  <Save size={14} />
-                </button>
-              </div>
-            </div>
-
             <div className="p-4 border border-sky-200 rounded-xl bg-sky-50/40 space-y-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-sky-700">점장 추가: 지점 타이어 수량 보너스</span>
@@ -889,7 +834,7 @@ const Incentive: React.FC<IncentiveProps> = ({
       {isOwner && (
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-gray-700">정비 품목별 인센티브 단가 (원/개)</h3>
+          <h3 className="text-sm font-bold text-gray-700">정비 품목별 인센티브 설정</h3>
           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">{selectedRuleStaffLabel}</span>
           {!isOwner && <span className="flex items-center gap-1 text-xs text-gray-400"><Lock size={12} /> 사장만 수정 가능</span>}
         </div>
@@ -904,7 +849,49 @@ const Incentive: React.FC<IncentiveProps> = ({
                 <span className="text-sm font-semibold text-gray-700 flex-1">{cat.label}</span>
                 {isOwner ? (
                   isSuspension ? (
-                    <span className="text-xs font-semibold text-cyan-700">하체 마진 스텝 보너스 사용</span>
+                    <>
+                      <div className="flex items-center gap-1 flex-wrap justify-end">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={suspensionMarginStepThresholdDisplay}
+                          onChange={(e) => setSuspensionMarginStepDraft((p) => ({ ...p, threshold: e.target.value }))}
+                          className="w-24 px-2 py-1.5 border border-cyan-300 rounded-lg text-sm text-right bg-white"
+                          placeholder="기준"
+                        />
+                        <span className="text-[11px] text-gray-500 whitespace-nowrap">원당</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={suspensionMarginStepBonusDisplay}
+                          onChange={(e) => setSuspensionMarginStepDraft((p) => ({ ...p, bonus: e.target.value }))}
+                          className="w-24 px-2 py-1.5 border border-cyan-300 rounded-lg text-sm text-right bg-white"
+                          placeholder="지급"
+                        />
+                        <span className="text-[11px] text-gray-500 whitespace-nowrap">원</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const threshold = Math.max(0, Number(suspensionMarginStepThresholdDisplay || 0));
+                          const bonus = Math.max(0, Number(suspensionMarginStepBonusDisplay || 0));
+                          onUpsertComplexRule({
+                            storeId: storeIdForRules,
+                            staffName: selectedRuleStaffName || undefined,
+                            productName: SUSPENSION_MARGIN_STEP_KEY,
+                            ruleType: 'margin_step',
+                            marginAmountThreshold: threshold,
+                            bonusAmount: bonus,
+                          });
+                          setSuspensionMarginStepDraft({ threshold: '', bonus: '' });
+                        }}
+                        className="p-1.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex-shrink-0"
+                        title="저장"
+                      >
+                        <Save size={14} />
+                      </button>
+                    </>
                   ) : (
                   <>
                     <input
@@ -931,7 +918,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                   </>
                   )
                 ) : (
-                  isSuspension ? <span className="text-xs font-semibold text-cyan-700">하체 마진 스텝 보너스 사용</span> : <span className="text-sm font-bold text-blue-700">{formatCurrency(currentRate)}</span>
+                  isSuspension ? <span className="text-xs font-semibold text-cyan-700">{formatCurrency(Number(suspensionMarginStepThresholdDisplay || 0))}당 {formatCurrency(Number(suspensionMarginStepBonusDisplay || 0))}</span> : <span className="text-sm font-bold text-blue-700">{formatCurrency(currentRate)}</span>
                 )}
               </div>
             );
@@ -946,8 +933,8 @@ const Incentive: React.FC<IncentiveProps> = ({
           {visibleStaffRows.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">
               {showMarginRateColumn
-                ? '보고서 기준 집계: 타이어/중고타이어/정비 6개 품목/마진율'
-                : '보고서 기준 집계: 타이어/중고타이어/정비 6개 품목'}
+                ? '보고서 기준 집계: 타이어/중고타이어/정비 5개 품목/하체마진/마진율'
+                : '보고서 기준 집계: 타이어/중고타이어/정비 5개 품목/하체마진'}
             </p>
           )}
         </div>
@@ -966,7 +953,6 @@ const Incentive: React.FC<IncentiveProps> = ({
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">엔진오일</th>
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">브레이크오일</th>
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">TPMS</th>
-                    <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">디스크</th>
                     <th className="px-3 py-3 text-right font-bold text-blue-600 whitespace-nowrap text-xs">하체</th>
                     <th className="px-3 py-3 text-right font-bold text-cyan-700 whitespace-nowrap text-xs">하체마진</th>
                     {showMarginRateColumn && <th className="px-3 py-3 text-right font-bold text-emerald-600 whitespace-nowrap text-xs">마진율</th>}
@@ -984,7 +970,6 @@ const Incentive: React.FC<IncentiveProps> = ({
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_engine_oil)}개</td>
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_brake_oil)}개</td>
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_tpms)}개</td>
-                      <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_disk)}개</td>
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(row.metricValues.repair_suspension)}개</td>
                       <td className="px-3 py-3 text-right text-cyan-700 whitespace-nowrap">{formatCurrency(row.metricValues.repair_suspension_margin)}</td>
                       {showMarginRateColumn && <td className="px-3 py-3 text-right text-gray-600 whitespace-nowrap">{row.marginRate.toFixed(1)}%</td>}
@@ -1002,7 +987,6 @@ const Incentive: React.FC<IncentiveProps> = ({
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_engine_oil, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_brake_oil, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_tpms, 0))}개</td>
-                  <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_disk, 0))}개</td>
                   <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">{formatNumber(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension, 0))}개</td>
                   <td className="px-3 py-3 text-right text-cyan-700 whitespace-nowrap">{formatCurrency(visibleStaffRows.reduce((s, r) => s + r.metricValues.repair_suspension_margin, 0))}</td>
                   {showMarginRateColumn && <td className="px-3 py-3 text-right text-gray-500 whitespace-nowrap">-</td>}
