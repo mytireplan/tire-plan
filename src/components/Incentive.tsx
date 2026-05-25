@@ -498,7 +498,7 @@ const Incentive: React.FC<IncentiveProps> = ({
   const totalTireQty = visibleStaffRows.reduce((s, r) => s + r.tireQty, 0);
   const totalUsedTireQty = visibleStaffRows.reduce((s, r) => s + r.usedTireQty, 0);
   const totalSuspensionIncentive = visibleStaffRows.reduce((s, r) => s + r.suspensionMarginStepEarned, 0);
-  const totalPersonalMarginIncentive = visibleStaffRows.reduce((s, r) => s + r.marginBonusEarned + r.suspensionMarginStepEarned, 0);
+  const totalPersonalMarginIncentive = visibleStaffRows.reduce((s, r) => s + r.marginBonusEarned, 0);
   const totalStoreMarginIncentive = visibleStaffRows.reduce((s, r) => s + r.managerStoreMarginBonusEarned, 0);
   const totalIncentive = visibleStaffRows.reduce((s, r) => s + r.totalAmount, 0);
 
@@ -976,7 +976,7 @@ const Incentive: React.FC<IncentiveProps> = ({
                       <td className="px-3 py-3 text-right text-blue-700 whitespace-nowrap text-[12px] md:text-sm">{formatNumber(row.metricValues.repair_suspension)}개</td>
                       <td className="px-2 md:px-3 py-3 text-right text-teal-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.repairIncentive)}</td>
                       <td className="px-2 md:px-3 py-3 text-right text-cyan-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.suspensionMarginStepEarned)}</td>
-                      <td className="px-2 md:px-3 py-3 text-right text-emerald-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.marginBonusEarned + row.suspensionMarginStepEarned)}</td>
+                      <td className="px-2 md:px-3 py-3 text-right text-emerald-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.marginBonusEarned)}</td>
                       <td className="px-2 md:px-3 py-3 text-right text-indigo-700 whitespace-nowrap font-semibold text-[12px] md:text-sm">{formatCurrency(row.managerStoreMarginBonusEarned)}</td>
                       <td className="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(row.totalAmount)}</td>
                     </tr>
