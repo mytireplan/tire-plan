@@ -78,6 +78,15 @@ const createEmptyRepairMetrics = (): Record<FormulaMetricKey, number> => ({
 
 const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
 const normalizeStaffName = (name?: string) => (name || '미지정').trim();
+const toSafeNumber = (value: unknown): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
 const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
 
 const isOnlineRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
@@ -369,9 +378,9 @@ const Incentive: React.FC<IncentiveProps> = ({
 
       (report.staffStats || []).forEach((ss) => {
         const daily = ensureDaily(ss.staffName);
-        daily.tireQty += ss.tireQty || 0;
-        daily.revenue += ss.revenue || 0;
-        daily.profit += ss.profit || 0;
+        daily.tireQty += toSafeNumber(ss.tireQty);
+        daily.revenue += toSafeNumber(ss.revenue);
+        daily.profit += toSafeNumber(ss.profit);
       });
 
       getReportStaffItems(report).forEach((si) => {
@@ -382,7 +391,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         if (resolvedItemClass === 'repair' && mk) {
           daily.repairMetrics[mk] += si.qty;
           if (mk === 'repair_suspension') {
-            daily.suspensionMargin += Math.max(0, si.profit || 0);
+            daily.suspensionMargin += Math.max(0, toSafeNumber(si.profit));
           }
         }
         if (resolvedItemClass === 'tire') {
@@ -428,7 +437,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         const managerStoreMarginBonus = rowManagerStoreMarginRule?.bonusAmount ?? 0;
         // 점장 지점 기준도 일마감(하루) 기준으로 판정
         const managerStoreTireBonusEarnedDaily = isManager && managerStoreTireThreshold > 0 && (report.tireQty || 0) >= managerStoreTireThreshold ? managerStoreTireBonus : 0;
-        const managerStoreMarginBonusEarnedDaily = isManager && managerStoreMarginThreshold > 0 && (report.profit || 0) >= managerStoreMarginThreshold ? managerStoreMarginBonus : 0;
+        const managerStoreMarginBonusEarnedDaily = isManager && managerStoreMarginThreshold > 0 && toSafeNumber(report.profit) >= managerStoreMarginThreshold ? managerStoreMarginBonus : 0;
 
         if (!staffAggMap.has(staffName)) {
           staffAggMap.set(staffName, {
