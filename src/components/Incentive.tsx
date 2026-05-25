@@ -77,8 +77,9 @@ const createEmptyRepairMetrics = (): Record<FormulaMetricKey, number> => ({
 });
 
 const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
-const normalizeStaffName = (name?: string) => (name || '미지정').trim();
-const normalizeRuleStaffScope = (name?: string) => (name || '').trim();
+const normalizeStaffName = (name?: string) => (name || '미지정').replace(/\s+/g, ' ').trim();
+const normalizeStaffKey = (name?: string) => normalizeStaffName(name).replace(/\s+/g, '').toLowerCase();
+const normalizeRuleStaffScope = (name?: string) => normalizeStaffKey(name);
 const toSafeNumber = (value: unknown): number => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'string') {
@@ -261,11 +262,11 @@ const Incentive: React.FC<IncentiveProps> = ({
     return new Set(
       staffList
         .filter((s) => s.isManager)
-        .map((s) => `${normalizeStaffName(s.name)}::${s.storeId || ''}`)
+        .map((s) => `${normalizeStaffKey(s.name)}::${s.storeId || ''}`)
     );
   }, [staffList]);
   const selectedStaffMeta = useMemo(
-    () => staffList.find((s) => s.name === selectedRuleStaffName && (s.storeId || '') === (storeIdForRules || '')),
+    () => staffList.find((s) => normalizeStaffKey(s.name) === normalizeStaffKey(selectedRuleStaffName) && (s.storeId || '') === (storeIdForRules || '')),
     [staffList, selectedRuleStaffName, storeIdForRules]
   );
   const selectedStaffIsManager = !!selectedStaffMeta?.isManager;
@@ -380,7 +381,7 @@ const Incentive: React.FC<IncentiveProps> = ({
     monthReports.forEach((report) => {
       const dailyMap = new Map<string, DailyStaffMetric>();
       const ensureDaily = (staffName: string): DailyStaffMetric => {
-        const normalizedStaffName = normalizeStaffName(staffName);
+        const normalizedStaffName = normalizeStaffKey(staffName);
         if (!dailyMap.has(normalizedStaffName)) {
           dailyMap.set(normalizedStaffName, {
             storeId: report.storeId,
@@ -467,7 +468,7 @@ const Incentive: React.FC<IncentiveProps> = ({
 
         if (!staffAggMap.has(staffName)) {
           staffAggMap.set(staffName, {
-            staffName,
+            staffName: normalizeStaffName(staffName),
             storeId: daily.storeId,
             totalRepairQty: 0,
             tireQty: 0,
