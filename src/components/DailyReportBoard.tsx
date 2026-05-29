@@ -23,7 +23,7 @@ const STAFF_ITEM_METRICS: { key: string; label: string; keywords: string[]; isTi
 ];
 
 const normText = (t?: string) => (t || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
-const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
+const PART_CATEGORY_KEYWORDS = ['부품', 'part', 'parts'];
 const isPartCodeName = (productName?: string) => {
     const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
@@ -69,12 +69,12 @@ const resolveReportItemClass = (item: Pick<DailyReportItem, 'productName' | 'cat
     const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
     const haystack = normText(`${item.productName} ${item.category}`);
 
-    // 품번형 또는 부품 카테고리는 정비 카운트에서 제외
-    if (isPartCodeName(item.productName) || isPartCategory(item.category)) return 'labor';
+    if (isPartCodeName(item.productName)) return 'labor';
 
     if (TIRE_CATEGORIES.includes(normalizedCategory)) return 'tire';
     if (REPAIR_CATEGORIES.includes(normalizedCategory)) return 'repair';
     if (REPAIR_KEYWORDS.some(kw => haystack.includes(normText(kw)))) return 'repair';
+    if (isPartCategory(item.category)) return 'labor';
 
     return item.itemClass;
 };

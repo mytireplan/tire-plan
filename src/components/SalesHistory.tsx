@@ -164,7 +164,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       daySales.forEach(sale => {
           const itemEdits: Record<number, CloseItemEdit> = {};
           sale.items.forEach((item, idx) => {
-              const product = products.find(p => p.id === item.productId);
+              const product = productById.get(item.productId);
               const fp = product?.factoryPrice || 0;
               const saved = item.purchasePrice || 0;
               const mode: 'discount' | 'direct' = fp > 0 ? 'discount' : 'direct';
@@ -200,7 +200,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
 
   const handleCloseSaveSale = (sale: typeof filteredSales[0]) => {
       const updatedItems = sale.items.map((item, idx) => {
-          const product = products.find(p => p.id === item.productId);
+          const product = productById.get(item.productId);
           const fp = product?.factoryPrice || 0;
           return { ...item, purchasePrice: getCloseCost(sale.id, idx, fp, item.purchasePrice || 0) };
       });
@@ -222,6 +222,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   });
 
     const isAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORE_ADMIN';
+    const productById = useMemo(() => {
+            return new Map(products.map(product => [product.id, product]));
+    }, [products]);
 
   useEffect(() => {
     if (filter.type === 'DATE' && filter.value) {
@@ -382,15 +385,48 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
 
+  const normalizeCostKey = (value?: string) => (value || '').trim().toLowerCase();
+  const latestCostLookup = useMemo(() => {
+      const byName = new Map<string, { date: string; cost: number }>();
+      const byNameSpec = new Map<string, { date: string; cost: number }>();
+
+      stockInHistory.forEach(record => {
+          const purchasePrice = Number(record.purchasePrice || 0);
+          if (purchasePrice <= 0) return;
+
+          const nameKey = normalizeCostKey(record.productName);
+          if (!nameKey) return;
+          const dateKey = record.date || '';
+
+          const prevByName = byName.get(nameKey);
+          if (!prevByName || dateKey > prevByName.date) {
+              byName.set(nameKey, { date: dateKey, cost: purchasePrice });
+          }
+
+          const specKey = normalizeCostKey(record.specification);
+          if (specKey) {
+              const compositeKey = `${nameKey}::${specKey}`;
+              const prevByNameSpec = byNameSpec.get(compositeKey);
+              if (!prevByNameSpec || dateKey > prevByNameSpec.date) {
+                  byNameSpec.set(compositeKey, { date: dateKey, cost: purchasePrice });
+              }
+          }
+      });
+
+      return { byName, byNameSpec };
+  }, [stockInHistory]);
+
   const getLatestCost = (productName: string, spec?: string) => {
-    if (!stockInHistory || stockInHistory.length === 0) return 0;
-    const matches = stockInHistory.filter(r => {
-        const nameMatch = (r.productName || '').trim() === (productName || '').trim();
-        const specMatch = spec ? ((r.specification || '').trim() === (spec || '').trim()) : true;
-        return nameMatch && specMatch && (r.purchasePrice || 0) > 0;
-    });
-    matches.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return matches[0]?.purchasePrice || 0;
+      const nameKey = normalizeCostKey(productName);
+      if (!nameKey) return 0;
+
+      const specKey = normalizeCostKey(spec);
+      if (specKey) {
+          const row = latestCostLookup.byNameSpec.get(`${nameKey}::${specKey}`);
+          if (row) return row.cost;
+      }
+
+      return latestCostLookup.byName.get(nameKey)?.cost || 0;
   };
 
   const getItemCost = (item: SalesItem) => {
@@ -444,7 +480,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   const isTireItem = (item: SalesItem | null | undefined) => {
     if (!item) return false;
                 if (isRentalItem(item.productId, item.productName, item.category)) return false;
-    const product = products.find(p => p.id === item.productId);
+        const product = productById.get(item.productId);
         const productCategory = normalizeCategory(product?.category);
         const itemCategory = normalizeCategory(item.category);
         const normalizedCategoryText = `${productCategory} ${itemCategory}`.replace(/\s+/g, '');
@@ -510,8 +546,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       }
       
       return true;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [sales, filterStart, filterEnd, activePaymentMethod, activeStoreId, searchTerm]);
+        }).sort((a, b) => b.date.localeCompare(a.date));
+    }, [sales, filterStart, filterEnd, activePaymentMethod, activeStoreId, searchTerm]);
 
   const salesWithMetrics = useMemo(() => {
     return filteredSales.map(sale => {
@@ -636,13 +672,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
 
 
   // --- Display Priority Logic ---
-  const getPrimaryItem = (sale: Sale) => {
+    const getPrimaryItem = (sale: Sale) => {
     if (!sale.items || sale.items.length === 0) return null;
     
     const itemsWithCat = sale.items
         .filter(item => item) // Filter out undefined/null items
         .map(item => {
-            const product = products.find(p => p.id === item.productId);
+            const product = productById.get(item.productId);
             const itemCategory = normalizeCategory(item.category);
             const productCategory = normalizeCategory(product?.category);
             let category = itemCategory !== '기타' ? itemCategory : productCategory;
@@ -663,6 +699,179 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
 
     return itemsWithCat[0] || sale.items[0];
   };
+
+  const closeModalData = useMemo(() => {
+      if (!isCloseModalOpen) return null;
+
+      const y = currentDate.getFullYear();
+      const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const d = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+
+      const daySales = filteredSales
+          .filter(sale => !sale.isCanceled && isoToLocalDate(sale.date) === dateStr)
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+      const reportStoreId = (currentStoreId && currentStoreId !== 'ALL')
+          ? currentStoreId
+          : (daySales[0]?.storeId || 'unknown');
+
+      const dayStockIns: DailyReportStockInEntry[] = stockInHistory
+          .filter(record => !record.consumedAtSaleId && record.date.startsWith(dateStr) && (reportStoreId === 'unknown' || record.storeId === reportStoreId))
+          .map(record => ({
+              id: record.id,
+              supplier: record.supplier,
+              productName: record.productName,
+              specification: record.specification,
+              category: record.category,
+              quantity: record.receivedQuantity ?? record.quantity ?? 0,
+          }));
+
+      const savedDayExpenses: DailyReportExpenseEntry[] = expenses
+          .filter(expense => (expense.date === dateStr || expense.date.startsWith(dateStr)) && (!expense.storeId || reportStoreId === 'unknown' || expense.storeId === reportStoreId))
+          .map(expense => ({
+              id: expense.id,
+              category: expense.category,
+              description: expense.description,
+              amount: expense.amount,
+              source: 'saved',
+          }));
+
+      const mergedSavedDayExpenses: DailyReportExpenseEntry[] = [
+          ...savedDayExpenses,
+          ...closeLinkedExpenses.filter(localExpense => !savedDayExpenses.some(savedExpense => savedExpense.id === localExpense.id)),
+      ];
+
+      const manualDayExpenses: DailyReportExpenseEntry[] = closeExpenseDrafts
+          .map(expense => ({
+              id: expense.id,
+              category: expense.category.trim() || '기타',
+              description: expense.description.trim(),
+              amount: Number(expense.amount.replace(/,/g, '')) || 0,
+              source: 'manual' as const,
+          }))
+          .filter(expense => expense.description && expense.amount > 0);
+
+      const closeRevenueTotal = daySales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+      const closeCostTotal = daySales.reduce((sum, sale) => (
+          sum + sale.items.reduce((itemSum, item, idx) => {
+              const factoryPrice = productById.get(item.productId)?.factoryPrice || 0;
+              return itemSum + (getCloseCost(sale.id, idx, factoryPrice, item.purchasePrice || 0) * item.quantity);
+          }, 0)
+      ), 0);
+      const closeExpenseTotal = [...mergedSavedDayExpenses, ...manualDayExpenses].reduce((sum, expense) => sum + expense.amount, 0);
+      const closeGrossMargin = closeRevenueTotal - closeCostTotal;
+      const closeNetMargin = closeGrossMargin - closeExpenseTotal;
+
+      const normalizeCloseCategory = (category?: string) => (category || '기타').trim() || '기타';
+      const getPreviousDateStr = (baseDateStr: string) => {
+          const [yy, mm, dd] = baseDateStr.split('-').map(Number);
+          const dt = new Date(yy, mm - 1, dd);
+          dt.setDate(dt.getDate() - 1);
+          return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      };
+      const getCurrentStockByStore = (product: Product) => {
+          if (reportStoreId && reportStoreId !== 'unknown') {
+              return Number(product.stockByStore?.[reportStoreId] || 0);
+          }
+          return Number(product.stock || 0);
+      };
+      const categoryPriority = (category: string) => {
+          if (category === '타이어') return 0;
+          if (category === '중고타이어') return 1;
+          if (category === '기타') return 99;
+          return 10;
+      };
+
+      const soldByCategory = new Map<string, number>();
+      daySales.forEach(sale => {
+          sale.items.forEach(item => {
+              const category = normalizeCloseCategory(productById.get(item.productId)?.category);
+              soldByCategory.set(category, (soldByCategory.get(category) || 0) + item.quantity);
+          });
+      });
+
+      const stockInByCategory = new Map<string, number>();
+      dayStockIns.forEach(record => {
+          const category = normalizeCloseCategory(record.category);
+          stockInByCategory.set(category, (stockInByCategory.get(category) || 0) + (record.quantity || 0));
+      });
+
+      const currentStockByCategory = new Map<string, number>();
+      products.forEach(product => {
+          const qty = getCurrentStockByStore(product);
+          if (qty === 0) return;
+          const category = normalizeCloseCategory(product.category);
+          currentStockByCategory.set(category, (currentStockByCategory.get(category) || 0) + qty);
+      });
+
+      const previousDateStr = getPreviousDateStr(dateStr);
+      const previousReport = dailyReports.find(report => report.storeId === reportStoreId && report.dateStr === previousDateStr);
+      const previousStockByCategory = new Map<string, number>();
+      previousReport?.inventoryFlowEntries?.forEach(entry => {
+          previousStockByCategory.set(normalizeCloseCategory(entry.category), Number(entry.currentStock || 0));
+      });
+
+      const allInventoryCategories = new Set<string>([
+          ...Array.from(currentStockByCategory.keys()),
+          ...Array.from(stockInByCategory.keys()),
+          ...Array.from(soldByCategory.keys()),
+          ...Array.from(previousStockByCategory.keys()),
+      ]);
+
+      const inventoryFlowEntries: DailyReportInventoryFlowEntry[] = Array.from(allInventoryCategories)
+          .map(category => {
+              const stockInQty = stockInByCategory.get(category) || 0;
+              const soldQty = soldByCategory.get(category) || 0;
+              const hasPreviousBaseline = previousStockByCategory.has(category);
+              const fallbackCurrentStock = currentStockByCategory.get(category) || 0;
+              const previousStock = hasPreviousBaseline
+                  ? (previousStockByCategory.get(category) || 0)
+                  : (fallbackCurrentStock - stockInQty + soldQty);
+              const currentStock = hasPreviousBaseline
+                  ? (previousStock + stockInQty - soldQty)
+                  : fallbackCurrentStock;
+
+              return {
+                  category,
+                  previousStock,
+                  stockInQty,
+                  soldQty,
+                  currentStock,
+              };
+          })
+          .sort((a, b) => {
+              const pa = categoryPriority(a.category);
+              const pb = categoryPriority(b.category);
+              if (pa !== pb) return pa - pb;
+              return a.category.localeCompare(b.category, 'ko');
+          });
+
+      const inventoryFlowTotals = inventoryFlowEntries.reduce((acc, entry) => ({
+          previousStock: acc.previousStock + entry.previousStock,
+          stockInQty: acc.stockInQty + entry.stockInQty,
+          soldQty: acc.soldQty + entry.soldQty,
+          currentStock: acc.currentStock + entry.currentStock,
+      }), { previousStock: 0, stockInQty: 0, soldQty: 0, currentStock: 0 });
+
+      return {
+          y,
+          m,
+          d,
+          dateStr,
+          daySales,
+          reportStoreId,
+          dayStockIns,
+          mergedSavedDayExpenses,
+          manualDayExpenses,
+          closeRevenueTotal,
+          closeCostTotal,
+          closeExpenseTotal,
+          closeNetMargin,
+          inventoryFlowEntries,
+          inventoryFlowTotals,
+      };
+  }, [isCloseModalOpen, currentDate, filteredSales, currentStoreId, stockInHistory, expenses, closeLinkedExpenses, closeExpenseDrafts, closeEdits, products, dailyReports, productById]);
 
     const getItemDisplayPrefix = (item: (SalesItem & { category?: string }) | null) => {
         if (!item) return '';
@@ -3038,145 +3247,24 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       )}
 
       {/* 마감하기 Modal */}
-      {isCloseModalOpen && (() => {
-          const y = currentDate.getFullYear();
-          const m = String(currentDate.getMonth() + 1).padStart(2, '0');
-          const d = String(currentDate.getDate()).padStart(2, '0');
-          const dateStr = `${y}-${m}-${d}`;
-          const daySales = filteredSales.filter(s => !s.isCanceled && isoToLocalDate(s.date) === dateStr)
-              .sort((a, b) => a.date.localeCompare(b.date));
-          const reportStoreId = (currentStoreId && currentStoreId !== 'ALL')
-              ? currentStoreId
-              : (daySales[0]?.storeId || 'unknown');
-          const dayStockIns: DailyReportStockInEntry[] = stockInHistory
-              .filter(record => !record.consumedAtSaleId && record.date.startsWith(dateStr) && (reportStoreId === 'unknown' || record.storeId === reportStoreId))
-              .map(record => ({
-                  id: record.id,
-                  supplier: record.supplier,
-                  productName: record.productName,
-                  specification: record.specification,
-                  category: record.category,
-                  quantity: record.receivedQuantity ?? record.quantity ?? 0,
-              }));
-          const savedDayExpenses: DailyReportExpenseEntry[] = expenses
-              .filter(expense => (expense.date === dateStr || expense.date.startsWith(dateStr)) && (!expense.storeId || reportStoreId === 'unknown' || expense.storeId === reportStoreId))
-              .map(expense => ({
-                  id: expense.id,
-                  category: expense.category,
-                  description: expense.description,
-                  amount: expense.amount,
-                  source: 'saved',
-              }));
-          const mergedSavedDayExpenses: DailyReportExpenseEntry[] = [
-              ...savedDayExpenses,
-              ...closeLinkedExpenses.filter(localExpense => !savedDayExpenses.some(savedExpense => savedExpense.id === localExpense.id)),
-          ];
-          const manualDayExpenses: DailyReportExpenseEntry[] = closeExpenseDrafts
-              .map(expense => ({
-                  id: expense.id,
-                  category: expense.category.trim() || '기타',
-                  description: expense.description.trim(),
-                  amount: Number(expense.amount.replace(/,/g, '')) || 0,
-                  source: 'manual' as const,
-              }))
-              .filter(expense => expense.description && expense.amount > 0);
-          const closeRevenueTotal = daySales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-          const closeCostTotal = daySales.reduce((sum, sale) => (
-              sum + sale.items.reduce((itemSum, item, idx) => {
-                  const product = products.find(p => p.id === item.productId);
-                  return itemSum + (getCloseCost(sale.id, idx, product?.factoryPrice || 0, item.purchasePrice || 0) * item.quantity);
-              }, 0)
-          ), 0);
-          const closeExpenseTotal = [...mergedSavedDayExpenses, ...manualDayExpenses]
-              .reduce((sum, expense) => sum + expense.amount, 0);
-          const closeGrossMargin = closeRevenueTotal - closeCostTotal;
-          const closeNetMargin = closeGrossMargin - closeExpenseTotal;
-
-          const normalizeCategory = (category?: string) => (category || '기타').trim() || '기타';
-          const getPreviousDateStr = (baseDateStr: string) => {
-              const [yy, mm, dd] = baseDateStr.split('-').map(Number);
-              const dt = new Date(yy, mm - 1, dd);
-              dt.setDate(dt.getDate() - 1);
-              return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-          };
-          const getCurrentStockByStore = (product: Product) => {
-              if (reportStoreId && reportStoreId !== 'unknown') {
-                  return Number(product.stockByStore?.[reportStoreId] || 0);
-              }
-              return Number(product.stock || 0);
-          };
-          const categoryPriority = (category: string) => {
-              if (category === '타이어') return 0;
-              if (category === '중고타이어') return 1;
-              if (category === '기타') return 99;
-              return 10;
-          };
-          const soldByCategory = new Map<string, number>();
-          daySales.forEach(sale => {
-              sale.items.forEach(item => {
-                  const product = products.find(p => p.id === item.productId);
-                  const category = normalizeCategory(product?.category);
-                  soldByCategory.set(category, (soldByCategory.get(category) || 0) + item.quantity);
-              });
-          });
-          const stockInByCategory = new Map<string, number>();
-          dayStockIns.forEach(record => {
-              const category = normalizeCategory(record.category);
-              stockInByCategory.set(category, (stockInByCategory.get(category) || 0) + (record.quantity || 0));
-          });
-          const currentStockByCategory = new Map<string, number>();
-          products.forEach(product => {
-              const qty = getCurrentStockByStore(product);
-              if (qty === 0) return;
-              const category = normalizeCategory(product.category);
-              currentStockByCategory.set(category, (currentStockByCategory.get(category) || 0) + qty);
-          });
-          const previousDateStr = getPreviousDateStr(dateStr);
-          const previousReport = dailyReports.find(report =>
-              report.storeId === reportStoreId && report.dateStr === previousDateStr
-          );
-          const previousStockByCategory = new Map<string, number>();
-          previousReport?.inventoryFlowEntries?.forEach(entry => {
-              previousStockByCategory.set(normalizeCategory(entry.category), Number(entry.currentStock || 0));
-          });
-          const allInventoryCategories = new Set<string>([
-              ...Array.from(currentStockByCategory.keys()),
-              ...Array.from(stockInByCategory.keys()),
-              ...Array.from(soldByCategory.keys()),
-              ...Array.from(previousStockByCategory.keys()),
-          ]);
-          const inventoryFlowEntries: DailyReportInventoryFlowEntry[] = Array.from(allInventoryCategories)
-              .map(category => {
-                  const stockInQty = stockInByCategory.get(category) || 0;
-                  const soldQty = soldByCategory.get(category) || 0;
-                  const hasPreviousBaseline = previousStockByCategory.has(category);
-                  const fallbackCurrentStock = currentStockByCategory.get(category) || 0;
-                  const previousStock = hasPreviousBaseline
-                      ? (previousStockByCategory.get(category) || 0)
-                      : (fallbackCurrentStock - stockInQty + soldQty);
-                  const currentStock = hasPreviousBaseline
-                      ? (previousStock + stockInQty - soldQty)
-                      : fallbackCurrentStock;
-                  return {
-                      category,
-                      previousStock,
-                      stockInQty,
-                      soldQty,
-                      currentStock,
-                  };
-              })
-              .sort((a, b) => {
-                  const pa = categoryPriority(a.category);
-                  const pb = categoryPriority(b.category);
-                  if (pa !== pb) return pa - pb;
-                  return a.category.localeCompare(b.category, 'ko');
-              });
-          const inventoryFlowTotals = inventoryFlowEntries.reduce((acc, entry) => ({
-              previousStock: acc.previousStock + entry.previousStock,
-              stockInQty: acc.stockInQty + entry.stockInQty,
-              soldQty: acc.soldQty + entry.soldQty,
-              currentStock: acc.currentStock + entry.currentStock,
-          }), { previousStock: 0, stockInQty: 0, soldQty: 0, currentStock: 0 });
+      {isCloseModalOpen && closeModalData && (() => {
+          const {
+              y,
+              m,
+              d,
+              dateStr,
+              daySales,
+              reportStoreId,
+              dayStockIns,
+              mergedSavedDayExpenses,
+              manualDayExpenses,
+              closeRevenueTotal,
+              closeCostTotal,
+              closeExpenseTotal,
+              closeNetMargin,
+              inventoryFlowEntries,
+              inventoryFlowTotals,
+          } = closeModalData;
 
           const handleSaveCloseMeta = () => {
               const validDrafts = closeExpenseDrafts
@@ -3218,11 +3306,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
               setCloseReported(false);
           };
           const TIRE_CATEGORIES = ['타이어', '중고타이어'];
-          const REPAIR_CATEGORIES = ['브레이크패드', '오일필터', '엔진오일', '에어크리너'];
-          const getItemClass = (productId: string, category: string) => {
+          const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너', '브레이크오일', 'TPMS'];
+          const REPAIR_KEYWORDS = ['브레이크패드', '오일필터', '엔진오일', '에어크리너', '브레이크오일', '브레이크 오일', '브레이크액', 'tpms', '하체', '쇼바', '로어암', '활대링크', '부싱'];
+          const getItemClass = (productId: string, category: string, productName?: string) => {
               if (productId === '99999' || productId?.startsWith('RENTAL-')) return 'labor';
               if (TIRE_CATEGORIES.includes(category)) return 'tire';
               if (REPAIR_CATEGORIES.includes(category)) return 'repair';
+              const haystack = `${productName || ''} ${category}`.toLowerCase().replace(/\s+/g, '');
+              if (REPAIR_KEYWORDS.some(keyword => haystack.includes(keyword.replace(/\s+/g, '')))) return 'repair';
               return 'labor';
           };
           return (
@@ -3258,7 +3349,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                   hour12: false,
                               }).format(new Date(sale.date));
                               const saleCost = sale.items.reduce((sum, item, idx) => {
-                                  const product = products.find(p => p.id === item.productId);
+                                  const product = productById.get(item.productId);
                                   return sum + getCloseCost(sale.id, idx, product?.factoryPrice || 0, item.purchasePrice || 0) * item.quantity;
                               }, 0);
                               const saleProfit = sale.totalAmount - saleCost;
@@ -3285,9 +3376,9 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                       {/* Items */}
                                       <div className="divide-y divide-gray-50">
                                           {sale.items.map((item, idx) => {
-                                              const product = products.find(p => p.id === item.productId);
+                                              const product = productById.get(item.productId);
                                               const category = product?.category || '기타';
-                                              const itemClass = getItemClass(item.productId, category);
+                                              const itemClass = getItemClass(item.productId, category, item.productName);
                                               const factoryPrice = product?.factoryPrice || 0;
                                               const edit = closeEdits[sale.id]?.[idx] || {
                                                   mode: (factoryPrice > 0 ? 'discount' : 'direct') as 'discount' | 'direct',
@@ -3642,7 +3733,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                         '에어크리너': ['에어크리너']
                                       };
                                       const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
-                                      const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
+                                      const PART_CATEGORY_KEYWORDS = ['부품', 'part', 'parts'];
                                       const isPartCodeName = (productName?: string) => {
                                           const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
                                           return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
@@ -3659,13 +3750,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                       };
                                       const getClass = (pid: string, productName: string, cat: string) => {
                                           if (pid === '99999' || pid?.startsWith('RENTAL-')) return 'labor' as const;
-                                          // 품번형 부품/부품 카테고리는 정비 카운트에서 제외한다.
-                                          if (isPartCodeName(productName) || isPartCategory(cat)) return 'labor' as const;
+                                                                                    if (isPartCodeName(productName)) return 'labor' as const;
                                           const haystack = normalizeText(`${productName} ${cat}`);
                                           if (TIRE_CATS_KEYWORDS.some(kw => haystack.includes(normalizeText(kw)))) return 'tire' as const;
                                           for (const [, keywords] of Object.entries(REPAIR_KEYWORDS)) {
                                             if (keywords.some(kw => haystack.includes(normalizeText(kw)))) return 'repair' as const;
                                           }
+                                                                                    // 키워드/카테고리로 정비 판별되지 않은 순수 부품만 공임 처리
+                                                                                    if (isPartCategory(cat)) return 'labor' as const;
                                           return 'labor' as const;
                                       };
                                       const itemMap = new Map<string, DailyReportItem>();
@@ -3681,7 +3773,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                           se.salesCount += 1;
                                           se.revenue += sale.totalAmount;
                                           sale.items.forEach((item, idx) => {
-                                              const product = products.find(p => p.id === item.productId);
+                                              const product = productById.get(item.productId);
                                               const sourceCategory = item.category || product?.category || '기타';
                                               const cat = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
                                               const ic = getClass(item.productId, item.productName || '', cat);

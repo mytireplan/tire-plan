@@ -90,7 +90,7 @@ const toSafeNumber = (value: unknown): number => {
   }
   return 0;
 };
-const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
+const PART_CATEGORY_KEYWORDS = ['부품', 'part', 'parts'];
 
 const isRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
   const pid = (productId || '').toLowerCase();
@@ -125,11 +125,12 @@ const resolveIncentiveItemClass = (item: { productName: string; category: string
   const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
   const haystack = normalizeText(`${item.productName} ${item.category}`);
 
-  if (isPartCodeName(item.productName) || isPartCategory(item.category)) return 'labor' as const;
+  if (isPartCodeName(item.productName)) return 'labor' as const;
 
   if (TIRE_CATEGORIES.includes(normalizedCategory)) return 'tire' as const;
   if (REPAIR_CATEGORIES.includes(normalizedCategory)) return 'repair' as const;
   if (REPAIR_CLASS_KEYWORDS.some((kw) => haystack.includes(normalizeText(kw)))) return 'repair' as const;
+  if (isPartCategory(item.category)) return 'labor' as const;
 
   return item.itemClass;
 };

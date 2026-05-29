@@ -24,7 +24,7 @@ interface DailyCloseProps {
 const TIRE_CATEGORIES = ['Ÿ�̾�', '�߰�Ÿ�̾�'];
 const REPAIR_CATEGORIES = ['����'];
 const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
-const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
+const PART_CATEGORY_KEYWORDS = ['부품', 'part', 'parts'];
 
 const isRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
     const pid = (productId || '').toLowerCase();
@@ -79,9 +79,10 @@ const DailyClose: React.FC<DailyCloseProps> = ({
 
     const getItemClass = useCallback((productId: string, category: string, productName?: string): ItemClass => {
         if (productId === '99999' || productId?.startsWith('RENTAL-')) return 'labor';
-        if (isPartCodeName(productName) || isPartCategory(category)) return 'labor';
+        if (isPartCodeName(productName)) return 'labor';
         if (TIRE_CATEGORIES.includes(category)) return 'tire';
         if (REPAIR_CATEGORIES.includes(category)) return 'repair';
+        if (isPartCategory(category)) return 'labor';
         return 'labor';
     }, []);
 
