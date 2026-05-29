@@ -3308,8 +3308,13 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
           const TIRE_CATEGORIES = ['타이어', '중고타이어'];
           const REPAIR_CATEGORIES = ['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너', '브레이크오일', 'TPMS'];
           const REPAIR_KEYWORDS = ['브레이크패드', '오일필터', '엔진오일', '에어크리너', '브레이크오일', '브레이크 오일', '브레이크액', 'tpms', '하체', '쇼바', '로어암', '활대링크', '부싱'];
+          const isPartCodeName = (productName?: string) => {
+              const normalized = (productName || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+              return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
+          };
           const getItemClass = (productId: string, category: string, productName?: string) => {
               if (productId === '99999' || productId?.startsWith('RENTAL-')) return 'labor';
+              if (isPartCodeName(productName)) return 'labor';
               if (TIRE_CATEGORIES.includes(category)) return 'tire';
               if (REPAIR_CATEGORIES.includes(category)) return 'repair';
               const haystack = `${productName || ''} ${category}`.toLowerCase().replace(/\s+/g, '');
