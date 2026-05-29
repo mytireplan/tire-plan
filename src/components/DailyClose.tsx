@@ -26,11 +26,23 @@ const REPAIR_CATEGORIES = ['����'];
 const normalizeText = (text?: string) => (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣]/g, '');
 const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
 
-const isOnlineRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
+const isRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
     const pid = (productId || '').toLowerCase();
-    if (pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline') return true;
+    if (
+        pid === 'rental-online' ||
+        pid === 'rental_online' ||
+        pid === 'rentalonline' ||
+        pid === 'rental-offline' ||
+        pid === 'rental_offline' ||
+        pid === 'rentaloffline'
+    ) return true;
     const haystack = normalizeText(`${productName || ''} ${category || ''}`);
-    return haystack.includes('온라인렌탈') || haystack.includes('onlinerental');
+    return (
+        haystack.includes('온라인렌탈') ||
+        haystack.includes('onlinerental') ||
+        haystack.includes('오프라인렌탈') ||
+        haystack.includes('offlinerental')
+    );
 };
 
 const isPartCodeName = (productName?: string): boolean => {
@@ -106,7 +118,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 const sourceCategory = item.category || product?.category || '��Ÿ';
                 const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
                 const cls = getItemClass(item.productId, category, item.productName);
-                const excludedFromCount = isOnlineRentalItem(item.productId, item.productName, category);
+                const excludedFromCount = isRentalItem(item.productId, item.productName, category);
                 if (!excludedFromCount) {
                     if (cls === 'tire') tireQty += item.quantity;
                     else if (cls === 'repair') repairQty += item.quantity;
@@ -245,7 +257,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 const sourceCategory = item.category || product?.category || '��Ÿ';
                 const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
                 const itemClass = getItemClass(item.productId, category, item.productName);
-                const excludedFromCount = isOnlineRentalItem(item.productId, item.productName, category);
+                const excludedFromCount = isRentalItem(item.productId, item.productName, category);
                 const fp = product?.factoryPrice || 0;
                 const cost = getItemEffectiveCost(sale.id, idx, fp, item.purchasePrice || 0);
                 const revenue = item.priceAtSale * item.quantity;
@@ -348,7 +360,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory))
                     ? '부품'
                     : normalizeCategory(sourceCategory);
-                if (!isOnlineRentalItem(item.productId, item.productName, item.category || category)) {
+                if (!isRentalItem(item.productId, item.productName, item.category || category)) {
                     soldByCategory.set(category, (soldByCategory.get(category) || 0) + item.quantity);
                 }
             });

@@ -92,11 +92,23 @@ const toSafeNumber = (value: unknown): number => {
 };
 const PART_CATEGORY_KEYWORDS = ['부품', '브레이크패드', '오일필터', '엔진오일', '에어크리너', 'part', 'parts', 'brakepad', 'oilfilter', 'engineoil', 'aircleaner'];
 
-const isOnlineRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
+const isRentalItem = (productId?: string, productName?: string, category?: string): boolean => {
   const pid = (productId || '').toLowerCase();
-  if (pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline') return true;
+  if (
+    pid === 'rental-online' ||
+    pid === 'rental_online' ||
+    pid === 'rentalonline' ||
+    pid === 'rental-offline' ||
+    pid === 'rental_offline' ||
+    pid === 'rentaloffline'
+  ) return true;
   const haystack = normalizeText(`${productName || ''} ${category || ''}`);
-  return haystack.includes('온라인렌탈') || haystack.includes('onlinerental');
+  return (
+    haystack.includes('온라인렌탈') ||
+    haystack.includes('onlinerental') ||
+    haystack.includes('오프라인렌탈') ||
+    haystack.includes('offlinerental')
+  );
 };
 
 const isPartCodeName = (productName?: string): boolean => {
@@ -185,7 +197,7 @@ const buildStaffItemsFromSales = (report: DailyReport, sales: Sale[], products: 
     .forEach((sale) => {
       const staffName = normalizeStaffName(sale.staffName);
       (sale.items || []).forEach((item) => {
-        if (isOnlineRentalItem(item.productId, item.productName, item.category)) return;
+        if (isRentalItem(item.productId, item.productName, item.category)) return;
         const product = productMap.get(item.productId);
         const category = item.category || product?.category || '기타';
         const itemClass = resolveIncentiveItemClass({ productName: item.productName, category, itemClass: 'labor' });
@@ -322,7 +334,7 @@ const Incentive: React.FC<IncentiveProps> = ({
     const normalizedExisting = (report.staffItems || [])
       .map((item) => ({ ...item, staffName: normalizeStaffName(item.staffName) }))
       .filter((item) => item.staffName !== '' && item.staffName !== '-')
-      .filter((item) => !isOnlineRentalItem(undefined, item.productName, item.category));
+      .filter((item) => !isRentalItem(undefined, item.productName, item.category));
     if (normalizedExisting.length > 0) return normalizedExisting;
 
     const rebuilt = buildStaffItemsFromSales(report, sales, products);
@@ -341,7 +353,7 @@ const Incentive: React.FC<IncentiveProps> = ({
         revenue: item.revenue,
         cost: item.cost,
         profit: item.profit,
-      })).filter((item) => !isOnlineRentalItem(undefined, item.productName, item.category));
+      })).filter((item) => !isRentalItem(undefined, item.productName, item.category));
     }
     return [];
   };

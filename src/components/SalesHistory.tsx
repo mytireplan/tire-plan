@@ -416,12 +416,34 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
         return REPAIR_NAME_KEYWORDS.some(keyword => name.includes(keyword.replace(/\s+/g, '')));
     };
 
+  const isRentalItem = (productId?: string, productName?: string, category?: string) => {
+        const pid = (productId || '').toLowerCase();
+      if (pid.startsWith('rental-') || pid.startsWith('rental_') || pid.startsWith('rental')) return true;
+        if (
+            pid === 'rental-online' ||
+            pid === 'rental_online' ||
+            pid === 'rentalonline' ||
+            pid === 'rental-offline' ||
+            pid === 'rental_offline' ||
+            pid === 'rentaloffline'
+        ) return true;
+        const haystack = `${productName || ''} ${category || ''}`.toLowerCase().replace(/\s+/g, '');
+        const normalized = haystack.replace(/[^a-z0-9가-힣]/g, '');
+        return (
+            haystack.includes('온라인렌탈') ||
+            haystack.includes('onlinerental') ||
+            haystack.includes('오프라인렌탈') ||
+            haystack.includes('offlinerental') ||
+            normalized.includes('온라인렌탈') ||
+            normalized.includes('onlinerental') ||
+            normalized.includes('오프라인렌탈') ||
+            normalized.includes('offlinerental')
+        );
+  };
+
   const isTireItem = (item: SalesItem | null | undefined) => {
     if (!item) return false;
-        const pid = (item.productId || '').toLowerCase();
-        const name = ((item.productName || '') + ' ' + (item.category || '')).toLowerCase().replace(/\s+/g, '');
-        const isOnlineRental = pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline' || name.includes('온라인렌탈') || name.includes('onlinerental');
-        if (isOnlineRental) return false;
+                if (isRentalItem(item.productId, item.productName, item.category)) return false;
     const product = products.find(p => p.id === item.productId);
         const productCategory = normalizeCategory(product?.category);
         const itemCategory = normalizeCategory(item.category);
@@ -447,9 +469,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
 
         // Legacy safety: if category mapping failed but spec text clearly indicates tire, still count it.
         const fallbackItems = (sale.items || []).filter(item => {
-            const pid = (item.productId || '').toLowerCase();
-            const normalized = `${item?.productName || ''} ${item?.category || ''}`.toLowerCase().replace(/\s+/g, '');
-            if (pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline' || normalized.includes('온라인렌탈') || normalized.includes('onlinerental')) {
+            if (isRentalItem(item?.productId, item?.productName, item?.category)) {
                 return false;
             }
             const specText = `${item?.specification || ''} ${item?.productName || ''}`;
@@ -597,6 +617,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                     datetime: getDefaultQuickDateTime(),
                     storeId: defaultStore,
                     staffName: prev.staffName || currentUser.name,
+                inventoryAdjust: true,
                     items: []
             }));
             setIsQuickAddOpen(true);
@@ -674,6 +695,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       const rentalItem: SalesItem = {
           productId: `rental-${rentalType}`,
           productName: rentalType === 'online' ? '온라인 렌탈' : '오프라인 렌탈',
+          category: '기타',
           specification: '',
           quantity: 1,
           priceAtSale: 0
@@ -1330,6 +1352,14 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
           phoneNumber: quickAddForm.customerPhone
       } : undefined;
 
+      const hasInventoryTrackableItems = quickAddForm.items.some(item => {
+          const pid = (item.productId || '').toLowerCase();
+          if (isRentalItem(item.productId, item.productName, item.category)) return false;
+          if (pid === '99999') return false;
+          return true;
+      });
+      const shouldAdjustInventory = hasInventoryTrackableItems ? quickAddForm.inventoryAdjust : false;
+
       const quickSale: Sale = {
           id: `Q-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           date: isoString,
@@ -1343,10 +1373,10 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
           memo: quickAddForm.memo,
           isEdited: false,
           isCanceled: false,
-          inventoryAdjusted: quickAddForm.inventoryAdjust
+          inventoryAdjusted: shouldAdjustInventory
       };
 
-      onQuickAddSale(quickSale, { adjustInventory: quickAddForm.inventoryAdjust });
+      onQuickAddSale(quickSale, { adjustInventory: shouldAdjustInventory });
       setIsQuickAddOpen(false);
   };
 
@@ -2357,9 +2387,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                                           title={isTireItem(item) ? "클릭하여 수정" : ""}
                                                        >
                                                            {(() => {
-                                                               const pid = (item?.productId || '').toLowerCase();
-                                                               const normalized = `${item?.productName || ''} ${item?.category || ''}`.toLowerCase().replace(/\s+/g, '');
-                                                               if (pid === 'rental-online' || pid === 'rental_online' || pid === 'rentalonline' || normalized.includes('온라인렌탈') || normalized.includes('onlinerental')) {
+                                                               if (isRentalItem(item?.productId, item?.productName, item?.category)) {
                                                                    return '-';
                                                                }
                                                                if (isTireItem(item)) return item.quantity;
@@ -3569,11 +3597,11 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                           const normalized = normalizeText(category);
                                           return PART_CATEGORY_KEYWORDS.some((kw) => normalized.includes(normalizeText(kw)));
                                       };
-                                      const isOnlineRental = (pid?: string, productName?: string, category?: string) => {
+                                      const isRental = (pid?: string, productName?: string, category?: string) => {
                                           const p = (pid || '').toLowerCase();
-                                          if (p === 'rental-online' || p === 'rental_online' || p === 'rentalonline') return true;
+                                          if (p === 'rental-online' || p === 'rental_online' || p === 'rentalonline' || p === 'rental-offline' || p === 'rental_offline' || p === 'rentaloffline') return true;
                                           const haystack = normalizeText(`${productName || ''} ${category || ''}`);
-                                          return haystack.includes('온라인렌탈') || haystack.includes('onlinerental');
+                                          return haystack.includes('온라인렌탈') || haystack.includes('onlinerental') || haystack.includes('오프라인렌탈') || haystack.includes('offlinerental');
                                       };
                                       const getClass = (pid: string, productName: string, cat: string) => {
                                           if (pid === '99999' || pid?.startsWith('RENTAL-')) return 'labor' as const;
@@ -3603,7 +3631,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                               const sourceCategory = item.category || product?.category || '기타';
                                               const cat = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
                                               const ic = getClass(item.productId, item.productName || '', cat);
-                                              const excludedFromCount = isOnlineRental(item.productId, item.productName, item.category || cat);
+                                              const excludedFromCount = isRental(item.productId, item.productName, item.category || cat);
                                               const fp = product?.factoryPrice || 0;
                                               const cost = getCloseCost(sale.id, idx, fp, item.purchasePrice || 0);
                                               const rev = item.priceAtSale * item.quantity;

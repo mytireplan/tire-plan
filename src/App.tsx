@@ -2091,6 +2091,7 @@ const App: React.FC = () => {
             const updatedProducts: Product[] = [];
             const consumptionLogs: StockInRecord[] = [];
             const saleStoreId = saleToSave.storeId;
+            const saleOwnerId = stores.find(s => s.id === saleStoreId)?.ownerId || currentUser?.id;
 
             console.log('📌 Sale store ID:', saleStoreId);
             console.log('📌 Sale items:', saleToSave.items);
@@ -2103,20 +2104,21 @@ const App: React.FC = () => {
 
                 // Sum sold qty for this product by id, or fallback to name/spec match
                 const soldQty = saleToSave.items.reduce((sum, item) => {
-                    // Only match by productId when available - most reliable
-                    if (item.productId) {
-                        return item.productId === prod.id ? sum + item.quantity : sum;
-                    }
+                    // Prefer ID match first. If ID does not match any current product (legacy/manual data),
+                    // fallback to normalized name/spec matching.
+                    const idMatch = !!item.productId && item.productId === prod.id;
+                    if (idMatch) return sum + item.quantity;
 
-                    // Fallback to name+spec match ONLY if both are non-empty
                     const itemName = normalize(item.productName);
                     const itemSpec = normalize(item.specification);
                     const prodName = normalize(prod.name);
                     const prodSpec = normalize(prod.specification);
-                    
-                    // Both name and spec must match, and both must be non-empty
-                    const fallbackMatch = itemName && itemSpec && prodName && prodSpec && 
-                                        itemName === prodName && itemSpec === prodSpec;
+
+                    const hasItemSpec = !!itemSpec;
+                    const hasProdSpec = !!prodSpec;
+                    const nameMatch = !!itemName && !!prodName && itemName === prodName;
+                    const specMatch = hasItemSpec && hasProdSpec && itemSpec === prodSpec;
+                    const fallbackMatch = hasItemSpec || hasProdSpec ? (nameMatch && specMatch) : nameMatch;
 
                     return fallbackMatch ? sum + item.quantity : sum;
                 }, 0);
@@ -2129,7 +2131,12 @@ const App: React.FC = () => {
                 const newStoreStock = Math.max(0, currentStoreStock - soldQty);
                 const newStockByStore = { ...safeStockByStore, [saleStoreId]: newStoreStock };
                 const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-                const updated = { ...prod, stockByStore: newStockByStore, stock: newTotalStock } as Product;
+                const updated = {
+                    ...prod,
+                    stockByStore: newStockByStore,
+                    stock: newTotalStock,
+                    ownerId: prod.ownerId || saleOwnerId
+                } as Product;
                 updatedProducts.push(updated);
                 console.log(`✏️ Product updated - store stock after: ${newStoreStock}`);
 
@@ -2317,6 +2324,10 @@ const App: React.FC = () => {
       const targetSale = sales.find(s => s.id === saleId);
       if (!targetSale || targetSale.isCanceled) return;
       const canceledSale = { ...targetSale, isCanceled: true, cancelDate: new Date().toISOString(), pendingRestockItems: [] };
+      const isRentalProductId = (productId?: string) => {
+          const pid = (productId || '').toLowerCase();
+          return pid.startsWith('rental-') || pid.startsWith('rental_') || pid.startsWith('rental');
+      };
       
       // ✅ Collect all items to restock: current items + pending items
       const allItemsToRestock: SalesItem[] = [
@@ -2326,6 +2337,7 @@ const App: React.FC = () => {
       
       const qtyMap: Record<string, number> = {};
       allItemsToRestock.forEach(it => {
+          if (isRentalProductId(it.productId) || it.productId === '99999') return;
           qtyMap[it.productId] = (qtyMap[it.productId] || 0) + it.quantity;
       });
       
@@ -2371,10 +2383,28 @@ const App: React.FC = () => {
       if (!targetSale || !targetSale.isCanceled) return;
       
       const restoredSale = { ...targetSale, isCanceled: false, cancelDate: undefined } as Sale;
+      const isRentalProductId = (productId?: string) => {
+          const pid = (productId || '').toLowerCase();
+          return pid.startsWith('rental-') || pid.startsWith('rental_') || pid.startsWith('rental');
+      };
+
+      const shouldReduce = targetSale.inventoryAdjusted !== false;
+      if (!shouldReduce) {
+          setSales(prev => prev.map(s => s.id === saleId ? restoredSale : s));
+          saveToFirestore<Sale>(COLLECTIONS.SALES, restoredSale)
+              .then(() => console.log('✅ Sale restored (no inventory reduce):', restoredSale.id))
+              .catch((err) => console.error('❌ Failed to restore sale in Firestore:', err));
+          return;
+      }
       
       // 재고 감소 (취소 시 증가했던 것을 다시 감소)
       const qtyMap: Record<string, number> = {};
-      (targetSale.items || []).forEach(it => {
+      const allItemsToReduce: SalesItem[] = [
+          ...(targetSale.items || []),
+          ...(targetSale.pendingRestockItems || [])
+      ];
+      allItemsToReduce.forEach(it => {
+          if (isRentalProductId(it.productId) || it.productId === '99999') return;
           qtyMap[it.productId] = (qtyMap[it.productId] || 0) + it.quantity;
       });
       

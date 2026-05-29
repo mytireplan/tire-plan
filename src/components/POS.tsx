@@ -240,7 +240,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   }, [selectedCategory, normalizedCategories]);
   
   // Admin Selection State
-  const [adminSelectedStoreId, setAdminSelectedStoreId] = useState<string>(stores[0]?.id || '');
+  const [adminSelectedStoreId, setAdminSelectedStoreId] = useState<string>(() => {
+      if (currentStoreId && currentStoreId !== 'ALL' && stores.some(s => s.id === currentStoreId)) {
+          return currentStoreId;
+      }
+      return stores[0]?.id || '';
+  });
 
     // 🔥 상품은 단발 조회 결과를 그대로 사용 (실시간 풀 리스트 구독 제거)
         const [fireProducts, setFireProducts] = useState<Product[]>(products.map(normalizeProductCategory));
@@ -249,8 +254,12 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         setFireProducts(products.map(normalizeProductCategory));
     }, [products]);
 
-  // Logic: If Admin, use selected store. If Staff, strictly use currentStoreId.
-  const activeStoreId = currentUser.role === 'STAFF' ? currentStoreId : adminSelectedStoreId;
+    // Logic: Staff always uses currentStoreId.
+    // Store admin follows app-level selected store when it is a specific store (not ALL).
+    // In ALL mode, POS local selector chooses the checkout store.
+    const activeStoreId = currentUser.role === 'STAFF'
+            ? currentStoreId
+            : (currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : adminSelectedStoreId);
 
   // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (타임존 이슈 방지)
   const dateToLocalString = (date: Date): string => {
@@ -283,10 +292,21 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   }, [staffList, scheduledStaffIds]);
 
   useEffect(() => {
-      if(currentUser.role === 'STORE_ADMIN' && !adminSelectedStoreId && stores.length > 0) {
+      if (currentUser.role !== 'STORE_ADMIN') return;
+      if (!stores.length) return;
+
+      const currentStoreIsValid = !!currentStoreId && currentStoreId !== 'ALL' && stores.some(s => s.id === currentStoreId);
+      const selectedStoreIsValid = !!adminSelectedStoreId && stores.some(s => s.id === adminSelectedStoreId);
+
+      if (currentStoreIsValid && adminSelectedStoreId !== currentStoreId) {
+          setAdminSelectedStoreId(currentStoreId);
+          return;
+      }
+
+      if (!selectedStoreIsValid) {
           setAdminSelectedStoreId(stores[0].id);
       }
-  }, [currentUser, stores, adminSelectedStoreId]);
+  }, [currentUser.role, stores, currentStoreId, adminSelectedStoreId]);
   
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -711,8 +731,9 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                 email: customerForm.email || ''
             } : undefined;
 
-            // Check if any rental items exist (no inventory adjustment needed)
-            const hasRentalItems = cart.some(item => item.id?.startsWith('RENTAL-'));
+            // Only rental-only orders skip inventory adjustment.
+            // Mixed orders (rental + real products) must still adjust inventory for real products.
+            const hasOnlyRentalItems = cart.length > 0 && cart.every(item => item.id?.startsWith('RENTAL-'));
 
             // Build ISO datetime using selected sale date + current local time (timezone-safe)
             const saleDateISO = (() => {
@@ -745,8 +766,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
     // If any cart item is a new product being sold immediately, do NOT increase its stock in inventory
     // (Assume parent App handles inventory update; here, we just avoid calling onAddProduct for immediate sale)
-    // Pass { adjustInventory: false } if rental items exist
-    if (hasRentalItems) {
+    // Pass { adjustInventory: false } only for rental-only checkout
+    if (hasOnlyRentalItems) {
         onSaleComplete(newSale, { adjustInventory: false });
     } else {
         onSaleComplete(newSale);

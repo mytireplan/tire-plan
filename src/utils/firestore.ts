@@ -53,10 +53,12 @@ export const saveToFirestore = async <T extends { id: string }>(
     const docRef = doc(db, collectionName, data.id);
     
     // ownerId 자동 추가 (owners 컬렉션 제외)
+    // If caller already provided ownerId, preserve it to avoid cross-scope reassignment.
     let dataToSave = { ...data };
     if (!skipOwnerId && collectionName !== COLLECTIONS.OWNERS) {
       const userId = getCurrentUserId();
-      if (userId) {
+      const hasOwnerId = Object.prototype.hasOwnProperty.call(dataToSave, 'ownerId') && !!(dataToSave as { ownerId?: string }).ownerId;
+      if (userId && !hasOwnerId) {
         dataToSave = { ...dataToSave, ownerId: userId } as T;
       }
     }
