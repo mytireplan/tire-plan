@@ -3080,6 +3080,17 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                   source: 'manual' as const,
               }))
               .filter(expense => expense.description && expense.amount > 0);
+          const closeRevenueTotal = daySales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+          const closeCostTotal = daySales.reduce((sum, sale) => (
+              sum + sale.items.reduce((itemSum, item, idx) => {
+                  const product = products.find(p => p.id === item.productId);
+                  return itemSum + (getCloseCost(sale.id, idx, product?.factoryPrice || 0, item.purchasePrice || 0) * item.quantity);
+              }, 0)
+          ), 0);
+          const closeExpenseTotal = [...mergedSavedDayExpenses, ...manualDayExpenses]
+              .reduce((sum, expense) => sum + expense.amount, 0);
+          const closeGrossMargin = closeRevenueTotal - closeCostTotal;
+          const closeNetMargin = closeGrossMargin - closeExpenseTotal;
 
           const normalizeCategory = (category?: string) => (category || '기타').trim() || '기타';
           const getPreviousDateStr = (baseDateStr: string) => {
@@ -3560,6 +3571,35 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                   </div>
                               </div>
                           </div>{/* end 입고·지출 섹션 */}
+
+                          <div className="border border-blue-100 rounded-xl overflow-hidden bg-blue-50/40">
+                              <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-center justify-between gap-3">
+                                  <h4 className="text-sm font-bold text-blue-700">당일 마진</h4>
+                                  {!closeMetaSaved && (
+                                      <span className="text-[11px] font-semibold text-blue-500">위 입력값 저장 후 최종 확정됩니다</span>
+                                  )}
+                              </div>
+                              <div className="px-4 py-3 bg-white grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                  <div>
+                                      <p className="text-gray-500">매출</p>
+                                      <p className="text-sm font-bold text-gray-800">{formatCurrency(closeRevenueTotal)}</p>
+                                  </div>
+                                  <div>
+                                      <p className="text-gray-500">원가</p>
+                                      <p className="text-sm font-bold text-gray-800">{formatCurrency(closeCostTotal)}</p>
+                                  </div>
+                                  <div>
+                                      <p className="text-gray-500">지출</p>
+                                      <p className="text-sm font-bold text-rose-600">{formatCurrency(closeExpenseTotal)}</p>
+                                  </div>
+                                  <div>
+                                      <p className="text-gray-500">최종 마진</p>
+                                      <p className={`text-sm font-black ${closeNetMargin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                          {formatCurrency(closeNetMargin)}
+                                      </p>
+                                  </div>
+                              </div>
+                          </div>
                       </div>{/* end scroll area */}
 
                       {/* Footer */}
