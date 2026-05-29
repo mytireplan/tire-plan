@@ -3338,13 +3338,20 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                                           {edit.mode === 'discount' ? (
                                                               <div className="flex items-center gap-1">
                                                                   <input
+                                                                      key={`close-discount-${sale.id}-${idx}`}
                                                                       type="text" inputMode="decimal"
                                                                       className="w-14 p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
-                                                                      value={edit.discountRate} placeholder="0"
-                                                                      onChange={e => {
-                                                                          const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                                                      defaultValue={edit.discountRate}
+                                                                      placeholder="0"
+                                                                      onBlur={e => {
+                                                                          const raw = e.currentTarget.value.replace(/[^0-9.]/g, '');
                                                                           setCloseEdits(prev => ({ ...prev, [sale.id]: { ...(prev[sale.id] || {}), [idx]: { ...edit, discountRate: raw } } }));
                                                                           setCloseSavedIds(prev => { const s = new Set(prev); s.delete(sale.id); return s; });
+                                                                      }}
+                                                                      onKeyDown={e => {
+                                                                          if (e.key === 'Enter') {
+                                                                              e.currentTarget.blur();
+                                                                          }
                                                                       }}
                                                                   />
                                                                   <span className="text-sm text-gray-500">%</span>
@@ -3357,14 +3364,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                                           ) : (
                                                               <div className="flex items-center gap-1">
                                                                   <input
+                                                                      key={`close-direct-${sale.id}-${idx}`}
                                                                       type="text" inputMode="numeric"
                                                                       className="w-28 p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
-                                                                      value={edit.directCost} placeholder="0"
-                                                                      onChange={e => {
-                                                                          const raw = e.target.value.replace(/[^0-9]/g, '');
+                                                                      defaultValue={edit.directCost}
+                                                                      placeholder="0"
+                                                                      onBlur={e => {
+                                                                          const raw = e.currentTarget.value.replace(/[^0-9]/g, '');
                                                                           const formatted = raw !== '' ? Number(raw).toLocaleString() : '';
                                                                           setCloseEdits(prev => ({ ...prev, [sale.id]: { ...(prev[sale.id] || {}), [idx]: { ...edit, directCost: formatted } } }));
                                                                           setCloseSavedIds(prev => { const s = new Set(prev); s.delete(sale.id); return s; });
+                                                                      }}
+                                                                      onKeyDown={e => {
+                                                                          if (e.key === 'Enter') {
+                                                                              e.currentTarget.blur();
+                                                                          }
                                                                       }}
                                                                   />
                                                                   <span className="text-xs text-gray-400">/개</span>
