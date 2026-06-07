@@ -263,7 +263,7 @@ const Incentive: React.FC<IncentiveProps> = ({
   const monthReports = useMemo(() => {
     return dailyReports.filter((r) => {
       if (r.dateStr < INCENTIVE_AGGREGATION_START_DATE) return false;
-      if (r.dateStr.slice(0, 7) > month) return false;
+      if (r.dateStr.slice(0, 7) !== month) return false;
       if (currentStoreId !== 'ALL' && r.storeId !== currentStoreId) return false;
       return true;
     });
