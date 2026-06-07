@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck, ClipboardList, BookOpen } from 'lucide-react';
 import { orderBy, where, limit, collection, query, getDocs, doc, deleteDoc, writeBatch, type QueryConstraint } from 'firebase/firestore';
 import { db, auth } from './firebase';
@@ -19,7 +19,6 @@ import SalesHistory from './components/SalesHistory';
 import DailyClose from './components/DailyClose';
 import DailyReportBoard from './components/DailyReportBoard';
 import Settings from './components/Settings';
-import Incentive from './components/Incentive';
 import CustomerList from './components/CustomerList';
 import StockIn from './components/StockIn';
 import Financials from './components/Financials';
@@ -29,6 +28,8 @@ import LoginScreen from './components/LoginScreen';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import StoreSelectionScreen from './components/StoreSelectionScreen';
+
+const Incentive = lazy(() => import('./components/Incentive'));
 
 // Owner account persisted in Firestore
 type OwnerAccount = { id: string; name: string; role: UserRole; storeId?: string; password: string; passwordHash?: string; ownerPin?: string; phoneNumber?: string; joinDate: string };
@@ -3397,18 +3398,20 @@ const App: React.FC = () => {
                 />
             )}
             {activeTab === 'incentive' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN' || managerSession) && (
-                <Incentive
-                    dailyReports={dailyReports}
-                    sales={visibleSales}
-                    products={visibleProducts}
-                    incentiveRules={incentiveRules}
-                    staffList={visibleStaff}
-                    currentStoreId={currentStoreId}
-                    currentUser={effectiveUser}
-                    managerStaffName={managerSession && activeManagerAccount ? activeManagerAccount.name : undefined}
-                    onUpsertRule={handleUpsertIncentiveRule}
-                    onUpsertComplexRule={handleUpsertComplexIncentiveRule}
-                />
+                <Suspense fallback={<div className="p-10 text-center text-gray-400 text-sm">인센티브 화면을 불러오는 중...</div>}>
+                    <Incentive
+                        dailyReports={dailyReports}
+                        sales={visibleSales}
+                        products={visibleProducts}
+                        incentiveRules={incentiveRules}
+                        staffList={visibleStaff}
+                        currentStoreId={currentStoreId}
+                        currentUser={effectiveUser}
+                        managerStaffName={managerSession && activeManagerAccount ? activeManagerAccount.name : undefined}
+                        onUpsertRule={handleUpsertIncentiveRule}
+                        onUpsertComplexRule={handleUpsertComplexIncentiveRule}
+                    />
+                </Suspense>
             )}
             {(activeTab === 'dailyClose' && (effectiveUser.role === 'STORE_ADMIN' || effectiveUser.role === 'SUPER_ADMIN')) && (
                 <DailyClose
