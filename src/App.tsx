@@ -2041,6 +2041,7 @@ const App: React.FC = () => {
                 storeId: saleToSave.storeId // Multi-tenant data isolation
             };
             if (saleToSave.customer!.carModel) base.carModel = saleToSave.customer!.carModel;
+            if (saleToSave.customer!.mileage) base.mileage = saleToSave.customer!.mileage;
             if (custVehicle) base.vehicleNumber = custVehicle;
             if (saleToSave.customer!.businessNumber) base.businessNumber = saleToSave.customer!.businessNumber;
             if (saleToSave.customer!.companyName) base.companyName = saleToSave.customer!.companyName;
@@ -2065,6 +2066,8 @@ const App: React.FC = () => {
                 if (phoneMatch || vehicleMatch) {
                     const updated = {
                         ...c,
+                        carModel: saleToSave.customer!.carModel || c.carModel,
+                        mileage: saleToSave.customer!.mileage || c.mileage,
                         totalSpent: c.totalSpent + saleToSave.totalAmount,
                         visitCount: c.visitCount + 1,
                         lastVisitDate: saleToSave.date,
@@ -2271,6 +2274,7 @@ const App: React.FC = () => {
                       ownerId: ownerScopeId
                   };
                   if (salePayload.customer.carModel) newCustomer.carModel = salePayload.customer.carModel;
+                  if (salePayload.customer.mileage) newCustomer.mileage = salePayload.customer.mileage;
                   if (custVehicle) newCustomer.vehicleNumber = custVehicle;
                   if (salePayload.customer.businessNumber) newCustomer.businessNumber = salePayload.customer.businessNumber;
                   if (salePayload.customer.companyName) newCustomer.companyName = salePayload.customer.companyName;
@@ -2293,6 +2297,7 @@ const App: React.FC = () => {
                               ...c,
                               name: salePayload.customer!.name || c.name,
                               carModel: salePayload.customer!.carModel || c.carModel,
+                              mileage: salePayload.customer!.mileage || c.mileage,
                               phoneNumber: c.phoneNumber || custPhone,
                               vehicleNumber: c.vehicleNumber || custVehicle,
                               totalSpent: Math.max(0, (c.totalSpent || 0) + spendDelta),

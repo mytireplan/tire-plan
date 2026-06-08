@@ -1168,6 +1168,7 @@ const App: React.FC = () => {
                 name: saleToSave.customer.name,
                 phoneNumber: saleToSave.customer.phoneNumber,
                 carModel: saleToSave.customer.carModel,
+                mileage: saleToSave.customer.mileage,
                 vehicleNumber: saleToSave.customer.vehicleNumber,
                 totalSpent: saleToSave.totalAmount,
                 lastVisitDate: saleToSave.date,
@@ -1188,6 +1189,8 @@ const App: React.FC = () => {
                 if (c.phoneNumber === custPhone && c.ownerId === currentUser.id) {
                     const updated = {
                         ...c,
+                        carModel: saleToSave.customer!.carModel || c.carModel,
+                        mileage: saleToSave.customer!.mileage || c.mileage,
                         totalSpent: c.totalSpent + saleToSave.totalAmount,
                         visitCount: c.visitCount + 1,
                         lastVisitDate: saleToSave.date
