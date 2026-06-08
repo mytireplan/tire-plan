@@ -59,6 +59,7 @@ export interface Customer {
   name: string;
   phoneNumber: string;
   carModel?: string; // e.g., "Grandeur IG"
+  mileage?: string; // e.g., "123,456km"
   vehicleNumber?: string; // e.g., "12가 3456"
   totalSpent: number;
   lastVisitDate: string;
@@ -83,6 +84,7 @@ export interface Sale {
     name: string;
     phoneNumber: string;
     carModel?: string;
+    mileage?: string;
     vehicleNumber?: string;
     businessNumber?: string;
     companyName?: string;

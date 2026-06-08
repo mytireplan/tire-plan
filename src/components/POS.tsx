@@ -1284,33 +1284,33 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         value={customerForm.phoneNumber} // Enable formatting in view
                                         onChange={handlePhoneNumberChange}
                                      />
-                                     <div className="flex gap-2">
+                                     <div className="grid grid-cols-3 gap-2">
                                           <input 
                                             type="text" 
                                             placeholder="차량번호"
-                                            className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm"
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                             value={checkoutForm.vehicleNumber}
                                             onChange={(e) => setCheckoutForm({...checkoutForm, vehicleNumber: e.target.value})}
                                         />
                                         <input 
                                             type="text" 
                                             placeholder="차종"
-                                            className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm"
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                             value={customerForm.carModel}
                                             onChange={(e) => setCustomerForm({...customerForm, carModel: e.target.value})}
                                         />
+                                        <input 
+                                            type="text" 
+                                            placeholder="키로수"
+                                            inputMode="numeric"
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                            value={customerForm.mileage}
+                                            onChange={(e) => {
+                                                const raw = e.target.value.replace(/[^0-9]/g, '');
+                                                setCustomerForm({...customerForm, mileage: raw ? Number(raw).toLocaleString() : ''});
+                                            }}
+                                        />
                                      </div>
-                                     <input 
-                                        type="text" 
-                                        placeholder="키로수"
-                                        inputMode="numeric"
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                                        value={customerForm.mileage}
-                                        onChange={(e) => {
-                                            const raw = e.target.value.replace(/[^0-9]/g, '');
-                                            setCustomerForm({...customerForm, mileage: raw ? Number(raw).toLocaleString() : ''});
-                                        }}
-                                     />
                                  </div>
                              </div>
 

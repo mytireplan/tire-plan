@@ -25,6 +25,7 @@ interface CustomerForm {
     name: string;
     phoneNumber: string;
     carModel: string;
+    mileage: string;
     agreedToPrivacy: boolean;
     requestTaxInvoice: boolean;
     businessNumber: string;
@@ -279,6 +280,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       name: '',
       phoneNumber: '',
       carModel: '',
+      mileage: '',
       agreedToPrivacy: false,
       requestTaxInvoice: false,
       businessNumber: '',
@@ -301,6 +303,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       return customers.filter(c => 
           c.phoneNumber.includes(customerSearchTerm) || 
           c.vehicleNumber?.includes(customerSearchTerm) ||
+          c.carModel?.includes(customerSearchTerm) ||
+          c.mileage?.includes(customerSearchTerm) ||
           c.name.includes(customerSearchTerm)
       );
   }, [customers, customerSearchTerm]);
@@ -310,6 +314,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
           name: customer.name,
           phoneNumber: customer.phoneNumber,
           carModel: customer.carModel || '',
+          mileage: customer.mileage || '',
           agreedToPrivacy: true, // Assume returning customer agreed
           requestTaxInvoice: false,
           // Auto-fill business info if available
@@ -327,7 +332,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
   const clearSelectedCustomer = () => {
       setCustomerForm({ 
-          name: '', phoneNumber: '', carModel: '', agreedToPrivacy: false, requestTaxInvoice: false,
+          name: '', phoneNumber: '', carModel: '', mileage: '', agreedToPrivacy: false, requestTaxInvoice: false,
           businessNumber: '', companyName: '', email: ''
       });
       setCheckoutForm(prev => ({ ...prev, vehicleNumber: '' }));
@@ -551,6 +556,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
             name: customerForm.name || '방문고객',
             phoneNumber: customerForm.phoneNumber,
             carModel: customerForm.carModel,
+            mileage: customerForm.mileage,
             vehicleNumber: checkoutForm.vehicleNumber, // Include vehicle number in customer info
             businessNumber: customerForm.businessNumber,
             companyName: customerForm.companyName,
@@ -824,7 +830,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                     >
                                         <div>
                                             <div className="font-bold text-gray-800">{customer.name}</div>
-                                            <div className="text-xs text-gray-500">{customer.phoneNumber} | {customer.vehicleNumber}</div>
+                                            <div className="text-xs text-gray-500">{customer.phoneNumber} | {customer.vehicleNumber} | {customer.carModel || '-'} | {customer.mileage || '-'}</div>
                                         </div>
                                         <div className="text-blue-600 opacity-0 group-hover:opacity-100 text-sm font-bold">선택</div>
                                     </button>
@@ -887,20 +893,31 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         value={customerForm.phoneNumber} // Enable formatting in view
                                         onChange={handlePhoneNumberChange}
                                      />
-                                     <div className="flex gap-2">
+                                     <div className="grid grid-cols-3 gap-2">
                                           <input 
                                             type="text" 
                                             placeholder="차량번호"
-                                            className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm"
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                             value={checkoutForm.vehicleNumber}
                                             onChange={(e) => setCheckoutForm({...checkoutForm, vehicleNumber: e.target.value})}
                                         />
                                         <input 
                                             type="text" 
                                             placeholder="차종"
-                                            className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm"
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                             value={customerForm.carModel}
                                             onChange={(e) => setCustomerForm({...customerForm, carModel: e.target.value})}
+                                        />
+                                        <input 
+                                            type="text" 
+                                            placeholder="키로수"
+                                            inputMode="numeric"
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                            value={customerForm.mileage}
+                                            onChange={(e) => {
+                                                const raw = e.target.value.replace(/[^0-9]/g, '');
+                                                setCustomerForm({...customerForm, mileage: raw ? Number(raw).toLocaleString() : ''});
+                                            }}
                                         />
                                      </div>
                                  </div>
