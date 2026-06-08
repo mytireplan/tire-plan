@@ -37,7 +37,8 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, currentSt
         return (
             c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
             c.phoneNumber?.includes(searchTerm) ||
-            c.carModel?.toLowerCase().includes(searchTerm.toLowerCase())
+            c.carModel?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.mileage?.includes(searchTerm)
         );
     });
 
@@ -135,7 +136,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, currentSt
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <input 
                 type="text" 
-                placeholder="이름, 전화번호, 키로수 검색" 
+                placeholder="이름, 전화번호, 차종, 키로수 검색" 
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -149,8 +150,9 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, currentSt
             <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-100 sticky top-0">
                     <tr>
-                        <th className="px-6 py-4">기객명</th>
+                        <th className="px-6 py-4">고객명</th>
                         <th className="px-6 py-4">연락처</th>
+                        <th className="px-6 py-4">차종</th>
                         <th className="px-6 py-4">키로수</th>
                         <th
                             className="px-6 py-4 text-center cursor-pointer select-none"
@@ -178,7 +180,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, currentSt
                 <tbody className="divide-y divide-gray-100">
                     {filteredCustomers.length === 0 ? (
                          <tr>
-                            <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                            <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                                 <div className="flex flex-col items-center justify-center gap-2">
                                 <Users size={32} className="opacity-20" />
                                 <p>등록된 고객 정보가 없습니다.</p>
@@ -206,6 +208,9 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, currentSt
                                         <Car size={14} className="text-gray-400" />
                                         {customer.carModel || '-'}
                                     </div>
+                                </td>
+                                <td className="px-6 py-4 text-gray-600">
+                                    {customer.mileage || '-'}
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <span className="bg-blue-50 text-blue-600 py-1 px-2 rounded-full text-xs font-bold">
@@ -250,11 +255,14 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, sales, currentSt
                                 <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-xs font-bold">{getActualVisitCount(customer)}회 방문</span>
                              </div>
                          </div>
-                         <div className="flex justify-between items-center border-t border-gray-50 pt-2 mt-2">
-                             <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Car size={14} /> {customer.carModel || '-'}
-                             </div>
-                             <div className="text-right">
+                                 <div className="flex justify-between items-center border-t border-gray-50 pt-2 mt-2">
+                                      <div className="text-sm text-gray-600 space-y-1">
+                                          <div className="flex items-center gap-2">
+                                                <Car size={14} /> {customer.carModel || '-'}
+                                          </div>
+                                          <div className="text-xs text-gray-500">키로수: {customer.mileage || '-'}</div>
+                                      </div>
+                                      <div className="text-right">
                                 <div className="text-xs text-gray-400">총 이용 금액</div>
                                 <div className="font-bold text-slate-700">{formatCurrency(customer.totalSpent)}</div>
                              </div>
