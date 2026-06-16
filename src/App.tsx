@@ -1064,25 +1064,11 @@ const App: React.FC = () => {
         initializeData();
     }, []);
 
-  // Firestore 실시간 리스너 (데이터 자동 동기화)
+  // Firestore 실시간 리스너 (경량 컬렉션만 구독)
   useEffect(() => {
       const unsubscribeList: Array<() => void> = [];
 
       try {
-          // LeaveRequests 실시간 구독
-          const unsubLeaveRequests = subscribeToCollection<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, (data) => {
-              console.log('📥 Leave requests updated from Firestore:', data.length);
-              setLeaveRequests(data);
-          });
-          unsubscribeList.push(unsubLeaveRequests);
-
-          // Sales 실시간 구독
-          const unsubSales = subscribeToCollection<Sale>(COLLECTIONS.SALES, (data) => {
-              console.log('📥 Sales updated from Firestore:', data.length);
-              setSales(data);
-          });
-          unsubscribeList.push(unsubSales);
-
           // Customers 실시간 구독
           const unsubCustomers = subscribeToCollection<Customer>(COLLECTIONS.CUSTOMERS, (data) => {
               console.log('📥 Customers updated from Firestore:', data.length);
@@ -1116,41 +1102,6 @@ const App: React.FC = () => {
               setStores(data);
           });
           unsubscribeList.push(unsubStores);
-
-          // Expenses 실시간 구독
-          const unsubExpenses = subscribeToCollection<ExpenseRecord>(COLLECTIONS.EXPENSES, (data) => {
-              console.log('📥 Expenses updated from Firestore:', data.length);
-              setExpenses(data);
-          });
-          unsubscribeList.push(unsubExpenses);
-
-          // FixedCosts 실시간 구독
-          const unsubFixedCosts = subscribeToCollection<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, (data) => {
-              console.log('📥 Fixed costs updated from Firestore:', data.length);
-              setFixedCosts(data);
-          });
-          unsubscribeList.push(unsubFixedCosts);
-
-          // Reservations 실시간 구독
-          const unsubReservations = subscribeToCollection<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-              console.log('📥 Reservations updated from Firestore:', data.length);
-              setReservations(data);
-          });
-          unsubscribeList.push(unsubReservations);
-
-          // StockIn 실시간 구독
-          const unsubStockIn = subscribeToCollection<StockInRecord>(COLLECTIONS.STOCK_IN, (data) => {
-              console.log('📥 Stock-in history updated from Firestore:', data.length);
-              setStockInHistory(data);
-          });
-          unsubscribeList.push(unsubStockIn);
-
-          // Transfers 실시간 구독
-          const unsubTransfers = subscribeToCollection<StockTransferRecord>(COLLECTIONS.TRANSFERS, (data) => {
-              console.log('📥 Transfers updated from Firestore:', data.length);
-              setTransferHistory(data);
-          });
-          unsubscribeList.push(unsubTransfers);
 
           const unsubDailyReports = subscribeToCollection<DailyReport>(COLLECTIONS.DAILY_REPORTS, (data) => {
               setDailyReports(data.sort((a, b) => b.dateStr.localeCompare(a.dateStr)));

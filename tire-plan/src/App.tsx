@@ -649,7 +649,7 @@ const App: React.FC = () => {
         initializeData();
     }, []);
 
-    // 실시간 구독: 주요 엔티티 변경 시 자동 갱신
+    // 실시간 구독: 경량 엔티티만 자동 갱신
     useEffect(() => {
         console.log('🔔 Subscribing to Firestore collections...');
         const unsubStores = subscribeToCollection<StoreAccount>(COLLECTIONS.STORES, (data) => {
@@ -660,37 +660,9 @@ const App: React.FC = () => {
             console.log('📥 Products updated from Firestore:', data.length);
             setProducts(data);
         });
-        const unsubSales = subscribeToCollection<Sale>(COLLECTIONS.SALES, (data) => {
-            console.log('📥 Sales updated from Firestore:', data.length);
-            setSales(data);
-        });
         const unsubCustomers = subscribeToCollection<Customer>(COLLECTIONS.CUSTOMERS, (data) => {
             console.log('📥 Customers updated from Firestore:', data.length);
             setCustomers(data);
-        });
-        const unsubStockIn = subscribeToCollection<StockInRecord>(COLLECTIONS.STOCK_IN, (data) => {
-            console.log('📥 Stock-in history updated from Firestore:', data.length);
-            setStockInHistory(data);
-        });
-        const unsubExpenses = subscribeToCollection<ExpenseRecord>(COLLECTIONS.EXPENSES, (data) => {
-            console.log('📥 Expenses updated from Firestore:', data.length);
-            setExpenses(data);
-        });
-        const unsubFixedCosts = subscribeToCollection<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, (data) => {
-            console.log('📥 Fixed costs updated from Firestore:', data.length);
-            setFixedCosts(data);
-        });
-        const unsubLeaveRequests = subscribeToCollection<LeaveRequest>(COLLECTIONS.LEAVE_REQUESTS, (data) => {
-            console.log('📥 Leave requests updated from Firestore:', data.length);
-            setLeaveRequests(data);
-        });
-        const unsubReservations = subscribeToCollection<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-            console.log('📥 Reservations updated from Firestore:', data.length);
-            setReservations(data);
-        });
-        const unsubTransfers = subscribeToCollection<StockTransferRecord>(COLLECTIONS.TRANSFERS, (data) => {
-            console.log('📥 Transfers updated from Firestore:', data.length);
-            setTransferHistory(data);
         });
         const unsubStaff = subscribeToCollection<Staff>(COLLECTIONS.STAFF, (data) => {
             console.log('📥 Staff updated from Firestore:', data.length);
@@ -701,14 +673,7 @@ const App: React.FC = () => {
             console.log('🔕 Unsubscribing Firestore collections');
             unsubStores?.();
             unsubProducts?.();
-            unsubSales?.();
             unsubCustomers?.();
-            unsubStockIn?.();
-            unsubExpenses?.();
-            unsubFixedCosts?.();
-            unsubLeaveRequests?.();
-            unsubReservations?.();
-            unsubTransfers?.();
             unsubStaff?.();
         };
     }, []);

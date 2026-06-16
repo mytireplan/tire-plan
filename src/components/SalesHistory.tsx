@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useDeferredValue } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff, DailyReport, DailyReportExpenseEntry, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStaffItem, DailyReportStockInEntry, ExpenseRecord } from '../types';
 import { PaymentMethod } from '../types';
 import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar, Zap, ClipboardCheck, CheckCircle, Upload } from 'lucide-react';
@@ -42,6 +42,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
   const [activePaymentMethod, setActivePaymentMethod] = useState<string>('ALL');
   const [activeStoreId, setActiveStoreId] = useState<string>(currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : 'ALL');
   const [searchTerm, setSearchTerm] = useState(''); // Vehicle or Phone
+    const deferredSearchTerm = useDeferredValue(searchTerm);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
     const formatSaleTime = (iso: string) => new Intl.DateTimeFormat('ko-KR', {
@@ -522,8 +523,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       if (activePaymentMethod !== 'ALL' && sale.paymentMethod !== activePaymentMethod) return false;
       if (activeStoreId !== 'ALL' && sale.storeId !== activeStoreId) return false;
       
-      if (searchTerm) {
-          const term = searchTerm.toLowerCase();
+      if (deferredSearchTerm) {
+          const term = deferredSearchTerm.toLowerCase();
           const vehicle = (sale.vehicleNumber || '').toLowerCase();
           const phone = (sale.customer?.phoneNumber || '');
           const memo = (sale.memo || '').toLowerCase();
@@ -547,7 +548,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       
       return true;
         }).sort((a, b) => b.date.localeCompare(a.date));
-    }, [sales, filterStart, filterEnd, activePaymentMethod, activeStoreId, searchTerm]);
+    }, [sales, filterStart, filterEnd, activePaymentMethod, activeStoreId, deferredSearchTerm]);
 
   const salesWithMetrics = useMemo(() => {
     return filteredSales.map(sale => {
