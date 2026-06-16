@@ -1,6 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { subscribeToCollection, COLLECTIONS } from '../utils/firestore';
+import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import type { Product, CartItem, Sale, Store, User, Customer, Staff } from '../types';
 import { formatCurrency } from '../utils/format';
 import { PaymentMethod } from '../types';
@@ -214,6 +213,8 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
     );
 };
 
+const MemoizedCartItemRow = React.memo(CartItemRow);
+
 const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = [], currentUser, currentStoreId, staffList, customers, onSaleComplete }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -231,19 +232,11 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   // Admin Selection State
   const [adminSelectedStoreId, setAdminSelectedStoreId] = useState<string>(stores[0]?.id || '');
 
-  // 🔥 Firestore에서 상품 목록 구독
+    // Use already-subscribed products from parent App to avoid duplicate realtime listeners in POS.
     const [fireProducts, setFireProducts] = useState<Product[]>(products.map(normalizeProductCategory));
-
-  useEffect(() => {
-    const unsubscribe = subscribeToCollection<Product>(
-      COLLECTIONS.PRODUCTS,
-      (data) => {
-        // null 방지용 기본값
-                setFireProducts((data || []).map(normalizeProductCategory));
-      }
-    );
-    return () => unsubscribe();
-  }, []);
+    useEffect(() => {
+            setFireProducts(products.map(normalizeProductCategory));
+    }, [products]);
 
   // Logic: If Admin, use selected store. If Staff, strictly use currentStoreId.
   const activeStoreId = currentUser.role === 'STAFF' ? currentStoreId : adminSelectedStoreId;
@@ -260,6 +253,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   // Customer Search Modal State
   const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const deferredCustomerSearchTerm = useDeferredValue(customerSearchTerm);
+    const deferredSearchTerm = useDeferredValue(searchTerm);
   
   // Discount Modal State
 
@@ -299,15 +294,15 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
   // Customer Search Logic
   const filteredCustomers = useMemo(() => {
-      if (!customerSearchTerm) return [];
+      if (!deferredCustomerSearchTerm) return [];
       return customers.filter(c => 
-          c.phoneNumber.includes(customerSearchTerm) || 
-          c.vehicleNumber?.includes(customerSearchTerm) ||
-          c.carModel?.includes(customerSearchTerm) ||
-          c.mileage?.includes(customerSearchTerm) ||
-          c.name.includes(customerSearchTerm)
+          c.phoneNumber.includes(deferredCustomerSearchTerm) || 
+          c.vehicleNumber?.includes(deferredCustomerSearchTerm) ||
+          c.carModel?.includes(deferredCustomerSearchTerm) ||
+          c.mileage?.includes(deferredCustomerSearchTerm) ||
+          c.name.includes(deferredCustomerSearchTerm)
       );
-  }, [customers, customerSearchTerm]);
+  }, [customers, deferredCustomerSearchTerm]);
 
   const handleSelectCustomer = (customer: Customer) => {
       setCustomerForm({
@@ -342,8 +337,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       return (forceShowBrandTabs || searchTerm.length > 0 || selectedCategory === '타이어');
   }, [forceShowBrandTabs, searchTerm, selectedCategory]);
 
-    const filteredProducts = useMemo(() => {
-      const lowerSearch = searchTerm.toLowerCase().trim();
+        const filteredProducts = useMemo(() => {
+            const lowerSearch = deferredSearchTerm.toLowerCase().trim();
       // Create numeric only version for spec search (e.g. '2355519')
       const numericSearch = lowerSearch.replace(/\D/g, '');
 
@@ -366,7 +361,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
         
         const matchesSearch = nameMatch || specMatch || brandMatch;
         
-        if (selectedCategory === 'All' && !searchTerm && p.category === '타이어') {
+        if (selectedCategory === 'All' && !deferredSearchTerm && p.category === '타이어') {
             return false;
         }
 
@@ -392,11 +387,11 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
           return a.name.localeCompare(b.name);
       });
       return result;
-  }, [fireProducts, searchTerm, selectedCategory, selectedBrand, tireBrands]);
+    }, [fireProducts, deferredSearchTerm, selectedCategory, selectedBrand, tireBrands]);
 
   const getStock = (product: Product) => product.stockByStore[activeStoreId] || 0;
 
-    const addToCart = (product: Product, overridePrice?: number, overrideName?: string, isImmediateNewProduct?: boolean) => {
+    const addToCart = useCallback((product: Product, overridePrice?: number, overrideName?: string, isImmediateNewProduct?: boolean) => {
         // If this is a new product being immediately sold (입고와 동시에 판매), treat its stock as 0
         const currentStock = isImmediateNewProduct ? 0 : (product.stockByStore[activeStoreId] || 0);
         const isServiceItem = product.category === '기타' || currentStock > 900;
@@ -428,7 +423,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                     originalPrice: priceToUse
             }];
         });
-    };
+    }, [activeStoreId]);
 
   // --- Emergency / Temp Product Logic (Inline Version) ---
   const addDummyProduct = () => {
@@ -443,18 +438,18 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       }
   };
 
-  const updateMemo = (cartItemId: string, memo: string) => {
+  const updateMemo = useCallback((cartItemId: string, memo: string) => {
       setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, memo } : item));
-  };
+  }, []);
   
-  const updateName = (cartItemId: string, name: string) => {
+  const updateName = useCallback((cartItemId: string, name: string) => {
       setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, name } : item));
-  };
+  }, []);
   // ------------------------------------
 
 
 
-  const updateQuantity = (cartItemId: string, delta: number) => {
+    const updateQuantity = useCallback((cartItemId: string, delta: number) => {
     setCart(prev => prev.map(item => {
       if (item.cartItemId === cartItemId) {
         const newQty = item.quantity + delta;
@@ -468,20 +463,78 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       }
       return item;
     }).filter(Boolean) as CartItem[]);
-  };
+    }, [fireProducts, activeStoreId]);
 
-  const updatePrice = (cartItemId: string, newPrice: number) => {
+    const updatePrice = useCallback((cartItemId: string, newPrice: number) => {
       setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, price: newPrice } : item));
       setPriceEditId(null);
-  };
+    }, []);
 
     // Discount modal logic removed
 
 
 
-  const removeFromCart = (cartItemId: string) => {
+  const removeFromCart = useCallback((cartItemId: string) => {
     setCart(prev => prev.filter(item => item.cartItemId !== cartItemId));
-  };
+  }, []);
+
+  const productGridCards = useMemo(() => {
+      return filteredProducts.map(product => {
+          const stock = getStock(product);
+          const isService = product.category === '기타' || stock > 900;
+          const isLowStock = !isService && stock < 10;
+          return (
+              <button
+                  key={product.id}
+                  onClick={() => addToCart(product)}
+                  disabled={false}
+                  className={`group flex flex-col justify-between items-start p-4 rounded-xl border bg-white transition-all shadow-sm h-full min-h-[11rem] relative text-left
+                      hover:border-blue-500 hover:shadow-md cursor-pointer border-gray-100`}
+              >
+                  {product.brand && product.brand !== '기타' && (
+                      <span className="absolute top-3 right-3 text-[10px] font-bold px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 z-10">
+                          {product.brand}
+                      </span>
+                  )}
+
+                  <div className="w-full mt-1">
+                      <div className="text-xs md:text-sm font-semibold text-gray-400 mb-1 text-left">{product.category}</div>
+                      <h4 className="font-bold text-base md:text-lg text-gray-800 w-full text-left mb-2 pr-6 truncate" title={product.name} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h4>
+                      {product.specification && (
+                           <div className="text-left">
+                              <span className="text-sm text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded inline-block">{product.specification}</span>
+                          </div>
+                      )}
+                  </div>
+
+                  <div className="w-full mt-4 pt-3 border-t border-gray-50 flex flex-col items-end gap-0.5">
+                      {!isService && (
+                          <span className={`text-[10px] md:text-xs font-medium px-2 py-0.5 rounded-full ${isLowStock ? 'bg-[#EF4444] text-white' : 'bg-green-100 text-green-700'}`}>
+                              재고 {stock}개
+                          </span>
+                      )}
+                      <span className="text-lg md:text-xl font-bold text-gray-900">{formatCurrency(product.price)}</span>
+                  </div>
+              </button>
+          );
+      });
+  }, [filteredProducts, addToCart, activeStoreId]);
+
+  const desktopCartRows = useMemo(() => {
+      return cart.map(item => (
+          <MemoizedCartItemRow
+              key={item.cartItemId}
+              item={item}
+              onRemove={removeFromCart}
+              onUpdateQuantity={updateQuantity}
+              onUpdatePrice={updatePrice}
+              priceEditId={priceEditId}
+              onSetPriceEditId={setPriceEditId}
+              onUpdateMemo={updateMemo}
+              onUpdateName={updateName}
+          />
+      ));
+  }, [cart, removeFromCart, updateQuantity, updatePrice, priceEditId, updateMemo, updateName]);
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
@@ -687,45 +740,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                         <span className="text-xs text-orange-500">가매출 잡기 (즉시 추가)</span>
                     </button>
 
-                    {filteredProducts.map(product => {
-                        const stock = getStock(product);
-                        const isService = product.category === '기타' || stock > 900;
-                        const isLowStock = !isService && stock < 10;
-                        return (
-                            <button
-                                key={product.id}
-                                onClick={() => addToCart(product)}
-                                disabled={false}
-                                className={`group flex flex-col justify-between items-start p-4 rounded-xl border bg-white transition-all shadow-sm h-full min-h-[11rem] relative text-left
-                                    hover:border-blue-500 hover:shadow-md cursor-pointer border-gray-100`}
-                            >
-                                {product.brand && product.brand !== '기타' && (
-                                    <span className="absolute top-3 right-3 text-[10px] font-bold px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 z-10">
-                                        {product.brand}
-                                    </span>
-                                )}
-                                
-                                <div className="w-full mt-1">
-                                    <div className="text-xs md:text-sm font-semibold text-gray-400 mb-1 text-left">{product.category}</div>
-                                    <h4 className="font-bold text-base md:text-lg text-gray-800 w-full text-left mb-2 pr-6 truncate" title={product.name} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h4>
-                                    {product.specification && (
-                                         <div className="text-left">
-                                            <span className="text-sm text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded inline-block">{product.specification}</span>
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                                                <div className="w-full mt-4 pt-3 border-t border-gray-50 flex flex-col items-end gap-0.5">
-                                                                        {!isService && (
-                                                                            <span className={`text-[10px] md:text-xs font-medium px-2 py-0.5 rounded-full ${isLowStock ? 'bg-[#EF4444] text-white' : 'bg-green-100 text-green-700'}`}>
-                                                                                재고 {stock}개
-                                                                            </span>
-                                                                        )}
-                                                                        <span className="text-lg md:text-xl font-bold text-gray-900">{formatCurrency(product.price)}</span>
-                                                                </div>
-                            </button>
-                        );
-                    })}
+                    {productGridCards}
                 </div>
             </div>
         </div>
@@ -761,20 +776,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                         <p>상품을 선택하면 여기에 표시됩니다.</p>
                     </div>
                 ) : (
-                    cart.map(item => (
-                        <CartItemRow 
-                            key={item.cartItemId} 
-                            item={item} 
-                            onRemove={removeFromCart} 
-                            onUpdateQuantity={updateQuantity} 
-                            onUpdatePrice={updatePrice} 
-                            priceEditId={priceEditId} 
-                            onSetPriceEditId={setPriceEditId} 
-                            // onOpenDiscount removed
-                            onUpdateMemo={updateMemo}
-                            onUpdateName={updateName}
-                        />
-                    ))
+                    desktopCartRows
                 )}
             </div>
             <div className="p-5 border-t border-gray-100 bg-slate-50 rounded-b-xl">
