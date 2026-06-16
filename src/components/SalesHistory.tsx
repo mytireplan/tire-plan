@@ -2685,15 +2685,15 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center min-h-[24px]">
-                                    <span className="text-sm text-gray-500 w-20">차종</span>
-                                    <div className="flex-1 text-right">
-                                        {renderEditableField('customer.carModel', editFormData.customer?.carModel || '', (val) => handleEditChange('customer.carModel', val), 'text', 'text-sm font-medium')}
-                                    </div>
-                                </div>
-                                <div className="flex justify-between items-center min-h-[24px]">
                                     <span className="text-sm text-gray-500 w-20">키로수</span>
                                     <div className="flex-1 text-right">
                                         {renderEditableField('customer.mileage', editFormData.customer?.mileage || '', (val) => handleEditChange('customer.mileage', val), 'text', 'text-sm font-medium')}
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center min-h-[24px]">
+                                    <span className="text-sm text-gray-500 w-20">차종</span>
+                                    <div className="flex-1 text-right">
+                                        {renderEditableField('customer.carModel', editFormData.customer?.carModel || '', (val) => handleEditChange('customer.carModel', val), 'text', 'text-sm font-medium')}
                                     </div>
                                 </div>
                           </div>

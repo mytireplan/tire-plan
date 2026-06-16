@@ -579,7 +579,7 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
       // Reset All Forms
       setCart([]);
       setCustomerForm({ 
-          name: '', phoneNumber: '', carModel: '', agreedToPrivacy: false, requestTaxInvoice: false,
+          name: '', phoneNumber: '', carModel: '', mileage: '', agreedToPrivacy: false, requestTaxInvoice: false,
           businessNumber: '', companyName: '', email: ''
       });
       setCheckoutForm({ staffId: '', vehicleNumber: '' });
@@ -893,20 +893,13 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                         value={customerForm.phoneNumber} // Enable formatting in view
                                         onChange={handlePhoneNumberChange}
                                      />
-                                     <div className="grid grid-cols-3 gap-2">
+                                     <div className="grid grid-cols-2 gap-2">
                                           <input 
                                             type="text" 
                                             placeholder="차량번호"
                                             className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                             value={checkoutForm.vehicleNumber}
                                             onChange={(e) => setCheckoutForm({...checkoutForm, vehicleNumber: e.target.value})}
-                                        />
-                                        <input 
-                                            type="text" 
-                                            placeholder="차종"
-                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                                            value={customerForm.carModel}
-                                            onChange={(e) => setCustomerForm({...customerForm, carModel: e.target.value})}
                                         />
                                         <input 
                                             type="text" 
@@ -920,6 +913,13 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                                             }}
                                         />
                                      </div>
+                                     <input 
+                                        type="text" 
+                                        placeholder="차종"
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                        value={customerForm.carModel}
+                                        onChange={(e) => setCustomerForm({...customerForm, carModel: e.target.value})}
+                                     />
                                  </div>
                              </div>
 
