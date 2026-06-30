@@ -62,6 +62,58 @@ const isServiceCategory = (category?: string) => {
 };
 const normalizeProductCategory = (product: Product): Product => ({ ...product, category: normalizeCategory(product.category) });
 
+type ProductCardProps = {
+    product: Product;
+    activeStoreId: string;
+    qtyInCart: number;
+    addToCart: (product: Product) => void;
+};
+
+const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, activeStoreId, qtyInCart, addToCart }) => {
+    const stock = product.stockByStore[activeStoreId] || 0;
+    const isService = isServiceCategory(product.category) || stock > 900;
+    const isLowStock = !isService && stock < 10;
+
+    return (
+        <button
+            type="button"
+            onClick={() => addToCart(product)}
+            disabled={false}
+            className={`group flex flex-col justify-between items-start p-4 rounded-xl border transition-all shadow-sm h-full min-h-[11rem] relative text-left
+                      hover:border-blue-500 hover:shadow-md cursor-pointer ${qtyInCart > 0 ? 'border-blue-500 bg-blue-50/60 shadow-md ring-1 ring-blue-200' : 'border-gray-100 bg-white'}`}
+        >
+            {qtyInCart > 0 && (
+                <div className="absolute top-3 right-3 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                    {qtyInCart}개
+                </div>
+            )}
+            <div className="w-full mt-1 flex items-center gap-2 mb-2 pr-8">
+                <div className="text-xs md:text-sm font-semibold text-gray-400 text-left">{product.category}</div>
+                {product.brand && product.brand !== '기타' && (
+                    <span className="inline-flex items-center text-[11px] md:text-xs font-bold px-2.5 py-1 bg-gray-100 rounded text-gray-600 whitespace-nowrap">
+                        {product.brand}
+                    </span>
+                )}
+            </div>
+            <h4 className="font-bold text-base md:text-lg text-gray-800 w-full text-left mb-2 pr-6 truncate" title={product.name} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h4>
+            {product.specification && (
+                <div className="w-full text-left">
+                    <span className="text-base md:text-lg font-bold text-blue-600 leading-tight">{product.specification}</span>
+                </div>
+            )}
+
+            <div className="w-full mt-4 pt-3 flex items-center gap-2">
+                <div className="flex-1 border-t border-dashed border-gray-200" aria-hidden />
+                {!isService && (
+                    <span className={`text-xs md:text-sm font-semibold px-3 py-1.5 rounded-full shadow-sm ${isLowStock ? 'bg-[#EF4444] text-white' : 'bg-green-100 text-green-700'}`}>
+                        재고 {stock}개
+                    </span>
+                )}
+            </div>
+        </button>
+    );
+});
+
 const CartItemRow: React.FC<CartItemRowProps> = ({ 
     item, 
     onRemove, 
@@ -222,6 +274,7 @@ const MemoizedCartItemRow = React.memo(CartItemRow);
 const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = [], currentUser, currentStoreId, staffList, shifts, customers, onSaleComplete }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
       const [selectedCategory, setSelectedCategory] = useState<string | null>('정비');
   const [selectedBrand, setSelectedBrand] = useState<string>('All');
     const [forceShowBrandTabs, setForceShowBrandTabs] = useState(false);
@@ -318,10 +371,15 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
     const deferredCustomerSearchTerm = useDeferredValue(customerSearchTerm);
-    const deferredSearchTerm = useDeferredValue(searchTerm);
-  
-  // Discount Modal State
+    const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
 
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 120);
+
+        return () => window.clearTimeout(timer);
+    }, [searchTerm]);
   
   // Checkout Modal State
   const [confirmation, setConfirmation] = useState<{ isOpen: boolean; method: PaymentMethod | null }>({
@@ -407,8 +465,8 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
   };
 
   const showBrandTabs = useMemo(() => {
-      return (forceShowBrandTabs || searchTerm.length > 0 || selectedCategory === '타이어');
-  }, [forceShowBrandTabs, searchTerm, selectedCategory]);
+      return (forceShowBrandTabs || debouncedSearchTerm.length > 0 || selectedCategory === '타이어');
+  }, [forceShowBrandTabs, debouncedSearchTerm, selectedCategory]);
 
         const filteredProducts = useMemo(() => {
             const lowerSearch = (deferredSearchTerm || '').toLowerCase().trim();
@@ -614,52 +672,19 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
 
   const productGridCards = useMemo(() => {
       return filteredProducts.map(product => {
-          const stock = product.stockByStore[activeStoreId] || 0;
-          const isService = isServiceCategory(product.category) || stock > 900;
-          const isLowStock = !isService && stock < 10;
           const qtyInCart = cartQtyMap[product.id] || 0;
-          const isSelected = qtyInCart > 0;
-
           return (
-              <button
+              <ProductCard
                   key={product.id}
-                  onClick={() => addToCart(product)}
-                  disabled={false}
-                  className={`group flex flex-col justify-between items-start p-4 rounded-xl border transition-all shadow-sm h-full min-h-[11rem] relative text-left
-                      hover:border-blue-500 hover:shadow-md cursor-pointer ${isSelected ? 'border-blue-500 bg-blue-50/60 shadow-md ring-1 ring-blue-200' : 'border-gray-100 bg-white'}`}
-              >
-                  {qtyInCart > 0 && (
-                      <div className="absolute top-3 right-3 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
-                          {qtyInCart}개
-                      </div>
-                  )}
-                  <div className="w-full mt-1 flex items-center gap-2 mb-2 pr-8">
-                      <div className="text-xs md:text-sm font-semibold text-gray-400 text-left">{product.category}</div>
-                      {product.brand && product.brand !== '기타' && (
-                          <span className="inline-flex items-center text-[11px] md:text-xs font-bold px-2.5 py-1 bg-gray-100 rounded text-gray-600 whitespace-nowrap">
-                              {product.brand}
-                          </span>
-                      )}
-                  </div>
-                  <h4 className="font-bold text-base md:text-lg text-gray-800 w-full text-left mb-2 pr-6 truncate" title={product.name} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h4>
-                  {product.specification && (
-                      <div className="w-full text-left">
-                          <span className="text-base md:text-lg font-bold text-blue-600 leading-tight">{product.specification}</span>
-                      </div>
-                  )}
-
-                  <div className="w-full mt-4 pt-3 flex items-center gap-2">
-                      <div className="flex-1 border-t border-dashed border-gray-200" aria-hidden />
-                      {!isService && (
-                          <span className={`text-xs md:text-sm font-semibold px-3 py-1.5 rounded-full shadow-sm ${isLowStock ? 'bg-[#EF4444] text-white' : 'bg-green-100 text-green-700'}`}>
-                              재고 {stock}개
-                          </span>
-                      )}
-                  </div>
-              </button>
+                  product={product}
+                  activeStoreId={activeStoreId}
+                  qtyInCart={qtyInCart}
+                  addToCart={addToCart}
+                  tireBrands={tireBrands}
+              />
           );
       });
-  }, [filteredProducts, cartQtyMap, activeStoreId, addToCart]);
+  }, [filteredProducts, cartQtyMap, activeStoreId, addToCart, tireBrands]);
 
   const desktopCartRows = useMemo(() => {
       return cart.map(item => (
