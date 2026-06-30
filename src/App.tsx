@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { LayoutDashboard, ShoppingCart, Package, Menu, X, Store as StoreIcon, LogOut, UserCircle, List, Lock, Settings as SettingsIcon, Users, Truck, PieChart, Calendar, PhoneCall, ShieldCheck, ClipboardList, BookOpen } from 'lucide-react';
-import { orderBy, where, limit, collection, query, getDocs, doc, deleteDoc, writeBatch, type QueryConstraint } from 'firebase/firestore';
+import { orderBy, where, limit, doc, deleteDoc, writeBatch, type QueryConstraint } from 'firebase/firestore';
 import { db, auth } from './firebase';
 // 1. 진짜 물건(값)인 PaymentMethod는 그냥 가져옵니다. (type 없음!)
 import { PaymentMethod } from './types';
@@ -9,7 +9,7 @@ import { PaymentMethod } from './types';
 import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter, Shift, SalesItem, DailyReport, ManagerAccount, IncentiveRule } from './types';
 
 // Firebase imports
-import { saveBulkToFirestore, getCollectionPage, getAllFromFirestore, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery, subscribeToCollection } from './utils/firestore'; 
+import { saveBulkToFirestore, getCollectionPage, saveToFirestore, deleteFromFirestore, getFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToQuery, subscribeToCollection } from './utils/firestore'; 
 import { hashPassword } from './utils/auth';
 // (뒤에 더 있는 것들도 여기에 다 넣어주세요)
 import Dashboard from './components/Dashboard';
@@ -930,21 +930,13 @@ const App: React.FC = () => {
                     localStorage.setItem('firestore-migrated', 'true');
                 }
 
-                // Firestore에서 데이터 로드 (판매: 당일만, 고객: 전체)
+                // Firestore에서 데이터 로드 (초기 진입 시에는 페이지 단위로만 가져와 로딩 부담을 줄임)
                 const PAGE_SIZE = SALES_PAGE_SIZE;
-
-                const salesQuery = query(
-                    collection(db, COLLECTIONS.SALES),
-                    orderBy('date', 'desc'),
-                    limit(PAGE_SIZE)
-                );
-
-                const salesPagePromise = getDocs(salesQuery).then(snapshot => snapshot.docs.map(d => d.data() as Sale));
 
                 const [
                     firestoreOwners,
                     firestoreStores,
-                    firestoreProductsAll,
+                    firestoreProductsPage,
                     firestoreStockInPage,
                     firestoreExpensesPage,
                     firestoreFixedCosts,
@@ -953,11 +945,11 @@ const App: React.FC = () => {
                     firestoreTransfersPage,
                     firestoreStaffPage,
                     firestoreSalesPage,
-                    firestoreCustomersAll
+                    firestoreCustomersPage
                 ] = await Promise.all([
                     getCollectionPage<OwnerAccount>(COLLECTIONS.OWNERS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StoreAccount>(COLLECTIONS.STORES, { pageSize: PAGE_SIZE }),
-                    getAllFromFirestore<Product>(COLLECTIONS.PRODUCTS),  // 모든 제품 로드 (페이지 제한 없음)
+                    getCollectionPage<Product>(COLLECTIONS.PRODUCTS, { pageSize: PAGE_SIZE, orderByField: 'name' }),
                     getCollectionPage<StockInRecord>(COLLECTIONS.STOCK_IN, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<ExpenseRecord>(COLLECTIONS.EXPENSES, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<FixedCostConfig>(COLLECTIONS.FIXED_COSTS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
@@ -965,12 +957,12 @@ const App: React.FC = () => {
                     getCollectionPage<Reservation>(COLLECTIONS.RESERVATIONS, { pageSize: PAGE_SIZE, orderByField: 'id' }),
                     getCollectionPage<StockTransferRecord>(COLLECTIONS.TRANSFERS, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
                     getCollectionPage<Staff>(COLLECTIONS.STAFF, { pageSize: PAGE_SIZE, orderByField: 'id' }),
-                    salesPagePromise,
-                    getAllFromFirestore<Customer>(COLLECTIONS.CUSTOMERS)
+                    getCollectionPage<Sale>(COLLECTIONS.SALES, { pageSize: PAGE_SIZE, orderByField: 'date', direction: 'desc' }),
+                    getCollectionPage<Customer>(COLLECTIONS.CUSTOMERS, { pageSize: PAGE_SIZE, orderByField: 'id' })
                 ]);
 
                 const ownersWithDefaults = await ensureDefaultOwners(firestoreOwners.data);
-                const normalizedFetchedProducts = normalizeProducts(firestoreProductsAll);
+                const normalizedFetchedProducts = normalizeProducts(firestoreProductsPage.data);
 
                 if (SHOULD_SEED_DEMO) {
                     // 빈 컬렉션만 초기 시드 후 상태 설정 (기존 데이터는 절대 덮어쓰지 않음)
@@ -1023,8 +1015,8 @@ const App: React.FC = () => {
                     
                     const adjustedProducts = await seedProducts();
                     await seedIfEmpty<Product>('products', COLLECTIONS.PRODUCTS, normalizedFetchedProducts, adjustedProducts, (data) => setProducts(normalizeProducts(data)));
-                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesPage, INITIAL_SALES, setSales);
-                    await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomersAll, INITIAL_CUSTOMERS, setCustomers);
+                    await seedIfEmpty<Sale>('sales', COLLECTIONS.SALES, firestoreSalesPage.data, INITIAL_SALES, setSales);
+                    await seedIfEmpty<Customer>('customers', COLLECTIONS.CUSTOMERS, firestoreCustomersPage.data, INITIAL_CUSTOMERS, setCustomers);
                     await seedIfEmpty<StockInRecord>('stock-in history', COLLECTIONS.STOCK_IN, firestoreStockInPage.data, INITIAL_STOCK_HISTORY, setStockInHistory);
                     await seedIfEmpty<ExpenseRecord>('expenses', COLLECTIONS.EXPENSES, firestoreExpensesPage.data, INITIAL_EXPENSES, setExpenses);
                     await seedIfEmpty<FixedCostConfig>('fixed costs', COLLECTIONS.FIXED_COSTS, firestoreFixedCosts.data, INITIAL_FIXED_COSTS, setFixedCosts);
@@ -1044,8 +1036,8 @@ const App: React.FC = () => {
                     setUsers(ownersWithDefaults);
                     setStores(firestoreStores.data);
                     setProducts(normalizeProducts(normalizedFetchedProducts));
-                    setSales(firestoreSalesPage);
-                    setCustomers(firestoreCustomersAll);
+                    setSales(firestoreSalesPage.data);
+                    setCustomers(firestoreCustomersPage.data);
                     setStockInHistory(firestoreStockInPage.data);
                     setExpenses(firestoreExpensesPage.data);
                     setFixedCosts(firestoreFixedCosts.data);
@@ -1064,8 +1056,12 @@ const App: React.FC = () => {
         initializeData();
     }, []);
 
-  // Firestore 실시간 리스너 (경량 컬렉션만 구독)
+  // Firestore 실시간 리스너 (앱이 활성 상태일 때만 구독해 초기 부하를 줄임)
   useEffect(() => {
+      if (viewState !== 'APP' || !currentUser?.id) {
+          return;
+      }
+
       const unsubscribeList: Array<() => void> = [];
 
       try {
@@ -1130,7 +1126,7 @@ const App: React.FC = () => {
           console.log('🔕 Unsubscribing from all Firestore listeners');
           unsubscribeList.forEach(unsub => unsub());
       };
-  }, []);
+  }, [viewState, currentUser?.id]);
 
   // 데이터 변경 시 Firestore 자동 저장
     // Removed bulk auto-save effects to avoid duplicate writes with real-time subscriptions.
