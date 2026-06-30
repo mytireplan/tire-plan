@@ -66,7 +66,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
     return products.reduce((sum, p) => {
       // 부품 카테고리 단챘처리
       if (categoryName === '부품') {
-        if (!PART_NAMES.includes(p.category || '')) return sum;
+        if ((p.category || '') !== '부품' && !PART_NAMES.includes(p.category || '')) return sum;
       } else {
         const category = normalizeCategory(p.category);
         if (category !== categoryName) return sum;
@@ -151,8 +151,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
             const isLowStock = !isServiceItem && viewStock <= lowStockThreshold;
         
             // 선택된 카테고리로 필터링
-            const matchesCategory = selectedCategory === '부품' 
-              ? PART_NAMES.includes(p.category || '') 
+            const matchesCategory = selectedCategory === '부품'
+              ? (p.category === '부품' || PART_NAMES.includes(p.category || ''))
               : normalizeCategory(p.category) === selectedCategory;
         
             // 기타/정비 항목은 hideZeroStock 필터 무시 (수량 상관없이 표시)

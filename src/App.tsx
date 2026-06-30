@@ -1079,11 +1079,18 @@ const App: React.FC = () => {
           // Products 실시간 구독
           const unsubProducts = subscribeToCollection<Product>(COLLECTIONS.PRODUCTS, (data) => {
               console.log('📥 Products updated from Firestore:', data.length);
-              // Filter out products with missing or empty name or specification
-              const validProducts = data.filter(p => 
-                  p.name && p.name.trim() !== '' && 
-                  p.specification && p.specification.trim() !== ''
-              );
+              // Filter out products with missing or empty name.
+              // Previously we required `specification` for all products which hid parts
+              // that legitimately don't have a spec. Require `specification` only for tires.
+              const validProducts = data.filter(p => {
+                  if (!p.name || p.name.trim() === '') return false;
+                  // If category is '타이어', require a non-empty specification
+                  if ((p.category || '').trim() === '타이어') {
+                      return !!(p.specification && p.specification.trim() !== '');
+                  }
+                  // For non-tire items (부품 등), allow empty specification
+                  return true;
+              });
               console.log('✅ Valid products after filter:', validProducts.length);
               setProducts(validProducts);
           });
