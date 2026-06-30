@@ -2412,7 +2412,7 @@ const App: React.FC = () => {
           .then(() => console.log('✅ Sale deleted from Firestore:', saleId))
           .catch((err) => console.error('❌ Failed to delete sale from Firestore:', err));
   };
-    const handleStockIn = async (record: StockInRecord, sellingPrice?: number) => {
+    const handleStockIn = async (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
         // Deduplicate rapid double submissions (same payload within 3s)
         const fingerprint = [record.storeId, record.productName, record.specification, record.quantity ?? 0, record.receivedQuantity ?? 0, record.supplier, record.date].join('|');
         const now = Date.now();
@@ -2438,13 +2438,21 @@ const App: React.FC = () => {
         // 정규화 함수
         const normalizeName = (v?: string) => (v || '').toLowerCase().trim().replace(/\s+/g, '');
         const normalizeSpec = (v?: string) => (v || '').toLowerCase().replace(/[^0-9]/g, '');
-        
-        // Product ID 생성: P-{ownerId}-{이름}-{규격}
-        const generateProductId = (ownerId: string, name: string, spec: string): string => {
-            const normalizedName = normalizeName(name).slice(0, 20); // 길이 제한
-            const normalizedSpec = normalizeSpec(spec).slice(0, 15);
-            return `P-${ownerId}-${normalizedName}-${normalizedSpec}`;
+        const normalizeCodeName = (v?: string) => (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const isPartCodeName = (name?: string) => {
+            const normalized = normalizeCodeName(name);
+            return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
         };
+        const isPartCategory = (category?: string) => {
+            const normalized = (category || '').toLowerCase();
+            return ['부품', 'part', 'parts'].some(keyword => normalized.includes(keyword));
+        };
+
+        // If the record looks like a part item by productName or category keyword,
+        // ensure the saved product is classified under the shared 부품 category.
+        const resolvedCategory = (isPartCodeName(record.productName) || isPartCategory(record.category))
+            ? '부품'
+            : record.category;
 
         const ownerIdFromAuth = auth.currentUser?.uid;
         const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || ownerIdFromAuth || '';
@@ -2454,12 +2462,12 @@ const App: React.FC = () => {
         const matchedByNameSpec = products.find(p => {
             const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
             const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
-            const ownerMatch = p.ownerId === resolvedOwnerId;  // ← ownerId 체크 추가!
+            const ownerMatch = !p.ownerId || p.ownerId === resolvedOwnerId;
             return ownerMatch && (p.specification && record.specification ? (nameMatch && specMatch) : nameMatch);
         });
 
-        // Product ID 결정
-        const resolvedProductId = matchedByNameSpec?.id || generateProductId(resolvedOwnerId, record.productName, record.specification);
+        // Product ID 결정 (forceProductId 우선)
+        const resolvedProductId = forceProductId || matchedByNameSpec?.id || `P-${Date.now()}`;
 
         const recordToSave: StockInRecord = record.consumedAtSaleId
             ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
@@ -2472,7 +2480,8 @@ const App: React.FC = () => {
                 existingProductIndex = products.findIndex(p => {
                     const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
                     const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
-                    return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
+                    const ownerMatch = !p.ownerId || p.ownerId === resolvedOwnerId;
+                    return ownerMatch && (p.specification && record.specification ? (nameMatch && specMatch) : nameMatch);
                 });
             }
 
@@ -2494,7 +2503,10 @@ const App: React.FC = () => {
                     stockByStore: newStockByStore,
                     stock: newTotalStock,
                     factoryPrice: updatedFactoryPrice,
-                    ownerId: product.ownerId || resolvedOwnerId
+                    ownerId: product.ownerId || resolvedOwnerId,
+                    category: resolvedCategory,
+                    brand: record.brand || product.brand || '기타',
+                    specification: record.specification || product.specification || ''
                 };
             } else {
                 // 신규 제품: 해당 사장의 지점만 포함
@@ -2509,7 +2521,7 @@ const App: React.FC = () => {
                     price: sellingPrice || 0,
                     stock: qtyForStock,
                     stockByStore: newStockByStore,
-                    category: record.category,
+                    category: resolvedCategory,
                     brand: record.brand,
                     specification: record.specification,
                     factoryPrice: record.factoryPrice || 0,

@@ -604,6 +604,14 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     setCart(prev => prev.filter(item => item.cartItemId !== cartItemId));
   }, []);
 
+  const cartQtyMap = useMemo(() => {
+      const map: Record<string, number> = {};
+      cart.forEach(item => {
+          map[item.id] = (map[item.id] || 0) + item.quantity;
+      });
+      return map;
+  }, [cart]);
+
   const productGridCards = useMemo(() => {
       return filteredProducts.map(product => {
           const stock = product.stockByStore[activeStoreId] || 0;
@@ -674,14 +682,6 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
     const payableTotal = Math.max(0, cartTotal - discount);
   const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
   const uniqueCount = cart.length;
-  const cartQtyMap = useMemo(() => {
-      const map: Record<string, number> = {};
-      cart.forEach(item => {
-          map[item.id] = (map[item.id] || 0) + item.quantity;
-      });
-      return map;
-  }, [cart]);
-
 
   const requestCheckout = (method: PaymentMethod) => {
     if (cart.length === 0) return;

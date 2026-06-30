@@ -6,6 +6,22 @@ import { formatCurrency, formatNumber } from '../utils/format';
 import { saveToFirestore, deleteFromFirestore, COLLECTIONS } from '../utils/firestore';
 
 const PART_NAMES = ['브레이크패드', '오일필터', '엔진오일', '에어크리너'];
+const PART_CATEGORY_KEYWORDS = ['부품', 'part', 'parts'];
+
+const isPartCodeName = (name?: string) => {
+  const normalized = (name || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
+};
+
+const isPartCategory = (category?: string) => {
+  const normalized = (category || '').toLowerCase();
+  return PART_CATEGORY_KEYWORDS.some(keyword => normalized.includes(keyword));
+};
+
+const isPartProduct = (product: Product) => {
+  const category = product.category || '';
+  return category === '부품' || PART_NAMES.includes(category) || isPartCategory(category) || isPartCodeName(product.name);
+};
 
 interface InventoryProps {
   products: Product[];
@@ -64,9 +80,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
   // Calculate Total Tier Stock for the current view context
   const getCategoryStock = (categoryName: string) => {
     return products.reduce((sum, p) => {
-      // 부품 카테고리 단챘처리
+      // 부품 카테고리는 part 코드/키워드도 함께 포함
       if (categoryName === '부품') {
-        if ((p.category || '') !== '부품' && !PART_NAMES.includes(p.category || '')) return sum;
+        if (!isPartProduct(p)) return sum;
       } else {
         const category = normalizeCategory(p.category);
         if (category !== categoryName) return sum;
@@ -152,7 +168,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, stores, categories, tir
         
             // 선택된 카테고리로 필터링
             const matchesCategory = selectedCategory === '부품'
-              ? (p.category === '부품' || PART_NAMES.includes(p.category || ''))
+              ? isPartProduct(p)
               : normalizeCategory(p.category) === selectedCategory;
         
             // 기타/정비 항목은 hideZeroStock 필터 무시 (수량 상관없이 표시)

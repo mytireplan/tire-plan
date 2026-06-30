@@ -7,7 +7,9 @@ import { PaymentMethod } from './types';
 import type { Customer, Sale, Product, StockInRecord, User, UserRole, StoreAccount, Staff, ExpenseRecord, FixedCostConfig, LeaveRequest, Reservation, StaffPermissions, StockTransferRecord, SalesFilter } from './types';
 
 // Firebase imports
-import { saveBulkToFirestore, getAllFromFirestore, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToCollection } from './utils/firestore'; 
+import { saveBulkToFirestore, getAllFromFirestore, saveToFirestore, deleteFromFirestore, COLLECTIONS, migrateLocalStorageToFirestore, subscribeToCollection } from './utils/firestore';
+import { orderBy, where, limit, collection, query, getDocs, doc, deleteDoc, writeBatch, type QueryConstraint } from 'firebase/firestore';
+import { db, auth } from './firebase';
 // (뒤에 더 있는 것들도 여기에 다 넣어주세요)
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -448,6 +450,8 @@ const App: React.FC = () => {
     const [pinError, setPinError] = useState('');
     const [managerSession, setManagerSession] = useState(false);
     const adminTimerRef = useRef<number | null>(null);
+    const processingStockInIdsRef = useRef<Set<string>>(new Set()); // Track in-progress stock-in records
+    const lastStockInFingerprintRef = useRef<{ key: string; time: number } | null>(null);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sessionRole, setSessionRole] = useState<UserRole>('STAFF'); // Role for the current app session
@@ -1351,89 +1355,154 @@ const App: React.FC = () => {
                 .then(() => console.log('✅ Sale canceled in Firestore:', canceledSale.id))
                 .catch((err) => console.error('❌ Failed to cancel sale in Firestore:', err));
   };
-  const handleStockIn = (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
-      const isConsumed = Boolean(record.consumedAtSaleId);
-      const qtyForStock = isConsumed ? 0 : (record.receivedQuantity ?? record.quantity ?? 0);
-
-      const normalize = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, '');
-
-      const matchedById = record.productId ? products.find(p => p.id === record.productId) : undefined;
-      const matchedByForce = !matchedById && forceProductId ? products.find(p => p.id === forceProductId) : undefined;
-      const matchedByNameSpec = products.find(p => {
-          if (record.productId || forceProductId) return false; // prefer explicit ids
-          const nameMatch = normalize(p.name) === normalize(record.productName);
-          const specMatch = normalize(p.specification) === normalize(record.specification);
-          return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
-      });
-
-      const targetProduct = matchedById || matchedByForce || matchedByNameSpec;
-      const resolvedProductId = targetProduct?.id || record.productId || forceProductId || `P-NEW-${Date.now()}`;
-
-      const recordToSave: StockInRecord = record.consumedAtSaleId
-                          ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
-                          : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
-      const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
-
-      setStockInHistory(prev => [sanitizedRecord, ...prev]);
-    saveToFirestore<StockInRecord>(COLLECTIONS.STOCK_IN, sanitizedRecord)
-      .then(() => console.log('✅ Stock-in saved to Firestore:', sanitizedRecord.id))
-      .catch((err) => console.error('❌ Failed to save stock-in to Firestore:', err));
-      // Ensure brand is added to global tireBrands list so other views (Inventory/POS) see it
-      if (record.brand && record.brand.trim() !== '') {
-          setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
-      }
-      const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || '';
-      setProducts(prev => {
-        let existingProductIndex = -1;
-        if (resolvedProductId) {
-            existingProductIndex = prev.findIndex(p => p.id === resolvedProductId);
+  const handleStockIn = async (record: StockInRecord, sellingPrice?: number, forceProductId?: string) => {
+        const fingerprint = [record.storeId, record.productName, record.specification, record.quantity ?? 0, record.receivedQuantity ?? 0, record.supplier, record.date].join('|');
+        const now = Date.now();
+        const last = lastStockInFingerprintRef.current;
+        if (last && last.key === fingerprint && now - last.time < 3000) {
+            console.warn('⚠️ Duplicate stock-in submission detected, skipping:', fingerprint);
+            return;
         }
-        if (existingProductIndex < 0) {
-            existingProductIndex = prev.findIndex(p => {
-                const nameMatch = normalize(p.name) === normalize(record.productName);
-                const specMatch = normalize(p.specification) === normalize(record.specification);
-                return p.specification && record.specification ? (nameMatch && specMatch) : nameMatch;
-            });
+        lastStockInFingerprintRef.current = { key: fingerprint, time: now };
+
+        if (processingStockInIdsRef.current.has(record.id)) {
+            console.warn('⚠️ Stock-in already being processed:', record.id);
+            return;
         }
-        if (existingProductIndex >= 0) {
-            const updatedProducts = [...prev];
-            const product = updatedProducts[existingProductIndex];
-            const currentStoreStock = product.stockByStore[record.storeId] || 0;
-            const adjustAmount = isConsumed ? (record.receivedQuantity ?? record.quantity ?? 0) : qtyForStock;
-            const nextStoreStock = isConsumed
-                ? Math.max(0, currentStoreStock - adjustAmount)
-                : currentStoreStock + qtyForStock;
-            const newStockByStore = { ...product.stockByStore, [record.storeId]: nextStoreStock };
-            const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
-            updatedProducts[existingProductIndex] = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId };
-                        const updatedProduct = { ...product, stockByStore: newStockByStore, stock: newTotalStock, ownerId: product.ownerId || recordOwnerId } as Product;
-                        saveToFirestore<Product>(COLLECTIONS.PRODUCTS, updatedProduct)
-                            .then(() => console.log('✅ Product stock updated in Firestore:', updatedProduct.id))
-                            .catch((err) => console.error('❌ Failed to update product stock in Firestore:', err));
-                        return updatedProducts;
-        } else {
-            const newStockByStore: Record<string, number> = {};
-            stores.forEach(s => newStockByStore[s.id] = 0);
-            newStockByStore[record.storeId] = qtyForStock;
-            const newProductId = resolvedProductId || `P-${Date.now()}`;
-            const newProduct: Product = {
-                id: newProductId,
-                name: record.productName,
-                price: sellingPrice || 0,
-                stock: qtyForStock,
-                stockByStore: newStockByStore,
-                category: record.category,
-                brand: record.brand,
-                specification: record.specification,
-                ownerId: recordOwnerId
+        processingStockInIdsRef.current.add(record.id);
+
+        try {
+            const isConsumed = Boolean(record.consumedAtSaleId);
+            const receivedQty = record.receivedQuantity ?? record.quantity ?? 0;
+            const qtyForStock = isConsumed ? 0 : receivedQty;
+
+            const normalizeName = (v?: string) => (v || '').toLowerCase().trim().replace(/\s+/g, '');
+            const normalizeSpec = (v?: string) => (v || '').toLowerCase().replace(/[^0-9]/g, '');
+            const normalizeCodeName = (v?: string) => (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const isPartCodeName = (name?: string) => {
+                const normalized = normalizeCodeName(name);
+                return /^(YEC|YUMI|XOIL|SP)\d[A-Z0-9]*$/.test(normalized);
             };
-                        saveToFirestore<Product>(COLLECTIONS.PRODUCTS, newProduct)
-                            .then(() => console.log('✅ New product saved in Firestore:', newProduct.id))
-                            .catch((err) => console.error('❌ Failed to save new product in Firestore:', err));
-                        return [...prev, newProduct];
+            const isPartCategory = (category?: string) => {
+                const normalized = (category || '').toLowerCase();
+                return ['부품', 'part', 'parts'].some(keyword => normalized.includes(keyword));
+            };
+
+            const resolvedCategory = (isPartCodeName(record.productName) || isPartCategory(record.category))
+                ? '부품'
+                : record.category;
+
+            const ownerIdFromAuth = auth.currentUser?.uid;
+            const recordOwnerId = stores.find(s => s.id === record.storeId)?.ownerId || currentUser?.id || ownerIdFromAuth || '';
+            const resolvedOwnerId = recordOwnerId || ownerIdFromAuth || currentUser?.id || 'owner-unknown';
+
+            const matchedByNameSpec = products.find(p => {
+                const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
+                const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
+                const ownerMatch = !p.ownerId || p.ownerId === resolvedOwnerId;
+                return ownerMatch && (p.specification && record.specification ? (nameMatch && specMatch) : nameMatch);
+            });
+
+            const resolvedProductId = forceProductId || matchedByNameSpec?.id || `P-NEW-${Date.now()}`;
+
+            const recordToSave: StockInRecord = record.consumedAtSaleId
+                ? { ...record, productId: resolvedProductId, quantity: 0, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 }
+                : { ...record, productId: resolvedProductId, receivedQuantity: record.receivedQuantity ?? record.quantity ?? 0 };
+
+            let existingProductIndex = products.findIndex(p => p.id === resolvedProductId);
+            if (existingProductIndex < 0) {
+                existingProductIndex = products.findIndex(p => {
+                    const nameMatch = normalizeName(p.name) === normalizeName(record.productName);
+                    const specMatch = normalizeSpec(p.specification) === normalizeSpec(record.specification);
+                    const ownerMatch = !p.ownerId || p.ownerId === resolvedOwnerId;
+                    return ownerMatch && (p.specification && record.specification ? (nameMatch && specMatch) : nameMatch);
+                });
+            }
+
+            let productToSave: Product;
+
+            if (existingProductIndex >= 0) {
+                const product = products[existingProductIndex];
+                const currentStoreStock = product.stockByStore[record.storeId] || 0;
+                const adjustAmount = isConsumed ? (record.receivedQuantity ?? record.quantity ?? 0) : qtyForStock;
+                const nextStoreStock = isConsumed
+                    ? Math.max(0, currentStoreStock - adjustAmount)
+                    : currentStoreStock + qtyForStock;
+                const newStockByStore = { ...product.stockByStore, [record.storeId]: nextStoreStock };
+                const newTotalStock = (Object.values(newStockByStore) as number[]).reduce((a, b) => a + b, 0);
+                const updatedFactoryPrice = record.factoryPrice || product.factoryPrice || 0;
+
+                productToSave = {
+                    ...product,
+                    stockByStore: newStockByStore,
+                    stock: newTotalStock,
+                    factoryPrice: updatedFactoryPrice,
+                    ownerId: product.ownerId || resolvedOwnerId,
+                    category: resolvedCategory,
+                    brand: record.brand || product.brand || '기타',
+                    specification: record.specification || product.specification || ''
+                };
+            } else {
+                const newStockByStore: Record<string, number> = {};
+                const ownerStores = stores.filter(s => s.ownerId === resolvedOwnerId);
+                ownerStores.forEach(s => newStockByStore[s.id] = 0);
+                newStockByStore[record.storeId] = qtyForStock;
+
+                productToSave = {
+                    id: resolvedProductId,
+                    name: record.productName,
+                    price: sellingPrice || 0,
+                    stock: qtyForStock,
+                    stockByStore: newStockByStore,
+                    category: resolvedCategory,
+                    brand: record.brand,
+                    specification: record.specification,
+                    factoryPrice: record.factoryPrice || 0,
+                    ownerId: resolvedOwnerId
+                };
+            }
+
+            const sanitizedRecord = JSON.parse(JSON.stringify(recordToSave)) as StockInRecord;
+            const stockRecordToSave: StockInRecord = {
+                ...sanitizedRecord,
+                updatedAt: new Date().toISOString(),
+                ownerId: resolvedOwnerId
+            };
+
+            const batch = writeBatch(db);
+            const productRef = doc(db, COLLECTIONS.PRODUCTS, productToSave.id);
+            const stockInRef = doc(db, COLLECTIONS.STOCK_IN, stockRecordToSave.id);
+            batch.set(productRef, productToSave, { merge: true });
+            batch.set(stockInRef, stockRecordToSave, { merge: true });
+
+            await batch.commit();
+            console.log('✅ Batch commit success:', { productId: productToSave.id, stockInId: stockRecordToSave.id });
+
+            setProducts(prev => {
+                if (existingProductIndex >= 0) {
+                    const updated = [...prev];
+                    updated[existingProductIndex] = productToSave;
+                    return updated;
+                }
+                return [...prev, productToSave];
+            });
+
+            setStockInHistory(prev => {
+                if (prev.some(r => r.id === stockRecordToSave.id)) return prev;
+                return [stockRecordToSave, ...prev];
+            });
+
+            if (record.brand && record.brand.trim() !== '') {
+                setTireBrands(prev => prev.includes(record.brand) ? prev : [...prev, record.brand]);
+            }
+
+        } catch (err) {
+            console.error('❌ 입고 처리 실패 (batch):', err);
+            alert(`❌ 입고 처리 실패!\\n${record.productName}\\n네트워크를 확인하고 다시 시도해주세요.`);
+        } finally {
+            processingStockInIdsRef.current.delete(record.id);
         }
-    });
-  };
+    };
 
     const handleUpdateStockInRecord = (r: StockInRecord) => {
             setStockInHistory(prev => prev.map(old => old.id === r.id ? r : old));
