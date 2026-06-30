@@ -701,24 +701,31 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
     return itemsWithCat[0] || sale.items[0];
   };
 
-  const closeModalData = useMemo(() => {
-      if (!isCloseModalOpen) return null;
-
+  const closeModalDateStr = useMemo(() => {
       const y = currentDate.getFullYear();
       const m = String(currentDate.getMonth() + 1).padStart(2, '0');
       const d = String(currentDate.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${m}-${d}`;
+      return `${y}-${m}-${d}`;
+  }, [currentDate]);
 
-      const daySales = filteredSales
-          .filter(sale => !sale.isCanceled && isoToLocalDate(sale.date) === dateStr)
+  const closeModalDaySales = useMemo(() => {
+      if (!isCloseModalOpen) return [] as Sale[];
+      return filteredSales
+          .filter(sale => !sale.isCanceled && isoToLocalDate(sale.date) === closeModalDateStr)
           .sort((a, b) => a.date.localeCompare(b.date));
+  }, [isCloseModalOpen, filteredSales, closeModalDateStr]);
 
-      const reportStoreId = (currentStoreId && currentStoreId !== 'ALL')
+  const closeModalReportStoreId = useMemo(() => {
+      if (!isCloseModalOpen) return 'unknown';
+      return (currentStoreId && currentStoreId !== 'ALL')
           ? currentStoreId
-          : (daySales[0]?.storeId || 'unknown');
+          : (closeModalDaySales[0]?.storeId || 'unknown');
+  }, [isCloseModalOpen, currentStoreId, closeModalDaySales]);
 
-      const dayStockIns: DailyReportStockInEntry[] = stockInHistory
-          .filter(record => !record.consumedAtSaleId && record.date.startsWith(dateStr) && (reportStoreId === 'unknown' || record.storeId === reportStoreId))
+  const closeModalDayStockIns = useMemo(() => {
+      if (!isCloseModalOpen) return [] as DailyReportStockInEntry[];
+      return stockInHistory
+          .filter(record => !record.consumedAtSaleId && record.date.startsWith(closeModalDateStr) && (closeModalReportStoreId === 'unknown' || record.storeId === closeModalReportStoreId))
           .map(record => ({
               id: record.id,
               supplier: record.supplier,
@@ -727,43 +734,51 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
               category: record.category,
               quantity: record.receivedQuantity ?? record.quantity ?? 0,
           }));
+  }, [isCloseModalOpen, stockInHistory, closeModalDateStr, closeModalReportStoreId]);
 
-      const savedDayExpenses: DailyReportExpenseEntry[] = expenses
-          .filter(expense => (expense.date === dateStr || expense.date.startsWith(dateStr)) && (!expense.storeId || reportStoreId === 'unknown' || expense.storeId === reportStoreId))
+  const closeModalSavedDayExpenses = useMemo(() => {
+      if (!isCloseModalOpen) return [] as DailyReportExpenseEntry[];
+      return expenses
+          .filter(expense => (expense.date === closeModalDateStr || expense.date.startsWith(closeModalDateStr)) && (!expense.storeId || closeModalReportStoreId === 'unknown' || expense.storeId === closeModalReportStoreId))
           .map(expense => ({
               id: expense.id,
               category: expense.category,
               description: expense.description,
               amount: expense.amount,
-              source: 'saved',
+              source: 'saved' as const,
           }));
+  }, [isCloseModalOpen, expenses, closeModalDateStr, closeModalReportStoreId]);
 
-      const mergedSavedDayExpenses: DailyReportExpenseEntry[] = [
-          ...savedDayExpenses,
-          ...closeLinkedExpenses.filter(localExpense => !savedDayExpenses.some(savedExpense => savedExpense.id === localExpense.id)),
-      ];
+  const mergedSavedDayExpenses = useMemo(() => [
+      ...closeModalSavedDayExpenses,
+      ...closeLinkedExpenses.filter(localExpense => !closeModalSavedDayExpenses.some(savedExpense => savedExpense.id === localExpense.id)),
+  ], [closeModalSavedDayExpenses, closeLinkedExpenses]);
 
-      const manualDayExpenses: DailyReportExpenseEntry[] = closeExpenseDrafts
-          .map(expense => ({
-              id: expense.id,
-              category: expense.category.trim() || '기타',
-              description: expense.description.trim(),
-              amount: Number(expense.amount.replace(/,/g, '')) || 0,
-              source: 'manual' as const,
-          }))
-          .filter(expense => expense.description && expense.amount > 0);
+  const manualDayExpenses = useMemo(() => closeExpenseDrafts
+      .map(expense => ({
+          id: expense.id,
+          category: expense.category.trim() || '기타',
+          description: expense.description.trim(),
+          amount: Number(expense.amount.replace(/,/g, '')) || 0,
+          source: 'manual' as const,
+      }))
+      .filter(expense => expense.description && expense.amount > 0),
+  [closeExpenseDrafts]);
 
-      const closeRevenueTotal = daySales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-      const closeCostTotal = daySales.reduce((sum, sale) => (
-          sum + sale.items.reduce((itemSum, item, idx) => {
-              const factoryPrice = productById.get(item.productId)?.factoryPrice || 0;
-              return itemSum + (getCloseCost(sale.id, idx, factoryPrice, item.purchasePrice || 0) * item.quantity);
-          }, 0)
-      ), 0);
-      const closeExpenseTotal = [...mergedSavedDayExpenses, ...manualDayExpenses].reduce((sum, expense) => sum + expense.amount, 0);
-      const closeGrossMargin = closeRevenueTotal - closeCostTotal;
-      const closeNetMargin = closeGrossMargin - closeExpenseTotal;
+  const closeRevenueTotal = useMemo(() => closeModalDaySales.reduce((sum, sale) => sum + sale.totalAmount, 0), [closeModalDaySales]);
 
+  const closeCostTotal = useMemo(() => closeModalDaySales.reduce((sum, sale) => (
+      sum + sale.items.reduce((itemSum, item, idx) => {
+          const factoryPrice = productById.get(item.productId)?.factoryPrice || 0;
+          return itemSum + (getCloseCost(sale.id, idx, factoryPrice, item.purchasePrice || 0) * item.quantity);
+      }, 0)
+  ), 0), [closeModalDaySales, closeEdits, productById]);
+
+  const closeExpenseTotal = useMemo(() => [...mergedSavedDayExpenses, ...manualDayExpenses].reduce((sum, expense) => sum + expense.amount, 0), [mergedSavedDayExpenses, manualDayExpenses]);
+
+  const closeNetMargin = useMemo(() => closeRevenueTotal - closeCostTotal - closeExpenseTotal, [closeRevenueTotal, closeCostTotal, closeExpenseTotal]);
+
+  const closeModalInventory = useMemo(() => {
       const normalizeCloseCategory = (category?: string) => (category || '기타').trim() || '기타';
       const getPreviousDateStr = (baseDateStr: string) => {
           const [yy, mm, dd] = baseDateStr.split('-').map(Number);
@@ -772,8 +787,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
           return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
       };
       const getCurrentStockByStore = (product: Product) => {
-          if (reportStoreId && reportStoreId !== 'unknown') {
-              return Number(product.stockByStore?.[reportStoreId] || 0);
+          if (closeModalReportStoreId && closeModalReportStoreId !== 'unknown') {
+              return Number(product.stockByStore?.[closeModalReportStoreId] || 0);
           }
           return Number(product.stock || 0);
       };
@@ -785,7 +800,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       };
 
       const soldByCategory = new Map<string, number>();
-      daySales.forEach(sale => {
+      closeModalDaySales.forEach(sale => {
           sale.items.forEach(item => {
               const category = normalizeCloseCategory(productById.get(item.productId)?.category);
               soldByCategory.set(category, (soldByCategory.get(category) || 0) + item.quantity);
@@ -793,7 +808,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       });
 
       const stockInByCategory = new Map<string, number>();
-      dayStockIns.forEach(record => {
+      closeModalDayStockIns.forEach(record => {
           const category = normalizeCloseCategory(record.category);
           stockInByCategory.set(category, (stockInByCategory.get(category) || 0) + (record.quantity || 0));
       });
@@ -806,8 +821,8 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
           currentStockByCategory.set(category, (currentStockByCategory.get(category) || 0) + qty);
       });
 
-      const previousDateStr = getPreviousDateStr(dateStr);
-      const previousReport = dailyReports.find(report => report.storeId === reportStoreId && report.dateStr === previousDateStr);
+      const previousDateStr = getPreviousDateStr(closeModalDateStr);
+      const previousReport = dailyReports.find(report => report.storeId === closeModalReportStoreId && report.dateStr === previousDateStr);
       const previousStockByCategory = new Map<string, number>();
       previousReport?.inventoryFlowEntries?.forEach(entry => {
           previousStockByCategory.set(normalizeCloseCategory(entry.category), Number(entry.currentStock || 0));
@@ -855,24 +870,29 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
           currentStock: acc.currentStock + entry.currentStock,
       }), { previousStock: 0, stockInQty: 0, soldQty: 0, currentStock: 0 });
 
+      return { inventoryFlowEntries, inventoryFlowTotals };
+  }, [closeModalDaySales, closeModalDayStockIns, closeModalReportStoreId, closeModalDateStr, products, dailyReports, productById]);
+
+  const closeModalData = useMemo(() => {
+      if (!isCloseModalOpen) return null;
       return {
-          y,
-          m,
-          d,
-          dateStr,
-          daySales,
-          reportStoreId,
-          dayStockIns,
+          y: currentDate.getFullYear(),
+          m: String(currentDate.getMonth() + 1).padStart(2, '0'),
+          d: String(currentDate.getDate()).padStart(2, '0'),
+          dateStr: closeModalDateStr,
+          daySales: closeModalDaySales,
+          reportStoreId: closeModalReportStoreId,
+          dayStockIns: closeModalDayStockIns,
           mergedSavedDayExpenses,
           manualDayExpenses,
           closeRevenueTotal,
           closeCostTotal,
           closeExpenseTotal,
           closeNetMargin,
-          inventoryFlowEntries,
-          inventoryFlowTotals,
+          inventoryFlowEntries: closeModalInventory.inventoryFlowEntries,
+          inventoryFlowTotals: closeModalInventory.inventoryFlowTotals,
       };
-  }, [isCloseModalOpen, currentDate, filteredSales, currentStoreId, stockInHistory, expenses, closeLinkedExpenses, closeExpenseDrafts, closeEdits, products, dailyReports, productById]);
+  }, [isCloseModalOpen, closeModalDateStr, closeModalDaySales, closeModalReportStoreId, closeModalDayStockIns, mergedSavedDayExpenses, manualDayExpenses, closeRevenueTotal, closeCostTotal, closeExpenseTotal, closeNetMargin, closeModalInventory]);
 
     const getItemDisplayPrefix = (item: (SalesItem & { category?: string }) | null) => {
         if (!item) return '';

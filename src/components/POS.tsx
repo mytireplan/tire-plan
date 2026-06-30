@@ -680,11 +680,10 @@ const POS: React.FC<POSProps> = ({ products, stores, categories, tireBrands = []
                   activeStoreId={activeStoreId}
                   qtyInCart={qtyInCart}
                   addToCart={addToCart}
-                  tireBrands={tireBrands}
               />
           );
       });
-  }, [filteredProducts, cartQtyMap, activeStoreId, addToCart, tireBrands]);
+  }, [filteredProducts, cartQtyMap, activeStoreId, addToCart]);
 
   const desktopCartRows = useMemo(() => {
       return cart.map(item => (
