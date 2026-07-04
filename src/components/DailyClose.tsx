@@ -55,6 +55,38 @@ const isPartCategory = (category?: string): boolean => {
     return PART_CATEGORY_KEYWORDS.some((kw) => normalized.includes(normalizeText(kw)));
 };
 
+const isTireCategory = (category?: string): boolean => {
+    const normalized = normalizeText(category);
+    return normalized.includes('타이어');
+};
+
+const hasTireSpecText = (text?: string): boolean => {
+    if (!text) return false;
+    return /\d{3}[\/]?\d{2}\s*R?\d{2}/i.test(text);
+};
+
+const isRepairLikeName = (productName?: string, category?: string): boolean => {
+    const normalizedCategory = normalizeText(category);
+    if (normalizedCategory.includes('정비') || normalizedCategory.includes('브레이크') || normalizedCategory.includes('오일') || normalizedCategory.includes('tpms') || normalizedCategory.includes('디스크')) {
+        return true;
+    }
+    const normalizedName = normalizeText(productName);
+    return [
+        '엔진오일', '브레이크오일', '브레이크패드', '오일필터', '에어크리너',
+        '휠얼라인먼트', '얼라인', '쇼바', '로어암', '활대링크', '부싱', '디스크', '로터', 'tpms'
+    ].some((keyword) => normalizedName.includes(normalizeText(keyword)));
+};
+
+const isTireLikeItem = (productId: string, productName?: string, category?: string, specification?: string): boolean => {
+    if (productId === '99999' || productId?.startsWith('RENTAL-')) return false;
+    if (isPartCodeName(productName)) return false;
+    if (isRentalItem(productId, productName, category)) return false;
+    if (isTireCategory(category)) return true;
+    const text = `${productName || ''} ${category || ''} ${specification || ''}`;
+    if (hasTireSpecText(text) && !isRepairLikeName(productName, category)) return true;
+    return false;
+};
+
 const DailyClose: React.FC<DailyCloseProps> = ({
     sales, stores, products, dailyReports, stockInHistory, currentUser, currentStoreId, onUpdateSale, onSaveReport
 }) => {
@@ -77,11 +109,11 @@ const DailyClose: React.FC<DailyCloseProps> = ({
         return map;
     }, [products]);
 
-    const getItemClass = useCallback((productId: string, category: string, productName?: string): ItemClass => {
+    const getItemClass = useCallback((productId: string, category: string, productName?: string, specification?: string): ItemClass => {
         if (productId === '99999' || productId?.startsWith('RENTAL-')) return 'labor';
         if (isPartCodeName(productName)) return 'labor';
-        if (TIRE_CATEGORIES.includes(category)) return 'tire';
-        if (REPAIR_CATEGORIES.includes(category)) return 'repair';
+        if (isTireLikeItem(productId, productName, category, specification)) return 'tire';
+        if (REPAIR_CATEGORIES.includes(category) || isRepairLikeName(productName, category)) return 'repair';
         if (isPartCategory(category)) return 'labor';
         return 'labor';
     }, []);
@@ -118,7 +150,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 const product = productMap.get(item.productId);
                 const sourceCategory = item.category || product?.category || '��Ÿ';
                 const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
-                const cls = getItemClass(item.productId, category, item.productName);
+                const cls = getItemClass(item.productId, category, item.productName, item.specification);
                 const excludedFromCount = isRentalItem(item.productId, item.productName, category);
                 if (!excludedFromCount) {
                     if (cls === 'tire') tireQty += item.quantity;
@@ -257,7 +289,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                 const product = productMap.get(item.productId);
                 const sourceCategory = item.category || product?.category || '��Ÿ';
                 const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
-                const itemClass = getItemClass(item.productId, category, item.productName);
+                const itemClass = getItemClass(item.productId, category, item.productName, item.specification);
                 const excludedFromCount = isRentalItem(item.productId, item.productName, category);
                 const fp = product?.factoryPrice || 0;
                 const cost = getItemEffectiveCost(sale.id, idx, fp, item.purchasePrice || 0);
@@ -611,14 +643,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                                             const product = productMap.get(item.productId);
                                                             const sourceCategory = item.category || product?.category || '��Ÿ';
                                                             const category = (isPartCodeName(item.productName) || isPartCategory(sourceCategory)) ? '부품' : sourceCategory;
-                                                            const itemClass = getItemClass(item.productId, category, item.productName);
-                                                            const factoryPrice = product?.factoryPrice || 0;
-
-                                                            const edit = costEdits[sale.id]?.[idx] || {
-                                                                mode: (factoryPrice > 0 ? 'discount' : 'direct') as EditMode,
-                                                                discountRate: '',
-                                                                directCost: item.purchasePrice ? item.purchasePrice.toLocaleString() : '',
-                                                            };
+                                                                    const itemClass = getItemClass(item.productId, category, item.productName, item.specification);
 
                                                             const effectiveCost = getItemEffectiveCost(sale.id, idx, factoryPrice, item.purchasePrice || 0);
                                                             const totalItemRevenue = item.priceAtSale * item.quantity;

@@ -121,12 +121,44 @@ const isPartCategory = (category?: string): boolean => {
   return PART_CATEGORY_KEYWORDS.some((kw) => normalized.includes(normalizeText(kw)));
 };
 
-const resolveIncentiveItemClass = (item: { productName: string; category: string; itemClass: 'tire' | 'repair' | 'labor' }) => {
+const isTireCategory = (category?: string): boolean => {
+  const normalized = normalizeText(category);
+  return normalized.includes('타이어');
+};
+
+const hasTireSpecText = (text?: string): boolean => {
+  if (!text) return false;
+  return /\d{3}[\/]?\d{2}\s*R?\d{2}/i.test(text);
+};
+
+const isRepairLikeName = (productName?: string, category?: string): boolean => {
+  const normalizedCategory = normalizeText(category);
+  if (normalizedCategory.includes('정비') || normalizedCategory.includes('브레이크') || normalizedCategory.includes('오일') || normalizedCategory.includes('tpms') || normalizedCategory.includes('디스크')) {
+    return true;
+  }
+  const normalizedName = normalizeText(productName);
+  return [
+    '엔진오일', '브레이크오일', '브레이크패드', '오일필터', '에어크리너',
+    '휠얼라인먼트', '얼라인', '쇼바', '로어암', '활대링크', '부싱', '디스크', '로터', 'tpms'
+  ].some((keyword) => normalizedName.includes(normalizeText(keyword)));
+};
+
+const isTireLikeItem = (productId?: string, productName?: string, category?: string, specification?: string): boolean => {
+  if (productId === '99999' || productId?.startsWith('RENTAL-')) return false;
+  if (isPartCodeName(productName)) return false;
+  if (isRentalItem(productId, productName, category)) return false;
+  if (isTireCategory(category)) return true;
+  const text = `${productName || ''} ${category || ''} ${specification || ''}`;
+  if (hasTireSpecText(text) && !isRepairLikeName(productName, category)) return true;
+  return false;
+};
+
+const resolveIncentiveItemClass = (item: { productName: string; category: string; itemClass: 'tire' | 'repair' | 'labor'; specification?: string }) => {
   const normalizedCategory = item.category === '부품/수리' ? '정비' : item.category;
   const haystack = normalizeText(`${item.productName} ${item.category}`);
 
   if (isPartCodeName(item.productName)) return 'labor' as const;
-
+  if (isTireLikeItem(undefined, item.productName, item.category, item.specification)) return 'tire' as const;
   if (TIRE_CATEGORIES.includes(normalizedCategory)) return 'tire' as const;
   if (REPAIR_CATEGORIES.includes(normalizedCategory)) return 'repair' as const;
   if (REPAIR_CLASS_KEYWORDS.some((kw) => haystack.includes(normalizeText(kw)))) return 'repair' as const;

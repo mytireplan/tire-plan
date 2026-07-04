@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useDeferredValue } from 'react';
+import React, { useMemo, useState, useEffect, useDeferredValue, useCallback } from 'react';
 import type { Sale, SalesFilter, Store, User, StockInRecord, Product, SalesItem, Shift, Staff, DailyReport, DailyReportExpenseEntry, DailyReportInventoryFlowEntry, DailyReportItem, DailyReportStaff, DailyReportStaffItem, DailyReportStockInEntry, ExpenseRecord } from '../types';
 import { PaymentMethod } from '../types';
 import { ArrowLeft, CreditCard, MapPin, ChevronLeft, ChevronRight, X, ShoppingBag, User as UserIcon, BadgeCheck, Lock, Search, Edit3, Save, Banknote, Smartphone, AlertTriangle, Tag, Trash2, Plus, Minus, Truck, Calendar, Zap, ClipboardCheck, CheckCircle, Upload } from 'lucide-react';
@@ -33,6 +33,56 @@ interface SalesHistoryProps {
 }
 
 type ViewMode = 'daily' | 'weekly' | 'monthly' | 'staff';
+type CloseExpenseDraft = { id: string; category: string; description: string; amount: string };
+
+// Memoized component for individual expense draft row to prevent unnecessary re-renders
+const CloseExpenseDraftRow = React.memo<{
+    expense: CloseExpenseDraft;
+    onUpdate: (id: string, field: keyof CloseExpenseDraft, value: string) => void;
+    onDelete: (id: string) => void;
+}>(({ expense, onUpdate, onDelete }) => {
+    const [amountInput, setAmountInput] = useState(expense.amount);
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr_140px_40px] gap-2 items-center rounded-lg border border-blue-100 bg-blue-50/40 px-2 py-2">
+            <input
+                type="text"
+                value={expense.category}
+                onChange={e => onUpdate(expense.id, 'category', e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                placeholder="지출 분류"
+            />
+            <input
+                type="text"
+                value={expense.description}
+                onChange={e => onUpdate(expense.id, 'description', e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                placeholder="지출 내용"
+            />
+            <input
+                type="text"
+                inputMode="numeric"
+                value={amountInput}
+                onChange={e => setAmountInput(e.target.value.replace(/[^0-9]/g, ''))}
+                onBlur={() => {
+                    const raw = amountInput.replace(/[^0-9]/g, '');
+                    const formatted = raw ? Number(raw).toLocaleString() : '';
+                    onUpdate(expense.id, 'amount', formatted);
+                    setAmountInput(formatted);
+                }}
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
+                placeholder="0"
+            />
+            <button
+                type="button"
+                onClick={() => onDelete(expense.id)}
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="지출 삭제"
+            >
+                <Trash2 size={15} />
+            </button>
+        </div>
+    );
+});
 
 const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, dailyReports, expenses, filter, onBack, currentUser, currentStoreId, stockInHistory, onSwapProduct, onUpdateSale, onCancelSale, onRestoreSale, onDeleteSale, onQuickAddSale, onStockIn, categories, tireBrands, tireModels, shifts, staffList, onSaveReport, onAddExpense }) => {
   
@@ -138,7 +188,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
 
   // --- 마감하기 State ---
   type CloseItemEdit = { mode: 'discount' | 'direct'; discountRate: string; directCost: string };
-    type CloseExpenseDraft = { id: string; category: string; description: string; amount: string };
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [closeEdits, setCloseEdits] = useState<Record<string, Record<number, CloseItemEdit>>>({});
   const [closeSavedIds, setCloseSavedIds] = useState<Set<string>>(new Set());
@@ -198,6 +247,18 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
       const val = parseInt(edit.directCost.replace(/,/g, ''), 10);
       return isNaN(val) ? 0 : val;
   };
+
+  const handleCloseExpenseDraftUpdate = useCallback((id: string, field: keyof CloseExpenseDraft, value: string) => {
+      setCloseExpenseDrafts(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+      setCloseMetaSaved(false);
+      setCloseReported(false);
+  }, []);
+
+  const handleCloseExpenseDraftDelete = useCallback((id: string) => {
+      setCloseExpenseDrafts(prev => prev.filter(item => item.id !== id));
+      setCloseMetaSaved(false);
+      setCloseReported(false);
+  }, []);
 
   const handleCloseSaveSale = (sale: typeof filteredSales[0]) => {
       const updatedItems = sale.items.map((item, idx) => {
@@ -3654,56 +3715,12 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales, stores, products, da
                                       ))}
 
                                       {closeExpenseDrafts.map(expense => (
-                                          <div key={expense.id} className="grid grid-cols-1 sm:grid-cols-[120px_1fr_140px_40px] gap-2 items-center rounded-lg border border-blue-100 bg-blue-50/40 px-2 py-2">
-                                              <input
-                                                  type="text"
-                                                  value={expense.category}
-                                                  onChange={e => {
-                                                      setCloseExpenseDrafts(prev => prev.map(item => item.id === expense.id ? { ...item, category: e.target.value } : item));
-                                                      setCloseMetaSaved(false);
-                                                      setCloseReported(false);
-                                                  }}
-                                                  className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
-                                                  placeholder="지출 분류"
-                                              />
-                                              <input
-                                                  type="text"
-                                                  value={expense.description}
-                                                  onChange={e => {
-                                                      setCloseExpenseDrafts(prev => prev.map(item => item.id === expense.id ? { ...item, description: e.target.value } : item));
-                                                      setCloseMetaSaved(false);
-                                                      setCloseReported(false);
-                                                  }}
-                                                  className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
-                                                  placeholder="지출 내용"
-                                              />
-                                              <input
-                                                  type="text"
-                                                  inputMode="numeric"
-                                                  value={expense.amount}
-                                                  onChange={e => {
-                                                      const raw = e.target.value.replace(/[^0-9]/g, '');
-                                                      const formatted = raw ? Number(raw).toLocaleString() : '';
-                                                      setCloseExpenseDrafts(prev => prev.map(item => item.id === expense.id ? { ...item, amount: formatted } : item));
-                                                      setCloseMetaSaved(false);
-                                                      setCloseReported(false);
-                                                  }}
-                                                  className="w-full p-2 border border-gray-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-blue-400 outline-none"
-                                                  placeholder="0"
-                                              />
-                                              <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                      setCloseExpenseDrafts(prev => prev.filter(item => item.id !== expense.id));
-                                                      setCloseMetaSaved(false);
-                                                      setCloseReported(false);
-                                                  }}
-                                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                  title="지출 삭제"
-                                              >
-                                                  <Trash2 size={15} />
-                                              </button>
-                                          </div>
+                                          <CloseExpenseDraftRow
+                                              key={expense.id}
+                                              expense={expense}
+                                              onUpdate={handleCloseExpenseDraftUpdate}
+                                              onDelete={handleCloseExpenseDraftDelete}
+                                          />
                                       ))}
                                   </div>
                               </div>
