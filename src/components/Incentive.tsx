@@ -332,10 +332,10 @@ const buildStaffItemsFromSales = (report: DailyReport, sales: Sale[], products: 
     .forEach((sale) => {
       const staffName = normalizeStaffName(sale.staffName);
       (sale.items || []).forEach((item) => {
-        if (isRentalItem(item.productId, item.productName, item.category)) return;
-        const product = productMap.get(item.productId);
-        const category = item.category || product?.category || '기타';
-        const itemClass = resolveIncentiveItemClass({ productName: item.productName, category, itemClass: 'labor' });
+      if (isRentalItem(item.productId, item.productName, item.category)) return;
+      const product = productMap.get(item.productId);
+      const category = item.category || product?.category || '기타';
+      const itemClass = resolveIncentiveItemClass({ productName: item.productName, category, itemClass: 'labor', specification: item.specification });
         const qty = item.quantity || 0;
         const revenue = (item.priceAtSale || 0) * qty;
         const cost = ((item.purchasePrice ?? product?.factoryPrice ?? 0) || 0) * qty;
