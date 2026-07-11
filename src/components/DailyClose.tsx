@@ -784,7 +784,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                             onClick={() => {
                                                 const r = buildDailyReport(stat.dateStr);
                                                 // Debug log: inspect what will be saved for troubleshooting
-                                                console.log('Saving daily report', {
+                                                console.warn('Saving daily report', {
                                                     id: r.id,
                                                     dateStr: r.dateStr,
                                                     tireQty: r.tireQty,
