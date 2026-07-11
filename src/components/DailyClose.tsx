@@ -783,6 +783,14 @@ const DailyClose: React.FC<DailyCloseProps> = ({
                                         <button
                                             onClick={() => {
                                                 const r = buildDailyReport(stat.dateStr);
+                                                // Debug log: inspect what will be saved for troubleshooting
+                                                console.log('Saving daily report', {
+                                                    id: r.id,
+                                                    dateStr: r.dateStr,
+                                                    tireQty: r.tireQty,
+                                                    staffItemsCount: (r.staffItems || []).length,
+                                                    staffItemsPreview: (r.staffItems || []).slice(0, 5).map(si => ({ staffName: si.staffName, productName: si.productName, qty: si.qty })),
+                                                });
                                                 onSaveReport(r);
                                                 setReportedDates(prev => new Set(prev).add(stat.dateStr));
                                             }}
