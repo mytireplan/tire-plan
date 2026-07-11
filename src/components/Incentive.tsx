@@ -470,10 +470,14 @@ const Incentive: React.FC<IncentiveProps> = ({
       .map((item) => ({ ...item, staffName: normalizeStaffName(item.staffName) }))
       .filter((item) => item.staffName !== '' && item.staffName !== '-')
       .filter((item) => !isRentalItem(undefined, item.productName, item.category));
-    if (normalizedExisting.length > 0) return normalizedExisting;
+
+    const hasExistingTireItems = normalizedExisting.some((item) => item.itemClass === 'tire');
+    if (normalizedExisting.length > 0 && hasExistingTireItems) return normalizedExisting;
 
     const rebuilt = buildStaffItemsFromSales(report, sales, products);
     if (rebuilt.length > 0) return rebuilt;
+
+    if (normalizedExisting.length > 0) return normalizedExisting;
 
     // 최후 fallback: 단일 직원 보고서면 items를 해당 직원으로 귀속
     const uniqueStaff = Array.from(new Set((report.staffStats || []).map((s) => normalizeStaffName(s.staffName)).filter(Boolean)));
