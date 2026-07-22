@@ -91,6 +91,8 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
       return localDate.toISOString().split('T')[0];
   };
 
+    const getSaleLocalDate = (sale: Sale) => formatDateYMD(new Date(sale.date));
+
   const boardDateStr = formatDateYMD(boardDate);
 
   // Check if the displayed month is the current calendar month
@@ -109,13 +111,14 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   }, [sales, selectedStoreId]);
 
   // 2. Filter Sales based on Current Month (For Summary Cards - Admin)
-  const monthlySales = useMemo(() => {
-    return filteredSalesByStore.filter(s => {
-        const d = new Date(s.date);
-        return d.getFullYear() === currentDate.getFullYear() && 
-               d.getMonth() === currentDate.getMonth();
-    });
-  }, [filteredSalesByStore, currentDate]);
+    const monthlySales = useMemo(() => {
+        return filteredSalesByStore.filter(s => {
+                if (s.isCanceled) return false;
+                const d = new Date(s.date);
+                return d.getFullYear() === currentDate.getFullYear() && 
+                             d.getMonth() === currentDate.getMonth();
+        });
+    }, [filteredSalesByStore, currentDate]);
 
   // Previous Month Sales (Full Month - For Calendar Daily Average)
   const prevMonthSalesFull = useMemo(() => {
@@ -207,7 +210,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
         const dateKey = formatDateYMD(d);
         const displayDate = `${d.getMonth() + 1}/${d.getDate()}`;
 
-        const daySales = filteredSalesByStore.filter(s => s.date.startsWith(dateKey));
+        const daySales = filteredSalesByStore.filter(s => getSaleLocalDate(s) === dateKey && !s.isCanceled);
         
         const card = daySales.filter(s => s.paymentMethod === PaymentMethod.CARD).reduce((a, b) => a + b.totalAmount, 0);
         const cash = daySales.filter(s => s.paymentMethod === PaymentMethod.CASH).reduce((a, b) => a + b.totalAmount, 0);
@@ -267,23 +270,23 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
 
   const calendarDays = getDaysInMonth(currentDate);
 
-  const getDailyStats = (date: Date) => {
-    const dateString = formatDateYMD(date);
-    const daySales = filteredSalesByStore.filter(s => s.date.startsWith(dateString));
+    const getDailyStats = (date: Date) => {
+        const dateString = formatDateYMD(date);
+        const daySales = filteredSalesByStore.filter(s => getSaleLocalDate(s) === dateString && !s.isCanceled);
     
-    const revenue = daySales.reduce((sum, s) => sum + s.totalAmount, 0);
-    const cash = daySales.filter(s => s.paymentMethod === PaymentMethod.CASH).reduce((sum, s) => sum + s.totalAmount, 0);
-    const card = daySales.filter(s => s.paymentMethod === PaymentMethod.CARD).reduce((sum, s) => sum + s.totalAmount, 0);
-    const transfer = daySales.filter(s => s.paymentMethod === PaymentMethod.TRANSFER).reduce((sum, s) => sum + s.totalAmount, 0);
+        const revenue = daySales.reduce((sum, s) => sum + s.totalAmount, 0);
+        const cash = daySales.filter(s => s.paymentMethod === PaymentMethod.CASH).reduce((sum, s) => sum + s.totalAmount, 0);
+        const card = daySales.filter(s => s.paymentMethod === PaymentMethod.CARD).reduce((sum, s) => sum + s.totalAmount, 0);
+        const transfer = daySales.filter(s => s.paymentMethod === PaymentMethod.TRANSFER).reduce((sum, s) => sum + s.totalAmount, 0);
     
-    return { revenue, cash, card, transfer };
-  };
+        return { revenue, cash, card, transfer };
+    };
 
   // --- Staff Status Board Logic (Daily) ---
   
   // 1. Daily Sales
   const dailySales = useMemo(() => {
-      return filteredSalesByStore.filter(s => s.date.startsWith(boardDateStr));
+      return filteredSalesByStore.filter(s => getSaleLocalDate(s) === boardDateStr && !s.isCanceled);
   }, [filteredSalesByStore, boardDateStr]);
 
   // 2. Daily Stock In (For current store)
