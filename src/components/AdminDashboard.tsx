@@ -161,10 +161,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
   }, [announcements]);
 
   // Helper functions for tire classification
-  const normalizeCategory = (category?: string) => category === '부품/수리' ? '기타' : (category || '기타');
+  const normalizeCategory = (category?: string) => {
+    const trimmed = (category || '').trim();
+    if (!trimmed) return '기타';
+    if (trimmed === '부품/수리' || trimmed === '정비') return '정비';
+    return trimmed;
+  };
+
+  const REPAIR_CATEGORY_SET = new Set(['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너']);
+  const REPAIR_NAME_KEYWORDS = ['엔진오일', '브레이크오일', '브레이크패드', '브레이크 패드', '오일필터', '에어크리너'];
+
+  const isRepairLikeItem = (item: any, productCategory?: string) => {
+    if (REPAIR_CATEGORY_SET.has(normalizeCategory(item?.category))) return true;
+    if (REPAIR_CATEGORY_SET.has(normalizeCategory(productCategory))) return true;
+    const name = (item?.productName || '').replace(/\s+/g, '');
+    return REPAIR_NAME_KEYWORDS.some(keyword => name.includes(keyword.replace(/\s+/g, '')));
+  };
+
+  const isRentalItem = (item: any) => {
+    const pid = (item?.productId || '').toLowerCase();
+    if (pid.startsWith('rental-') || pid.startsWith('rental_') || pid.startsWith('rental')) return true;
+    if (
+      pid === 'rental-online' ||
+      pid === 'rental_online' ||
+      pid === 'rentalonline' ||
+      pid === 'rental-offline' ||
+      pid === 'rental_offline' ||
+      pid === 'rentaloffline'
+    ) return true;
+    const haystack = `${item?.productName || ''} ${item?.category || ''}`.toLowerCase().replace(/\s+/g, '');
+    const normalized = haystack.replace(/[^a-z0-9가-힣]/g, '');
+    return haystack.includes('온라인렌탈') || haystack.includes('onlinerental') || haystack.includes('오프라인렌탈') || haystack.includes('offlinerental') || normalized.includes('온라인렌탈') || normalized.includes('onlinerental') || normalized.includes('오프라인렌탈') || normalized.includes('offlinerental');
+  };
 
   const isTireItem = (item: any) => {
     const product = products.find(p => p.id === item.productId);
+    if (!item || isRentalItem(item)) return false;
     const productCategory = normalizeCategory(product?.category);
     const itemCategory = normalizeCategory(item?.category);
     const normalizedCategoryText = `${productCategory} ${itemCategory}`.replace(/\s+/g, '');
@@ -175,7 +207,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
 
     if (hasTireCategory) return true;
     if (hasUsedKeyword && hasTireSpec) return true;
-    return hasTireSpec;
+    if (hasTireSpec && !isRepairLikeItem(item, product?.category)) return true;
+    return false;
   };
 
   const hasTireSpecText = (text: string) => /\d{3}\s*[\/-]?\s*\d{2}\s*[A-Z]?\s*R?\s*\d{2}/i.test(text);
@@ -186,7 +219,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ sales, stores, staffLis
     if (qtySum > 0) return qtySum;
     if (tireItems.length > 0) return tireItems.length;
 
-    const fallbackItems = (items || []).filter(item => hasTireSpecText(`${item?.specification || ''} ${item?.productName || ''}`));
+    const fallbackItems = (items || []).filter(item => {
+      if (isRentalItem(item)) return false;
+      const specText = `${item?.specification || ''} ${item?.productName || ''}`;
+      return hasTireSpecText(specText) && !isRepairLikeItem(item, products.find(p => p.id === item.productId)?.category);
+    });
     const fallbackQtySum = fallbackItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
     return fallbackQtySum > 0 ? fallbackQtySum : fallbackItems.length;
   };

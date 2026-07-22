@@ -91,6 +91,71 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
 
     const getSaleLocalDate = (sale: Sale) => formatDateYMD(new Date(sale.date));
 
+  const normalizeCategory = (category?: string) => {
+    const trimmed = (category || '').trim();
+    if (!trimmed) return '기타';
+    if (trimmed === '부품/수리' || trimmed === '정비') return '정비';
+    return trimmed;
+  };
+
+  const REPAIR_CATEGORY_SET = new Set(['정비', '부품/수리', '브레이크패드', '오일필터', '엔진오일', '에어크리너']);
+  const REPAIR_NAME_KEYWORDS = ['엔진오일', '브레이크오일', '브레이크패드', '브레이크 패드', '오일필터', '에어크리너'];
+
+  const isRepairLikeItem = (item: any) => {
+    if (REPAIR_CATEGORY_SET.has(normalizeCategory(item?.category))) return true;
+    const name = (item?.productName || '').replace(/\s+/g, '');
+    return REPAIR_NAME_KEYWORDS.some(keyword => name.includes(keyword.replace(/\s+/g, '')));
+  };
+
+  const isRentalItem = (item: any) => {
+    const pid = (item?.productId || '').toLowerCase();
+    if (pid.startsWith('rental-') || pid.startsWith('rental_') || pid.startsWith('rental')) return true;
+    if (
+      pid === 'rental-online' ||
+      pid === 'rental_online' ||
+      pid === 'rentalonline' ||
+      pid === 'rental-offline' ||
+      pid === 'rental_offline' ||
+      pid === 'rentaloffline'
+    ) return true;
+    const haystack = `${item?.productName || ''} ${item?.category || ''}`.toLowerCase().replace(/\s+/g, '');
+    const normalized = haystack.replace(/[^a-z0-9가-힣]/g, '');
+    return haystack.includes('온라인렌탈') || haystack.includes('onlinerental') || haystack.includes('오프라인렌탈') || haystack.includes('offlinerental') || normalized.includes('온라인렌탈') || normalized.includes('onlinerental') || normalized.includes('오프라인렌탈') || normalized.includes('offlinerental');
+  };
+
+  const hasTireSpecText = (text: string) => /\d{3}\s*[\/-]?\s*\d{2}\s*[A-Z]?\s*R?\s*\d{2}/i.test(text);
+
+  const isTireItem = (item: any) => {
+    if (!item) return false;
+    if (isRentalItem(item)) return false;
+    const normalizedCategoryText = `${normalizeCategory(item?.category)} ${item?.productName || ''}`.replace(/\s+/g, '');
+    const hasTireCategory = normalizedCategoryText.includes('타이어');
+    const hasUsedKeyword = normalizedCategoryText.includes('중고');
+    const specSource = `${item?.specification || ''} ${item?.productName || ''}`;
+    const hasTireSpec = /\d{3}[\/]?\d{2}\s*R?\d{2}/i.test(specSource);
+
+    if (hasTireCategory) return true;
+    if (hasUsedKeyword && hasTireSpec) return true;
+    if (hasTireSpec && !isRepairLikeItem(item)) return true;
+    return false;
+  };
+
+  const getTireQuantityForSale = (sale: Sale) => {
+    const items = sale.items || [];
+    const tireItems = items.filter(item => isTireItem(item));
+    const qtySum = tireItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
+    if (qtySum > 0) return qtySum;
+    if (tireItems.length > 0) return tireItems.length;
+
+    const fallbackItems = items.filter(item => {
+      if (isRentalItem(item)) return false;
+      const specText = `${item?.specification || ''} ${item?.productName || ''}`;
+      return hasTireSpecText(specText) && !isRepairLikeItem(item);
+    });
+    const fallbackQtySum = fallbackItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
+    return fallbackQtySum > 0 ? fallbackQtySum : fallbackItems.length;
+  };
+
   const boardDateStr = formatDateYMD(boardDate);
 
   // Check if the displayed month is the current calendar month
@@ -110,6 +175,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
   // 2. Filter Sales based on Current Month (For Summary Cards - Admin)
   const monthlySales = useMemo(() => {
     return filteredSalesByStore.filter(s => {
+        if (s.isCanceled) return false;
         const d = new Date(s.date);
         return d.getFullYear() === currentDate.getFullYear() && 
                d.getMonth() === currentDate.getMonth();
@@ -206,7 +272,7 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
         const dateKey = formatDateYMD(d);
         const displayDate = `${d.getMonth() + 1}/${d.getDate()}`;
 
-        const daySales = filteredSalesByStore.filter(s => getSaleLocalDate(s) === dateKey);
+        const daySales = filteredSalesByStore.filter(s => getSaleLocalDate(s) === dateKey && !s.isCanceled);
         
         const card = daySales.filter(s => s.paymentMethod === PaymentMethod.CARD).reduce((a, b) => a + b.totalAmount, 0);
         const cash = daySales.filter(s => s.paymentMethod === PaymentMethod.CASH).reduce((a, b) => a + b.totalAmount, 0);
@@ -279,14 +345,14 @@ const Dashboard: React.FC<DashboardProps> = ({ sales, stores, onNavigateToHistor
     const transfer = daySales.filter(s => s.paymentMethod === PaymentMethod.TRANSFER).reduce((sum, s) => sum + s.totalAmount, 0);
     
     // Calculate total tire quantity sold
-    const tireQuantity = daySales.reduce((sum, s) => sum + (s.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0), 0);
+    const tireQuantity = daySales.reduce((sum, s) => sum + getTireQuantityForSale(s), 0);
     
     return { revenue, cash, card, transfer, tireQuantity };
   };
 
   // Calculate total tire quantity for the entire month
   const monthlyTireQuantity = useMemo(() => {
-    return monthlySales.reduce((sum, s) => sum + (s.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0), 0);
+    return monthlySales.reduce((sum, s) => sum + getTireQuantityForSale(s), 0);
   }, [monthlySales]);
 
   // --- Staff Status Board Logic (Daily) ---
